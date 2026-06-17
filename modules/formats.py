@@ -144,14 +144,16 @@ def match_format(raw_df, file_text, formats):
 def parse_with_format(raw_df, fmt, header_row, source, categorize_fn,
                       category_rules, progress_cb=None):
     """Apply a registry format's parse rules deterministically. Returns
-    (rows, skipped). progress_cb(done_rows, total_rows) is called periodically."""
+    (rows, skipped, statement_balance). statement_balance is the latest-dated
+    running balance when the format defines a balance_header, else None.
+    progress_cb(done_rows, total_rows) is called periodically."""
     sig = (fmt.get("match", {}) or {}).get("header_signature", [])
     if header_row is None:
         header_row, hdr_cells = find_header_row(raw_df, sig)
     else:
         hdr_cells = [_norm(v) for v in raw_df.iloc[header_row].tolist()]
     if header_row is None:
-        return [], 0
+        return [], 0, None
 
     p = fmt.get("parse", {}) or {}
     spec = {
@@ -162,8 +164,10 @@ def parse_with_format(raw_df, fmt, header_row, source, categorize_fn,
         "amount_col": _col_of(hdr_cells, p.get("amount_header")),
         "debit_col": _col_of(hdr_cells, p.get("debit_header")),
         "credit_col": _col_of(hdr_cells, p.get("credit_header")),
+        "balance_col": _col_of(hdr_cells, p.get("balance_header")),
         "spend_is_negative": p.get("spend_is_negative", True),
         "date_format": p.get("date_format"),
+        "exclude_keywords": p.get("exclude_keywords") or [],
     }
     return agent_parser._apply_spec(
         raw_df, spec, source, categorize_fn, category_rules, progress_cb=progress_cb

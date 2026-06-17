@@ -1,0 +1,7 @@
+[theme]
+# Calm, trustworthy finance palette.
+primaryColor = "#0F766E"             # deep teal-green — buttons, accents, links
+backgroundColor = "#FBFAF7"          # warm off-white, easier on the eyes than pure white
+secondaryBackgroundColor = "#F1F5F4" # soft slate-mint — cards, sidebar, inputs
+textColor = "#1F2937"                # slate-900, softer than pure black
+font = "sans serif"

@@ -5,10 +5,27 @@ machine except the anonymized summaries sent for AI insights (see ai_insights.py
 """
 
 import sqlite3
+from datetime import datetime, date
 from pathlib import Path
 from contextlib import contextmanager
 
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "finance.db"
+
+# Starter taxonomy seeded for a person with no categories yet. Income categories
+# come first so money-in is differentiated (salary vs reimbursement vs rewards)
+# instead of collapsing into a single bucket.
+_STARTER_CATEGORIES = [
+    ("Salary", "payroll, direct dep, salary, des:payroll"),
+    ("Reimbursement", "zelle payment from, venmo from, reimburs"),
+    ("Rewards & Interest", "cashreward, cash back, cash rewards, rewards, interest"),
+    ("Groceries", "whole foods, trader joe, key food, grocery, safeway, costco"),
+    ("Eating Out", "restaurant, cafe, coffee, grubhub, doordash, uber eats, bakery, bar"),
+    ("Transit", "mta, uber, lyft, path, transit, parking, nyct, ferry"),
+    ("Shopping", "amazon, target, walmart, best buy, store"),
+    ("Subscriptions", "apple.com/bill, netflix, spotify, hulu, verizon, at&t"),
+    ("Health & Fitness", "pharmacy, cvs, walgreens, gym, nysc, fitness, dental, doctor"),
+    ("Housing", "rent, mortgage, clickpay, proprtypay, hoa"),
+]
 
 
 @contextmanager
@@ -53,6 +70,7 @@ def init_db():
                 amount      REAL NOT NULL,          -- negative = spend, positive = income
                 category    TEXT DEFAULT 'Uncategorized',
                 source      TEXT DEFAULT '',        -- e.g. 'amazon', 'credit_card', 'bank'
+                included    INTEGER NOT NULL DEFAULT 1,  -- 0 = excluded from all calculations
                 FOREIGN KEY(person_id) REFERENCES people(id)
             );
 
@@ -77,17 +95,58 @@ def init_db():
                 horizon       TEXT DEFAULT 'short',  -- 'short' or 'long'
                 notes         TEXT DEFAULT ''
             );
+
+            -- Net-worth ledger (Wave 2). Decoupled from transactions: an account's
+            -- balance is a POSITIVE magnitude; is_asset decides whether it adds to
+            -- or subtracts from net worth, never the sign of balance.
+            CREATE TABLE IF NOT EXISTS accounts (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                person_id   INTEGER,               -- NULL = shared/household
+                name        TEXT NOT NULL,
+                kind        TEXT NOT NULL,          -- checking|savings|credit_card|investment|property|loan|other
+                is_asset    INTEGER NOT NULL,       -- 1 = asset, 0 = liability
+                balance     REAL NOT NULL DEFAULT 0,
+                updated_at  TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS balance_snapshots (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_id  INTEGER NOT NULL,
+                date        TEXT NOT NULL,          -- ISO YYYY-MM-DD
+                balance     REAL NOT NULL,          -- positive magnitude, like accounts.balance
+                UNIQUE(account_id, date)            -- one snapshot per account per day (upsert)
+            );
             """
         )
         # Seed the two members once.
         for name in ("You", "Spouse"):
             c.execute("INSERT OR IGNORE INTO people(name) VALUES (?)", (name,))
 
+        # Seed a starter category taxonomy for any person who has none yet, so
+        # income isn't one undifferentiated bucket and first imports auto-tag.
+        # Only seeds when empty, so it never clobbers the user's edits.
+        for (person_id,) in c.execute("SELECT id FROM people").fetchall():
+            has = c.execute(
+                "SELECT COUNT(*) FROM categories WHERE person_id=?", (person_id,)
+            ).fetchone()[0]
+            if not has:
+                for name, kws in _STARTER_CATEGORIES:
+                    c.execute(
+                        "INSERT OR IGNORE INTO categories(person_id, name, keywords) "
+                        "VALUES (?,?,?)", (person_id, name, kws))
+
         # Migration: link each transaction to the file it was imported from
         # (added after the first releases, so older DBs lack the column).
         cols = [r[1] for r in c.execute("PRAGMA table_info(transactions)")]
         if "file_hash" not in cols:
             c.execute("ALTER TABLE transactions ADD COLUMN file_hash TEXT")
+        # Migration: per-row "counts toward calculations" flag. Detected internal
+        # transfers (e.g. credit-card payments) are stored with included=0; older
+        # rows default to 1 so existing totals are unchanged.
+        if "included" not in cols:
+            c.execute(
+                "ALTER TABLE transactions ADD COLUMN included INTEGER NOT NULL DEFAULT 1"
+            )
 
 
 # ---- people ---------------------------------------------------------------
@@ -105,15 +164,27 @@ def rename_person(person_id, new_name):
 # ---- transactions ---------------------------------------------------------
 
 def add_transactions(person_id, rows, file_hash=None):
-    """rows: list of dicts with keys date, description, amount, category, source.
-    file_hash links every row to the imported file (see imported_files)."""
+    """rows: list of dicts with keys date, description, amount, category, source,
+    and optional included (defaults to 1). file_hash links every row to the
+    imported file (see imported_files)."""
     with get_conn() as conn:
         conn.executemany(
             """INSERT INTO transactions
-               (person_id, date, description, amount, category, source, file_hash)
+               (person_id, date, description, amount, category, source,
+                file_hash, included)
                VALUES (:person_id, :date, :description, :amount, :category,
-                       :source, :file_hash)""",
-            [{"person_id": person_id, "file_hash": file_hash, **r} for r in rows],
+                       :source, :file_hash, :included)""",
+            [{**r, "person_id": person_id, "file_hash": file_hash,
+              "included": int(r.get("included", 1))} for r in rows],
+        )
+
+
+def set_transaction_included(txn_id, included):
+    """Toggle whether a single transaction counts toward calculations."""
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE transactions SET included=? WHERE id=?",
+            (int(bool(included)), txn_id),
         )
 
 
@@ -269,6 +340,82 @@ def update_goal_saved(goal_id, saved_amount):
 def delete_goal(goal_id):
     with get_conn() as conn:
         conn.execute("DELETE FROM goals WHERE id=?", (goal_id,))
+
+
+# ---- accounts / net worth -------------------------------------------------
+
+def add_account(person_id, name, kind, is_asset, balance):
+    """Create an account and write an initial snapshot dated today. Returns id."""
+    now = datetime.now().isoformat(timespec="seconds")
+    with get_conn() as conn:
+        cur = conn.execute(
+            """INSERT INTO accounts(person_id, name, kind, is_asset, balance, updated_at)
+               VALUES (?,?,?,?,?,?)""",
+            (person_id, name, kind, int(bool(is_asset)), float(balance), now),
+        )
+        aid = cur.lastrowid
+        conn.execute(
+            """INSERT INTO balance_snapshots(account_id, date, balance) VALUES (?,?,?)
+               ON CONFLICT(account_id, date) DO UPDATE SET balance=excluded.balance""",
+            (aid, date.today().isoformat(), float(balance)),
+        )
+        return aid
+
+
+def list_accounts(person_id="all"):
+    """person_id: int for one person, None for shared, 'all' for the household."""
+    with get_conn() as conn:
+        if person_id == "all":
+            rows = conn.execute("SELECT * FROM accounts ORDER BY is_asset DESC, name")
+        elif person_id is None:
+            rows = conn.execute(
+                "SELECT * FROM accounts WHERE person_id IS NULL ORDER BY name")
+        else:
+            rows = conn.execute(
+                "SELECT * FROM accounts WHERE person_id=? ORDER BY name", (person_id,))
+        return [dict(r) for r in rows]
+
+
+def write_snapshot(account_id, snap_date, balance):
+    """Upsert one snapshot (UNIQUE per account+day; same day overwrites)."""
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO balance_snapshots(account_id, date, balance) VALUES (?,?,?)
+               ON CONFLICT(account_id, date) DO UPDATE SET balance=excluded.balance""",
+            (account_id, snap_date, float(balance)),
+        )
+
+
+def update_account_balance(account_id, balance, snapshot_date=None):
+    """Set the current balance and record a snapshot (today unless a date given,
+    e.g. a statement's ending-balance date)."""
+    now = datetime.now().isoformat(timespec="seconds")
+    with get_conn() as conn:
+        conn.execute("UPDATE accounts SET balance=?, updated_at=? WHERE id=?",
+                     (float(balance), now, account_id))
+    write_snapshot(account_id, snapshot_date or date.today().isoformat(), balance)
+
+
+def delete_account(account_id):
+    """Delete an account and its snapshots (cascade in app logic)."""
+    with get_conn() as conn:
+        conn.execute("DELETE FROM balance_snapshots WHERE account_id=?", (account_id,))
+        conn.execute("DELETE FROM accounts WHERE id=?", (account_id,))
+
+
+def get_snapshots(person_id="all"):
+    """Snapshots tagged with their account's is_asset (and person_id), scoped by
+    view. Feeds analytics.net_worth_trend, which needs is_asset per snapshot."""
+    q = ("SELECT s.account_id, s.date, s.balance, a.is_asset, a.person_id "
+         "FROM balance_snapshots s JOIN accounts a ON a.id=s.account_id")
+    with get_conn() as conn:
+        if person_id == "all":
+            rows = conn.execute(q + " ORDER BY s.date")
+        elif person_id is None:
+            rows = conn.execute(q + " WHERE a.person_id IS NULL ORDER BY s.date")
+        else:
+            rows = conn.execute(q + " WHERE a.person_id=? ORDER BY s.date", (person_id,))
+        return [dict(r) for r in rows]
 
 
 def get_uncategorized_descriptions(person_id):

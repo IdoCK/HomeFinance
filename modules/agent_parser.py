@@ -28,6 +28,9 @@ import pandas as pd
 
 OLLAMA_URL = "http://localhost:11434/api/chat"
 DEFAULT_MODEL = "qwen2.5"
+# Descriptions per categorization request. Kept small so each call finishes well
+# under the per-request timeout even on slower (CPU-only) machines.
+CATEGORIZE_BATCH = 8
 
 
 def _post_chat_json(payload, timeout=120, attempts=3):
@@ -211,8 +214,14 @@ def _apply_spec(raw_df, spec, source, categorize_fn, category_rules,
     amount_col = spec.get("amount_col")
     debit_col = spec.get("debit_col")
     credit_col = spec.get("credit_col")
+    balance_col = spec.get("balance_col")  # optional running-balance column
     spend_neg = spec.get("spend_is_negative", True)
     date_fmt = spec.get("date_format")
+    # Description fragments for internal transfers (e.g. paying the credit-card
+    # bill from checking). These are not spend or income — and importing both a
+    # bank and a card statement records the same transfer on each, so counting
+    # them would double-count. Dropped like summary rows.
+    exclude = [k.lower() for k in (spec.get("exclude_keywords") or []) if k]
 
     # Repair a common misclassification: the model labels a single SIGNED amount
     # column as debit_col (or credit_col) with the other side null. Forcing such
@@ -234,6 +243,7 @@ def _apply_spec(raw_df, spec, source, categorize_fn, category_rules,
     )
 
     rows, skipped = [], 0
+    statement_balance = None  # latest-dated running balance, if balance_col is set
     total_rows = max(len(raw_df) - start, 0)
     # Report progress ~every 1% of rows (min 1, max 50) to stay responsive on
     # big files without re-rendering on every single row of small ones.
@@ -249,6 +259,11 @@ def _apply_spec(raw_df, spec, source, categorize_fn, category_rules,
         if _is_summary_row(desc_cell):
             skipped += 1
             continue
+
+        # --- flag internal transfers (credit-card payments, etc.): keep the row
+        # but mark it excluded from calculations so the user still sees it
+        # (dimmed) and can re-include it.
+        is_excluded = bool(exclude) and any(k in desc_cell.lower() for k in exclude)
 
         # --- date
         try:
@@ -285,6 +300,14 @@ def _apply_spec(raw_df, spec, source, categorize_fn, category_rules,
         if source == "amazon" and amt > 0:
             amt = -amt
 
+        # --- running balance (optional): remember the latest-dated one. Dates are
+        # ISO strings, so a string compare orders them. Not stored on the row.
+        if balance_col is not None:
+            bval = _clean_amount(r[balance_col])
+            if bval is not None and (statement_balance is None
+                                     or date > statement_balance["date"]):
+                statement_balance = {"amount": bval, "date": date}
+
         desc = desc_cell
         rows.append({
             "date": date,
@@ -292,10 +315,11 @@ def _apply_spec(raw_df, spec, source, categorize_fn, category_rules,
             "amount": amt,
             "category": categorize_fn(desc, category_rules),
             "source": source,
+            "included": not is_excluded,
         })
     if progress_cb:
         progress_cb(total_rows, total_rows)
-    return rows, skipped
+    return rows, skipped, statement_balance
 
 
 def parse_file_with_agent(file_bytes, filename, source, categorize_fn,
@@ -312,7 +336,7 @@ def parse_file_with_agent(file_bytes, filename, source, categorize_fn,
 
     sample = _sample_text(raw_df)
     spec = _call_ollama(model, sample, filename)
-    rows, skipped = _apply_spec(raw_df, spec, source, categorize_fn, category_rules)
+    rows, skipped, _ = _apply_spec(raw_df, spec, source, categorize_fn, category_rules)
 
     # The keyword rules above only tag descriptions that literally contain a
     # configured keyword. For everything still Uncategorized, ask the local
@@ -430,7 +454,7 @@ CATEGORIZE_SYSTEM = (
 
 
 def categorize_with_agent(descriptions, category_names, model=DEFAULT_MODEL,
-                          batch_size=20, attempts=3, timeout=120,
+                          batch_size=CATEGORIZE_BATCH, attempts=3, timeout=180,
                           progress_cb=None):
     """Use the LOCAL model to map merchant names -> categories.
 
