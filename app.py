@@ -39,9 +39,56 @@ view = st.sidebar.radio(
     label_visibility="collapsed",
 )
 st.sidebar.divider()
+with st.sidebar.popover("⚙️ Manage people"):
+    st.caption("Rename a household member. Their data, goals, and accounts move "
+               "with the name.")
+    for _p in people:
+        with st.form(f"rename::{_p['id']}"):
+            _new = st.text_input(f"Name for {_p['name']}", value=_p["name"],
+                                 key=f"rn::{_p['id']}")
+            if st.form_submit_button("Rename"):
+                _new = (_new or "").strip()
+                if not _new:
+                    st.warning("Name can't be blank.")
+                elif _new == _p["name"]:
+                    st.info("That's already the name.")
+                elif _new in {q["name"] for q in people if q["id"] != _p["id"]}:
+                    st.warning("The other member already uses that name.")
+                else:
+                    db.rename_person(_p["id"], _new)
+                    st.toast(f"Renamed to {_new}.", icon="✏️")
+                    st.rerun()
 with st.sidebar.popover("🔒 Privacy"):
     st.write("Local-only. Your data never leaves this machine except the "
              "anonymized aggregates you choose to send for AI insights.")
+
+
+def _danger_button(label, message, action, *, key, confirm_label="Yes, delete",
+                   help=None):
+    """A destructive button guarded by a confirmation dialog. Clicking it opens an
+    st.dialog; the `action` callback runs only after the user confirms. A pending
+    flag in session_state keeps the dialog open across the confirm/cancel reruns.
+    Returns True on the run where the action actually fired."""
+    state_key = f"_confirm::{key}"
+    if st.button(label, key=key, help=help):
+        st.session_state[state_key] = True
+    fired = False
+    if st.session_state.get(state_key):
+        @st.dialog("Please confirm")
+        def _dlg():
+            nonlocal fired
+            st.warning(message)
+            c1, c2 = st.columns(2)
+            if c1.button(confirm_label, type="primary", key=f"{key}::yes"):
+                action()
+                st.session_state.pop(state_key, None)
+                fired = True
+                st.rerun()
+            if c2.button("Cancel", key=f"{key}::no"):
+                st.session_state.pop(state_key, None)
+                st.rerun()
+        _dlg()
+    return fired
 
 
 def person_id_for_view(view):
@@ -351,11 +398,18 @@ def _manage_files_section(view, pid):
             c1, c2, c3 = st.columns([5, 2, 1])
             c1.write(label)
             c2.caption(f"{imp['live_count']}/{imp['count']} rows · {imp['imported_at']}")
-            if c3.button("Delete", key=f"delimp::{imp['person_id']}::{imp['file_hash']}",
-                         help="Remove this file's transactions and its import record"):
-                n = db.delete_import(imp["person_id"], imp["file_hash"])
-                st.toast(f"Deleted {n} transaction(s) from {imp['filename']}.", icon="🗑️")
-                st.rerun()
+            def _del_import(im=imp):
+                n = db.delete_import(im["person_id"], im["file_hash"])
+                st.toast(f"Deleted {n} transaction(s) from {im['filename']}.", icon="🗑️")
+            with c3:
+                _danger_button(
+                    "Delete",
+                    f"Remove **{imp['filename']}** and its "
+                    f"{imp['live_count']} transaction(s)? This can't be undone "
+                    "(you can re-import the file).",
+                    _del_import,
+                    key=f"delimp::{imp['person_id']}::{imp['file_hash']}",
+                    help="Remove this file's transactions and its import record")
     else:
         st.caption("No tracked imported files yet. Files you import from now on "
                    "appear here and can be deleted individually.")
@@ -1313,9 +1367,14 @@ with tab_import:
                 st.rerun()
 
         st.divider()
-        if txns and st.button("⚠️ Clear all of this person's transactions"):
-            db.clear_transactions(pid)
-            st.rerun()
+        if txns:
+            _danger_button(
+                "⚠️ Clear all of this person's transactions",
+                f"This permanently deletes **all {len(txns)} transactions** for "
+                f"**{view}**. This cannot be undone.",
+                lambda: db.clear_transactions(pid),
+                key="clearall",
+                confirm_label="Yes, delete everything")
 
     with st.expander("🗂️ Manage imported files"):
         _manage_files_section(view, pid)
@@ -1585,9 +1644,12 @@ with tab_networth:
                             st.rerun()
 
                         st.divider()
-                        if st.button("🗑️ Delete account", key=f"acctdel{a['id']}"):
-                            db.delete_account(a["id"])
-                            st.rerun()
+                        _danger_button(
+                            "🗑️ Delete account",
+                            f"Delete the account **{a['name']}** and its balance "
+                            "history? This can't be undone.",
+                            lambda aid=a["id"]: db.delete_account(aid),
+                            key=f"acctdel{a['id']}")
 
                 # -- per-account balance history (month-end points)
                 snaps = db.account_snapshots(a["id"])
