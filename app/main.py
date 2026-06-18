@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from modules import database as db
+from app.api import people
 
 DIST_DIR = Path(__file__).resolve().parent.parent / "web" / "dist"
 
@@ -30,6 +31,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(health, prefix="/api")
+    app.include_router(people.router, prefix="/api")
 
     # Production: serve the built SPA from web/dist when it exists. Absent in dev.
     if DIST_DIR.is_dir():
