@@ -310,13 +310,26 @@ def _with_dates(df):
 
 
 def event_mask(df, event):
-    """Boolean Series selecting df rows belonging to `event` (window or recurring)."""
-    if event.get("kind") == "window":
+    """Boolean Series selecting df rows belonging to `event`.
+
+    Kinds: 'window' (a date range), 'recurring' (a day rule), or 'tagged' (no
+    date predicate of its own). For ANY kind, transactions explicitly tagged to
+    the event via `event['ids']` are also included (union) — so a window event
+    can pick up a straggler dated just outside it."""
+    kind = event.get("kind")
+    if kind == "window":
         start = pd.to_datetime(event.get("start_date"))
         end = pd.to_datetime(event.get("end_date"))
-        return (df["date"] >= start) & (df["date"] <= end)
-    rule = _rule_of(event)
-    return df["date"].apply(lambda d: _day_matches_rule(d, rule))
+        mask = (df["date"] >= start) & (df["date"] <= end)
+    elif kind == "tagged":
+        mask = pd.Series(False, index=df.index)
+    else:
+        rule = _rule_of(event)
+        mask = df["date"].apply(lambda d: _day_matches_rule(d, rule))
+    ids = event.get("ids")
+    if ids and "id" in df.columns:
+        mask = mask | df["id"].isin(set(ids))
+    return mask
 
 
 def filter_transactions(txns, *, day_types=None, dow=None, date_range=None,
