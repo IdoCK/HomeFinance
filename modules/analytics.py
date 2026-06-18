@@ -221,6 +221,41 @@ def month_end_balances(transactions):
             for m in sorted(bymonth)]
 
 
+def reconcile(rows):
+    """Tie out a bank statement against its running-balance column.
+
+    `rows` are transaction dicts carrying 'amount' and (for bank feeds) a running
+    'balance'. We sort by date (stable, so same-day rows keep statement order),
+    take the opening balance as `first.balance - first.amount`, and check that
+    opening + Σ(all amounts) lands on the last row's balance. Σ is order-
+    independent, so this is robust to forward- or reverse-chronological exports.
+
+    Returns None when fewer than two rows carry a balance (e.g. a credit-card
+    feed has no running balance to reconcile). Otherwise a dict:
+    {ok, begin, end, sum_amounts, computed_end, discrepancy, n, chain_breaks}."""
+    bal = [r for r in rows
+           if r.get("balance") is not None and r.get("amount") is not None]
+    if len(bal) < 2:
+        return None
+    bal = sorted(bal, key=lambda r: r["date"])      # stable: keeps intra-day order
+    amounts = [float(r["amount"]) for r in bal]
+    balances = [float(r["balance"]) for r in bal]
+    begin = balances[0] - amounts[0]
+    end = balances[-1]
+    total = sum(amounts)
+    computed_end = begin + total
+    discrepancy = round(end - computed_end, 2)
+    # Count rows where the running balance doesn't equal the prior balance plus
+    # this row's amount — points at where a statement stops tying out.
+    chain_breaks = sum(
+        1 for i in range(1, len(bal))
+        if abs(balances[i] - (balances[i - 1] + amounts[i])) >= 0.01)
+    return {"ok": abs(discrepancy) < 0.01, "begin": round(begin, 2),
+            "end": round(end, 2), "sum_amounts": round(total, 2),
+            "computed_end": round(computed_end, 2), "discrepancy": discrepancy,
+            "n": len(bal), "chain_breaks": chain_breaks}
+
+
 def net_worth_trend(snapshots):
     """Step-series DataFrame[date, assets, liabilities, net] over every date that
     has a snapshot. Each account contributes its most-recent snapshot on or
