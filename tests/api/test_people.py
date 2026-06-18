@@ -13,3 +13,17 @@ def test_rename_person(client, people):
     assert r.status_code == 200
     assert r.json() == {"id": pid, "name": "Avi"}
     assert any(p["name"] == "Avi" for p in client.get("/api/people").json())
+
+
+def test_rename_to_duplicate_name_returns_409(client, people):
+    # Rename people[0] to people[1]'s current name (should fail with 409)
+    pid_0 = people[0]["id"]
+    existing_name = people[1]["name"]  # "Spouse"
+    r = client.patch(f"/api/people/{pid_0}", json={"name": existing_name})
+    assert r.status_code == 409
+    assert "name already in use" in r.json()["detail"].lower()
+
+
+def test_rename_missing_person_returns_404(client):
+    r = client.patch("/api/people/999999", json={"name": "X"})
+    assert r.status_code == 404
