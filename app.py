@@ -762,6 +762,36 @@ with tab_dash:
             _editable_txn_table(shown, f"txntable::{view}::{pick_file}",
                                 _view_category_names(view))
 
+        # --- Possible internal transfers: equal in/out pairs that net to zero
+        #     (money moved between accounts or partners). Offer to exclude both.
+        live_pairs = [p for p in analytics.find_transfer_pairs(txns)
+                      if p["both_included"]]
+        if live_pairs:
+            with st.container(border=True):
+                st.subheader("🔁 Possible transfers")
+                st.caption("Equal in/out pairs that look like money moved between "
+                           "accounts or people — not real spend or income. Exclude "
+                           "both sides so they don't distort totals.")
+                if st.button("Exclude all (both sides)", key=f"xferall::{view}"):
+                    for p in live_pairs:
+                        db.set_transaction_included(p["out_id"], False)
+                        db.set_transaction_included(p["in_id"], False)
+                    st.toast(f"Excluded {len(live_pairs)} transfer pair(s).", icon="🔁")
+                    st.rerun()
+                for p in live_pairs:
+                    who = ""
+                    if p["cross_person"]:
+                        who = (f"  ·  {id_to_name.get(p['out_person'], '?')} → "
+                               f"{id_to_name.get(p['in_person'], '?')}")
+                    c1, c2 = st.columns([5, 1])
+                    c1.markdown(
+                        f"**${p['amount']:,.2f}**{who}  —  out _{p['out_desc'][:36]}_ "
+                        f"({p['out_date']}) ↔ in _{p['in_desc'][:36]}_ ({p['in_date']})")
+                    if c2.button("Exclude", key=f"xfer::{p['out_id']}::{p['in_id']}"):
+                        db.set_transaction_included(p["out_id"], False)
+                        db.set_transaction_included(p["in_id"], False)
+                        st.rerun()
+
 # ---------------------------------------------------------------- ANALYSIS
 with tab_analysis:
     if not txns:
