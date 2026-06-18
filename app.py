@@ -344,6 +344,88 @@ def _vendor_manager(view, key_prefix):
             st.rerun()
 
 
+def _events_for_view(view):
+    """User events available in the view: a person sees their own plus household
+    events; the Household view sees everyone's."""
+    return db.list_events("all" if view == "Household" else name_to_id[view])
+
+
+def _event_filter_obj(ev_row):
+    """Turn a stored event row into the dict analytics.event_mask expects, with
+    any explicitly-tagged transaction ids attached."""
+    return {**ev_row, "ids": db.event_transaction_ids(ev_row["id"])}
+
+
+def _event_manager(view, view_txns):
+    """Create / delete events and tag specific transactions. New events belong to
+    the active person, or the household when viewing Household."""
+    owner = person_id_for_view(view)
+    with st.form(f"addevent::{view}"):
+        st.caption("Name a period to slice spending by — a **window** (a trip, "
+                   "sick days), a **recurring** rule (paydays, a birthday), or a "
+                   "**tagged** set you pick by hand.")
+        name = st.text_input("Event name", placeholder="Italy trip")
+        kind = st.radio("Type", ["Window", "Recurring", "Tagged"], horizontal=True)
+        c1, c2 = st.columns(2)
+        start = c1.date_input("Start", key=f"evstart::{view}")
+        end = c2.date_input("End", key=f"evend::{view}")
+        rec_mode = st.radio("Recurring on", ["Days of week", "Days of month",
+                            "Annual date"], horizontal=True, key=f"evrec::{view}")
+        dows = st.multiselect("Days of week", analytics.DOW_NAMES, key=f"evdow::{view}")
+        doms = st.multiselect("Days of month", list(range(1, 32)), key=f"evdom::{view}")
+        annual = st.date_input("Annual date", key=f"evann::{view}")
+        if st.form_submit_button("Create event") and name.strip():
+            if kind == "Window":
+                db.create_event(owner, name.strip(), "window",
+                                start.isoformat(), end.isoformat())
+            elif kind == "Tagged":
+                db.create_event(owner, name.strip(), "tagged")
+            else:
+                if rec_mode == "Days of week":
+                    rule = {"dow": [analytics.DOW_NAMES.index(d) for d in dows]}
+                elif rec_mode == "Days of month":
+                    rule = {"day_of_month": [int(d) for d in doms]}
+                else:
+                    rule = {"month_day": [f"{annual.month:02d}-{annual.day:02d}"]}
+                db.create_event(owner, name.strip(), "recurring", rule=rule)
+            st.toast(f"Created event '{name.strip()}'.", icon="🗓️")
+            st.rerun()
+
+    events = _events_for_view(view)
+    if not events:
+        st.caption("No events yet.")
+        return
+    # Label transactions for the tagging multiselect.
+    label_to_id, id_to_label = {}, {}
+    for t in view_txns:
+        lbl = f"{t['date']} · {t['description'][:32]} · ${t['amount']:,.0f}"
+        if lbl in label_to_id:                      # disambiguate identical labels
+            lbl += f" (#{t['id']})"
+        label_to_id[lbl] = t["id"]
+        id_to_label[t["id"]] = lbl
+    for e in events:
+        with st.container(border=True):
+            top, dele = st.columns([5, 1])
+            detail = e["kind"]
+            if e["kind"] == "window":
+                detail += f" · {e['start_date']} → {e['end_date']}"
+            elif e["kind"] == "recurring":
+                detail += f" · {e['rule']}"
+            top.markdown(f"**{e['name']}** — _{detail}_")
+            if dele.button("Delete", key=f"delevent{e['id']}"):
+                db.delete_event(e["id"])
+                st.rerun()
+            tagged = set(db.event_transaction_ids(e["id"]))
+            default = [id_to_label[i] for i in tagged if i in id_to_label]
+            picked = st.multiselect(
+                "Tag specific transactions (unions with the rule above)",
+                list(label_to_id), default=default, key=f"evtag{e['id']}::{view}")
+            if st.button("Save tags", key=f"evtagsave{e['id']}::{view}"):
+                db.set_event_tags(e["id"], [label_to_id[p] for p in picked])
+                st.toast("Tags saved.", icon="🏷️")
+                st.rerun()
+
+
 def _editable_txn_table(rows, key, cat_options):
     """Editable table over PERSISTED transactions (each row dict has an 'id'):
     pick Category from a dropdown and toggle Include. Edits persist to the DB and
@@ -812,8 +894,10 @@ with tab_analysis:
             dr = fc1.date_input("Date range", value=(dmin, dmax),
                                 min_value=dmin, max_value=dmax, key="an_dr")
             daytype = fc2.radio("Days", ["All", "Weekdays", "Weekends"], key="an_daytype")
-            ev_choice = fc3.selectbox("Event", ["(none)", "Workdays", "Weekends"],
-                                      key="an_event")
+            _ev_rows = {e["name"]: e for e in _events_for_view(view)}
+            ev_choice = fc3.selectbox(
+                "Event", ["(none)", "Workdays", "Weekends"] + list(_ev_rows),
+                key="an_event")
             dow_sel = st.multiselect("Specific days of week", analytics.DOW_NAMES,
                                      key="an_dow")
             all_months = sorted({t["date"][:7] for t in txns})
@@ -838,9 +922,14 @@ with tab_analysis:
             kw["event"] = analytics.WORKDAYS
         elif ev_choice == "Weekends":
             kw["event"] = analytics.WEEKENDS
+        elif ev_choice in _ev_rows:
+            kw["event"] = _event_filter_obj(_ev_rows[ev_choice])
         if cat_sel:
             kw["categories"] = cat_sel
         fsel = analytics.filter_transactions(txns, **kw)
+
+        with st.expander("🗓️ Manage events — windows, recurring rules, tags"):
+            _event_manager(view, txns)
 
         if not fsel and mode != "Recurring":
             st.warning("No transactions match these filters.")

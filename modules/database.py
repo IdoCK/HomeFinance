@@ -4,6 +4,7 @@ All data lives in a single local file (data/finance.db). Nothing leaves the
 machine except the anonymized summaries sent for AI insights (see ai_insights.py).
 """
 
+import json
 import sqlite3
 from datetime import datetime, date
 from pathlib import Path
@@ -154,6 +155,31 @@ def init_db():
                 keywords  TEXT DEFAULT '',
                 UNIQUE(person_id, name),
                 FOREIGN KEY(person_id) REFERENCES people(id)
+            );
+
+            -- User-defined events to slice spending by (Analysis filter). person_id
+            -- NULL = household. kind: 'window' (start_date..end_date, e.g. a trip),
+            -- 'recurring' (rule JSON of dow / day_of_month / month_day, e.g. paydays,
+            -- birthdays), or 'tagged' (membership only via transaction_tags).
+            CREATE TABLE IF NOT EXISTS events (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                person_id  INTEGER,
+                name       TEXT NOT NULL,
+                kind       TEXT NOT NULL,
+                start_date TEXT,
+                end_date   TEXT,
+                rule       TEXT,
+                FOREIGN KEY(person_id) REFERENCES people(id)
+            );
+
+            -- Explicit membership of a transaction in an event (unions with the
+            -- event's date predicate, so you can add stragglers outside a window).
+            CREATE TABLE IF NOT EXISTS transaction_tags (
+                transaction_id INTEGER NOT NULL,
+                event_id       INTEGER NOT NULL,
+                UNIQUE(transaction_id, event_id),
+                FOREIGN KEY(transaction_id) REFERENCES transactions(id),
+                FOREIGN KEY(event_id) REFERENCES events(id)
             );
             """
         )
@@ -447,6 +473,60 @@ def set_budget(person_id, category, amount):
 def delete_budget(budget_id):
     with get_conn() as conn:
         conn.execute("DELETE FROM budgets WHERE id=?", (budget_id,))
+
+
+# ---- events & transaction tags --------------------------------------------
+
+def create_event(person_id, name, kind, start_date=None, end_date=None, rule=None):
+    """Create an event. `rule` may be a dict (stored as JSON) or a JSON string.
+    Returns the new event id."""
+    if isinstance(rule, (dict, list)):
+        rule = json.dumps(rule)
+    with get_conn() as conn:
+        cur = conn.execute(
+            """INSERT INTO events(person_id, name, kind, start_date, end_date, rule)
+               VALUES (?,?,?,?,?,?)""",
+            (person_id, name, kind, start_date, end_date, rule))
+        return cur.lastrowid
+
+
+def list_events(scope="all"):
+    """Events for a scope: 'all' = everyone + household, None = household only,
+    an int = that person's events plus household (person_id NULL)."""
+    with get_conn() as conn:
+        if scope == "all":
+            rows = conn.execute("SELECT * FROM events ORDER BY name")
+        elif scope is None:
+            rows = conn.execute(
+                "SELECT * FROM events WHERE person_id IS NULL ORDER BY name")
+        else:
+            rows = conn.execute(
+                "SELECT * FROM events WHERE person_id=? OR person_id IS NULL "
+                "ORDER BY name", (scope,))
+        return [dict(r) for r in rows]
+
+
+def delete_event(event_id):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM transaction_tags WHERE event_id=?", (event_id,))
+        conn.execute("DELETE FROM events WHERE id=?", (event_id,))
+
+
+def event_transaction_ids(event_id):
+    """Transaction ids explicitly tagged to an event."""
+    with get_conn() as conn:
+        return [r["transaction_id"] for r in conn.execute(
+            "SELECT transaction_id FROM transaction_tags WHERE event_id=?",
+            (event_id,))]
+
+
+def set_event_tags(event_id, transaction_ids):
+    """Replace an event's explicit transaction membership with `transaction_ids`."""
+    with get_conn() as conn:
+        conn.execute("DELETE FROM transaction_tags WHERE event_id=?", (event_id,))
+        conn.executemany(
+            "INSERT OR IGNORE INTO transaction_tags(transaction_id, event_id) "
+            "VALUES (?,?)", [(int(t), event_id) for t in transaction_ids])
 
 
 # ---- goals ----------------------------------------------------------------
