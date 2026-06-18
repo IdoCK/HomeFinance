@@ -245,6 +245,31 @@ def _view_vendor_rules(view):
     return rules
 
 
+def _view_category_parents(view):
+    """{category_name: parent_name} for the view. In the Household view the two
+    people's maps are merged; a category keeps the first non-empty parent seen."""
+    if view != "Household":
+        return db.category_parents(name_to_id[view])
+    merged = {}
+    for p in name_to_id.values():
+        for cat, parent in db.category_parents(p).items():
+            if parent or cat not in merged:
+                merged[cat] = parent
+    return merged
+
+
+def _view_budgets(view):
+    """Budget rows [{category, amount}] for the view. In the Household view each
+    person's budgets are summed per category so the pacing reflects joint spend."""
+    if view != "Household":
+        return db.get_budgets(name_to_id[view])
+    totals = {}
+    for p in name_to_id.values():
+        for b in db.get_budgets(p):
+            totals[b["category"]] = totals.get(b["category"], 0.0) + float(b["amount"] or 0)
+    return [{"category": c, "amount": a} for c, a in totals.items()]
+
+
 def _vendor_manager(view, key_prefix):
     """Add / edit / delete vendor groups for the current person. Shared by the
     Categories tab and the Analysis drill-down. Vendor groups collapse merchant
@@ -354,6 +379,32 @@ def _manage_files_section(view, pid):
             st.rerun()
 
 
+def _budgets_card(view, view_txns):
+    """Dashboard 'this month's budgets' card: a pace bar per budget showing spend
+    so far against the pro-rated target for today, plus a straight-line month-end
+    projection (analytics.budget_status). Renders nothing if no budgets are set."""
+    budgets = [b for b in _view_budgets(view) if float(b["amount"] or 0) > 0]
+    if not budgets:
+        return
+    rows = analytics.budget_status(view_txns, budgets, _view_category_parents(view))
+    rows = [r for r in rows if r["budget"] > 0]
+    if not rows:
+        return
+    rows.sort(key=lambda r: r["pct"], reverse=True)
+    icon = {"on_track": "🟢", "ahead": "🟡", "over": "🔴"}
+    with st.container(border=True):
+        st.subheader("This month's budgets")
+        st.caption("Spend vs a straight-line target for today. "
+                   "🟢 on track · 🟡 ahead of pace · 🔴 over budget. "
+                   "Set budgets in the 🏷️ Categories tab.")
+        for r in rows:
+            st.markdown(
+                f"{icon.get(r['status'], '')} **{r['category']}** — "
+                f"${r['spent']:,.0f} of ${r['budget']:,.0f}  ·  "
+                f"_projected ${r['projected_eom']:,.0f} by month-end_")
+            st.progress(min(r["pct"], 1.0))
+
+
 pid = person_id_for_view(view)
 txns = transactions_for_view(view)
 goals = goals_for_view(view)
@@ -424,6 +475,9 @@ with tab_dash:
                           delta=None if dash_nw_delta is None else f"{dash_nw_delta:+,.0f}",
                           help="Assets minus liabilities — see the 💵 Net Worth tab.")
 
+        # --- This month's budgets: pace bars against pro-rated targets.
+        _budgets_card(view, txns)
+
         # --- Trends across all imported months. A month-range slider focuses the
         #     charts; each chart is also .interactive() (drag to pan, scroll to
         #     zoom) on its temporal x-axis.
@@ -469,11 +523,23 @@ with tab_dash:
                 if pivot.empty:
                     st.caption("No spending (negative-amount) transactions yet.")
                 else:
-                    cats_present = sorted(pivot.columns)
-                    pick = st.multiselect("Categories (blank = all)", cats_present,
-                                          key="dash_cats")
+                    parents = _view_category_parents(view)
+                    roll = (st.toggle("Roll up to parent groups", key="dash_rollup",
+                                      help="Group categories by their parent (set in "
+                                           "the 🏷️ Categories tab).")
+                            if any((p or "").strip() for p in parents.values())
+                            else False)
                     long = pivot.reset_index().melt(
                         "month", var_name="category", value_name="spend")
+                    if roll:
+                        long["category"] = long["category"].map(
+                            lambda c: (parents.get(c) or "").strip() or c)
+                        long = (long.groupby(["month", "category"], as_index=False)
+                                ["spend"].sum())
+                    label = "Groups" if roll else "Categories"
+                    cats_present = sorted(long["category"].unique())
+                    pick = st.multiselect(f"{label} (blank = all)", cats_present,
+                                          key="dash_cats")
                     long = long[long["month"].isin(in_range)]
                     if pick:
                         long = long[long["category"].isin(pick)]
@@ -1121,9 +1187,58 @@ with tab_cats:
                 st.rerun()
         for c in db.get_categories(pid):
             col1, col2 = st.columns([4, 1])
-            col1.write(f"**{c['name']}** — {c['keywords'] or '_no keywords_'}")
+            parent_tag = f"  ·  ↳ _{c['parent']}_" if c.get("parent") else ""
+            col1.write(f"**{c['name']}** — {c['keywords'] or '_no keywords_'}{parent_tag}")
             if col2.button("Delete", key=f"delcat{c['id']}"):
                 db.delete_category(c["id"])
+                st.rerun()
+
+        cats = db.get_categories(pid)
+
+        st.divider()
+        st.subheader("📂 Category rollups")
+        st.caption("Group related categories under a **parent** (e.g. Groceries + "
+                   "Eating Out → *Food*). Parents roll up spend on charts and can "
+                   "carry their own budget. Leave blank for no parent.")
+        if cats:
+            pdf = pd.DataFrame([{"Category": c["name"], "Parent": c["parent"] or ""}
+                               for c in cats])
+            edited_p = st.data_editor(
+                pdf, width="stretch", hide_index=True, disabled=["Category"],
+                key="parent_editor",
+                column_config={"Parent": st.column_config.TextColumn(
+                    "Parent", help="A rollup group name. Reuse the same name across "
+                                   "categories to group them.")})
+            if st.button("Save rollups"):
+                cmap = {c["name"]: c for c in cats}
+                for _, row in edited_p.iterrows():
+                    c = cmap[row["Category"]]
+                    db.upsert_category(pid, c["name"], c["keywords"] or "",
+                                       (row["Parent"] or "").strip())
+                st.toast("Rollups saved.", icon="📂")
+                st.rerun()
+
+        st.divider()
+        st.subheader("🎯 Monthly budgets")
+        st.caption("Set a monthly cap per category — or per parent group, which caps "
+                   "all its children together. The Dashboard shows live pace bars "
+                   "against a pro-rated target. $0 = no budget.")
+        parent_names = sorted({(c["parent"] or "").strip() for c in cats} - {""})
+        existing = {b["category"]: float(b["amount"] or 0) for b in db.get_budgets(pid)}
+        targets = [c["name"] for c in cats] + parent_names
+        if targets:
+            bdf = pd.DataFrame([
+                {"Category": t, "Kind": ("parent" if t in parent_names else "category"),
+                 "Budget $": float(existing.get(t, 0.0))} for t in targets])
+            edited_b = st.data_editor(
+                bdf, width="stretch", hide_index=True, disabled=["Category", "Kind"],
+                key="budget_editor",
+                column_config={"Budget $": st.column_config.NumberColumn(
+                    min_value=0.0, step=10.0, format="$%.0f")})
+            if st.button("Save budgets"):
+                for _, row in edited_b.iterrows():
+                    db.set_budget(pid, row["Category"], float(row["Budget $"] or 0))
+                st.toast("Budgets saved.", icon="🎯")
                 st.rerun()
 
         st.divider()
