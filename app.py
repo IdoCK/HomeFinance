@@ -526,6 +526,27 @@ with tab_dash:
                           delta=None if dash_nw_delta is None else f"{dash_nw_delta:+,.0f}",
                           help="Assets minus liabilities — see the 💵 Net Worth tab.")
 
+        # --- Spending alerts: categories that moved sharply vs a rolling baseline.
+        alerts = analytics.spending_alerts(txns)
+        if alerts:
+            with st.container(border=True):
+                st.subheader("⚠️ Spending alerts")
+                st.caption("Latest complete month vs the average of the prior few "
+                           "months. Only sizeable swings are shown.")
+                for a in alerts[:6]:
+                    if a["new"]:
+                        st.markdown(
+                            f"🆕 **{a['category']}** — new this month at "
+                            f"${a['current']:,.0f} (no recent history).")
+                    else:
+                        arrow = "🔺" if a["direction"] == "up" else "🔻"
+                        word = "up" if a["direction"] == "up" else "down"
+                        st.markdown(
+                            f"{arrow} **{a['category']}** {word} "
+                            f"**{abs(a['pct']):.0f}%** — ${a['current']:,.0f} vs "
+                            f"${a['baseline']:,.0f} baseline "
+                            f"(${abs(a['delta']):,.0f} {word}).")
+
         # --- This month's budgets: pace bars against pro-rated targets.
         _budgets_card(view, txns)
 
@@ -585,6 +606,40 @@ with tab_dash:
                     tooltip=[alt.Tooltip("month:N", title="Month"), "flow:N",
                              alt.Tooltip("amount:Q", title="Amount", format="$,.2f")],
                 ).interactive(), width="stretch")
+
+            # 1b) Net cash flow per month (green surplus / red deficit) with the
+            #     cumulative savings trajectory overlaid as a line.
+            with st.container(border=True):
+                st.subheader("Net cash flow by month")
+                st.caption("Bars: each month's surplus (green) or deficit (red). "
+                           "Line: cumulative net saved over the shown range.")
+                cf = analytics.cash_flow(txns)
+                cf = _month_dt(cf[cf["month"].isin(in_range)])
+                if cf.empty:
+                    st.caption("Not enough data yet.")
+                else:
+                    cf["cumulative"] = cf["net"].cumsum()   # re-base to shown range
+                    cf["sign"] = cf["net"].apply(
+                        lambda v: "surplus" if v >= 0 else "deficit")
+                    base = alt.Chart(cf)
+                    bars = base.mark_bar().encode(
+                        x=alt.X("date:T", title=None,
+                                axis=alt.Axis(format="%b %Y", tickCount="month")),
+                        y=alt.Y("net:Q", title=None, axis=alt.Axis(format="$,.0f")),
+                        color=alt.Color("sign:N", title=None, scale=alt.Scale(
+                            domain=["surplus", "deficit"],
+                            range=["#0F766E", "#C0584E"])),
+                        tooltip=[alt.Tooltip("month:N", title="Month"),
+                                 alt.Tooltip("net:Q", title="Net", format="$,.2f")])
+                    line = base.mark_line(point=True, color="#475569").encode(
+                        x="date:T",
+                        y=alt.Y("cumulative:Q", title=None),
+                        tooltip=[alt.Tooltip("month:N", title="Month"),
+                                 alt.Tooltip("cumulative:Q", title="Cumulative",
+                                             format="$,.2f")])
+                    st.altair_chart(
+                        alt.layer(bars, line).resolve_scale(y="independent")
+                        .interactive(), width="stretch")
 
             # 2) Spending per category per month (one line per category)
             with st.container(border=True):
