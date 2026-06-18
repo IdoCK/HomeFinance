@@ -42,4 +42,7 @@ def create_app() -> FastAPI:
     return app
 
 
+# uvicorn imports this module-level `app` (target "app.main:app"). Note: importing
+# app.main therefore calls create_app() -> db.init_db() against the real data/finance.db.
+# Tests must monkeypatch database.DB_PATH (and reload this module) BEFORE importing it.
 app = create_app()

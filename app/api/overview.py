@@ -10,7 +10,7 @@ router = APIRouter(prefix="/overview", tags=["overview"])
 
 
 def _empty():
-    return {"month": None, "months": [], "income": 0, "spend": 0, "net": 0,
+    return {"month": None, "months": [], "income": 0.0, "spend": 0.0, "net": 0.0,
             "savings_rate": None, "complete": False, "by_category": {}}
 
 
