@@ -27,6 +27,23 @@ _STARTER_CATEGORIES = [
     ("Housing", "rent, mortgage, clickpay, proprtypay, hoa"),
 ]
 
+# Starter vendor groups: collapse merchant-name variants into one bucket in the
+# Analysis drill-down. Seeded for a person with no vendors yet; fully editable.
+_STARTER_VENDORS = [
+    ("Amazon", "amazon, amzn"),
+    ("MTA", "mta, nyct"),
+    ("PATH", "path tapp"),
+    ("NYSC", "nysc"),
+    ("Uber", "uber"),
+    ("Lyft", "lyft"),
+    ("Whole Foods", "whole foods"),
+    ("Apple", "apple.com"),
+    ("Verizon", "verizon"),
+    ("Grubhub", "grubhub"),
+    ("Venmo", "venmo"),
+    ("Zelle", "zelle"),
+]
+
 
 @contextmanager
 def get_conn():
@@ -71,6 +88,7 @@ def init_db():
                 category    TEXT DEFAULT 'Uncategorized',
                 source      TEXT DEFAULT '',        -- e.g. 'amazon', 'credit_card', 'bank'
                 included    INTEGER NOT NULL DEFAULT 1,  -- 0 = excluded from all calculations
+                balance     REAL,                    -- running balance from the statement, if any
                 FOREIGN KEY(person_id) REFERENCES people(id)
             );
 
@@ -116,6 +134,27 @@ def init_db():
                 balance     REAL NOT NULL,          -- positive magnitude, like accounts.balance
                 UNIQUE(account_id, date)            -- one snapshot per account per day (upsert)
             );
+
+            -- Per-category monthly spending budget (Wave 3). person_id NULL =
+            -- household budget. `category` matches a category (or parent) name.
+            CREATE TABLE IF NOT EXISTS budgets (
+                id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                person_id INTEGER,
+                category  TEXT NOT NULL,
+                amount    REAL NOT NULL              -- monthly cap, positive
+            );
+
+            -- Vendor groups: collapse merchant-name variants (Amazon.com,
+            -- AMAZON MKTPL, AMAZON PRIME → "Amazon") into one bucket in the
+            -- Analysis drill-down. Same keyword-rule shape as categories.
+            CREATE TABLE IF NOT EXISTS vendors (
+                id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                person_id INTEGER NOT NULL,
+                name      TEXT NOT NULL,
+                keywords  TEXT DEFAULT '',
+                UNIQUE(person_id, name),
+                FOREIGN KEY(person_id) REFERENCES people(id)
+            );
             """
         )
         # Seed the two members once.
@@ -134,6 +173,15 @@ def init_db():
                     c.execute(
                         "INSERT OR IGNORE INTO categories(person_id, name, keywords) "
                         "VALUES (?,?,?)", (person_id, name, kws))
+            # Seed starter vendor groups for a person who has none yet.
+            has_v = c.execute(
+                "SELECT COUNT(*) FROM vendors WHERE person_id=?",
+                (person_id,)).fetchone()[0]
+            if not has_v:
+                for name, kws in _STARTER_VENDORS:
+                    c.execute(
+                        "INSERT OR IGNORE INTO vendors(person_id, name, keywords) "
+                        "VALUES (?,?,?)", (person_id, name, kws))
 
         # Migration: link each transaction to the file it was imported from
         # (added after the first releases, so older DBs lack the column).
@@ -147,6 +195,13 @@ def init_db():
             c.execute(
                 "ALTER TABLE transactions ADD COLUMN included INTEGER NOT NULL DEFAULT 1"
             )
+        # Migration: optional parent (rollup group) for categories.
+        cat_cols = [r[1] for r in c.execute("PRAGMA table_info(categories)")]
+        if "parent" not in cat_cols:
+            c.execute("ALTER TABLE categories ADD COLUMN parent TEXT DEFAULT ''")
+        # Migration: per-row running balance (for month-end balance history).
+        if "balance" not in cols:
+            c.execute("ALTER TABLE transactions ADD COLUMN balance REAL")
 
 
 # ---- people ---------------------------------------------------------------
@@ -171,11 +226,12 @@ def add_transactions(person_id, rows, file_hash=None):
         conn.executemany(
             """INSERT INTO transactions
                (person_id, date, description, amount, category, source,
-                file_hash, included)
+                file_hash, included, balance)
                VALUES (:person_id, :date, :description, :amount, :category,
-                       :source, :file_hash, :included)""",
+                       :source, :file_hash, :included, :balance)""",
             [{**r, "person_id": person_id, "file_hash": file_hash,
-              "included": int(r.get("included", 1))} for r in rows],
+              "included": int(r.get("included", 1)),
+              "balance": r.get("balance")} for r in rows],
         )
 
 
@@ -186,6 +242,13 @@ def set_transaction_included(txn_id, included):
             "UPDATE transactions SET included=? WHERE id=?",
             (int(bool(included)), txn_id),
         )
+
+
+def set_transaction_category(txn_id, category):
+    """Recategorize a single transaction."""
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE transactions SET category=? WHERE id=?", (category, txn_id))
 
 
 def get_transactions(person_id=None):
@@ -294,18 +357,96 @@ def get_categories(person_id):
         ]
 
 
-def upsert_category(person_id, name, keywords):
+def upsert_category(person_id, name, keywords, parent=None):
+    """Insert or update a category. `parent` is an optional rollup group name;
+    pass None to leave an existing category's parent untouched."""
     with get_conn() as conn:
-        conn.execute(
-            """INSERT INTO categories(person_id, name, keywords) VALUES (?,?,?)
-               ON CONFLICT(person_id, name) DO UPDATE SET keywords=excluded.keywords""",
-            (person_id, name, keywords),
-        )
+        if parent is None:
+            conn.execute(
+                """INSERT INTO categories(person_id, name, keywords) VALUES (?,?,?)
+                   ON CONFLICT(person_id, name) DO UPDATE SET keywords=excluded.keywords""",
+                (person_id, name, keywords),
+            )
+        else:
+            conn.execute(
+                """INSERT INTO categories(person_id, name, keywords, parent)
+                   VALUES (?,?,?,?)
+                   ON CONFLICT(person_id, name) DO UPDATE SET
+                       keywords=excluded.keywords, parent=excluded.parent""",
+                (person_id, name, keywords, parent),
+            )
 
 
 def delete_category(category_id):
     with get_conn() as conn:
         conn.execute("DELETE FROM categories WHERE id=?", (category_id,))
+
+
+# ---- vendor groups (drill-down rollups) -----------------------------------
+
+def get_vendors(person_id):
+    with get_conn() as conn:
+        return [dict(r) for r in conn.execute(
+            "SELECT * FROM vendors WHERE person_id=? ORDER BY name", (person_id,))]
+
+
+def upsert_vendor(person_id, name, keywords):
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO vendors(person_id, name, keywords) VALUES (?,?,?)
+               ON CONFLICT(person_id, name) DO UPDATE SET keywords=excluded.keywords""",
+            (person_id, name, keywords))
+
+
+def delete_vendor(vendor_id):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM vendors WHERE id=?", (vendor_id,))
+
+
+def category_parents(person_id):
+    """Map of {category_name: parent_name} for a person (parent '' when unset)."""
+    with get_conn() as conn:
+        return {
+            r["name"]: (r["parent"] or "")
+            for r in conn.execute(
+                "SELECT name, parent FROM categories WHERE person_id=?", (person_id,))
+        }
+
+
+# ---- budgets --------------------------------------------------------------
+
+def get_budgets(person_id=None):
+    """Budgets for a person, or household (person_id None) budgets."""
+    with get_conn() as conn:
+        if person_id is None:
+            rows = conn.execute("SELECT * FROM budgets WHERE person_id IS NULL")
+        else:
+            rows = conn.execute("SELECT * FROM budgets WHERE person_id=?", (person_id,))
+        return [dict(r) for r in rows]
+
+
+def set_budget(person_id, category, amount):
+    """Upsert a monthly budget cap for a category (manual upsert so it also works
+    for household budgets where person_id IS NULL — SQLite treats NULLs as
+    distinct in UNIQUE constraints)."""
+    with get_conn() as conn:
+        if person_id is None:
+            cur = conn.execute(
+                "UPDATE budgets SET amount=? WHERE person_id IS NULL AND category=?",
+                (amount, category))
+        else:
+            cur = conn.execute(
+                "UPDATE budgets SET amount=? WHERE person_id=? AND category=?",
+                (amount, person_id, category))
+        if cur.rowcount == 0:
+            conn.execute(
+                "INSERT INTO budgets(person_id, category, amount) VALUES (?,?,?)",
+                (person_id, category, amount))
+
+
+def delete_budget(budget_id):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM budgets WHERE id=?", (budget_id,))
 
 
 # ---- goals ----------------------------------------------------------------
@@ -394,6 +535,23 @@ def update_account_balance(account_id, balance, snapshot_date=None):
         conn.execute("UPDATE accounts SET balance=?, updated_at=? WHERE id=?",
                      (float(balance), now, account_id))
     write_snapshot(account_id, snapshot_date or date.today().isoformat(), balance)
+
+
+def account_snapshots(account_id):
+    """All snapshots for one account, oldest first — for its balance history chart."""
+    with get_conn() as conn:
+        return [dict(r) for r in conn.execute(
+            "SELECT date, balance FROM balance_snapshots WHERE account_id=? "
+            "ORDER BY date", (account_id,))]
+
+
+def transactions_for_file(person_id, file_hash):
+    """All transactions imported from one file, in file order (date, id) — used to
+    derive month-end balances for a Net Worth account."""
+    with get_conn() as conn:
+        return [dict(r) for r in conn.execute(
+            "SELECT * FROM transactions WHERE person_id=? AND file_hash=? "
+            "ORDER BY date, id", (person_id, file_hash))]
 
 
 def delete_account(account_id):

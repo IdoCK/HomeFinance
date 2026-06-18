@@ -210,6 +210,110 @@ def _style_amounts(df):
     return sty
 
 
+def _hbar(data, value_name, color="#0F766E", value_title=None):
+    """Horizontal bar chart from a {label: amount} dict, sorted by value."""
+    d = pd.DataFrame({"label": list(data), value_name: list(data.values())})
+    return alt.Chart(d).mark_bar(color=color).encode(
+        x=alt.X(f"{value_name}:Q", title=None, axis=alt.Axis(format="$,.0f")),
+        y=alt.Y("label:N", sort="-x", title=None),
+        tooltip=[alt.Tooltip("label:N", title="Category"),
+                 alt.Tooltip(f"{value_name}:Q", title=value_title or value_name,
+                             format="$,.2f")],
+    )
+
+
+def _view_category_names(view):
+    """Category names available in the current view (union across people for the
+    Household view)."""
+    if view == "Household":
+        names = set()
+        for p in name_to_id.values():
+            names |= set(_category_names(p))
+        return sorted(names)
+    return sorted(_category_names(name_to_id[view]))
+
+
+def _view_vendor_rules(view):
+    """Vendor rules [(name, [keywords])] for the view (union across people in the
+    Household view). Used to collapse merchant variants in the drill-down."""
+    people_ids = (list(name_to_id.values()) if view == "Household"
+                  else [name_to_id[view]])
+    rules = []
+    for p in people_ids:
+        for v in db.get_vendors(p):
+            rules.append((v["name"], (v["keywords"] or "").split(",")))
+    return rules
+
+
+def _vendor_manager(view, key_prefix):
+    """Add / edit / delete vendor groups for the current person. Shared by the
+    Categories tab and the Analysis drill-down. Vendor groups collapse merchant
+    name variants (Amazon.com / AMAZON MKTPL / AMAZON PRIME → 'Amazon') in the
+    drill-down. Editable per person; the Household view is read-only here."""
+    if view == "Household":
+        st.info("Switch to a person's view to edit their vendor groups. "
+                "(The Analysis drill-down uses both people's groups.)")
+        return
+    pid_ = name_to_id[view]
+    st.caption("A transaction joins the **first** vendor whose keyword appears in "
+               "its description; unmatched merchants keep their auto-detected name.")
+    with st.form(f"addvendor::{key_prefix}::{view}"):
+        c1, c2 = st.columns(2)
+        vn = c1.text_input("Vendor name", placeholder="Amazon")
+        vk = c2.text_input("Keywords (comma-separated)", placeholder="amazon, amzn")
+        if st.form_submit_button("Save vendor") and vn.strip():
+            db.upsert_vendor(pid_, vn.strip(), vk.strip())
+            st.rerun()
+    for v in db.get_vendors(pid_):
+        vc1, vc2 = st.columns([4, 1])
+        vc1.write(f"**{v['name']}** — {v['keywords'] or '_no keywords_'}")
+        if vc2.button("Delete", key=f"{key_prefix}delvendor{v['id']}"):
+            db.delete_vendor(v["id"])
+            st.rerun()
+
+
+def _editable_txn_table(rows, key, cat_options):
+    """Editable table over PERSISTED transactions (each row dict has an 'id'):
+    pick Category from a dropdown and toggle Include. Edits persist to the DB and
+    rerun so every chart updates. Excluded rows are dimmed. Used on the Dashboard
+    and in the Analysis drill-down so categories are editable from any table."""
+    if not rows:
+        st.caption("No transactions.")
+        return
+    tdf = pd.DataFrame(rows)
+    opts = sorted(set(cat_options) | set(tdf["category"]) | {"Uncategorized"})
+    disp = pd.DataFrame({
+        "Date": tdf["date"], "Description": tdf["description"],
+        "Amount": tdf["amount"].astype(float), "Category": tdf["category"],
+        "Include": (tdf["included"].astype(bool)
+                    if "included" in tdf.columns else True),
+    })
+    edited = st.data_editor(
+        _style_amounts(disp), width="stretch", hide_index=True, key=key,
+        disabled=["Date", "Description", "Amount"],
+        column_config={
+            "Category": st.column_config.SelectboxColumn("Category", options=opts),
+            "Include": st.column_config.CheckboxColumn(
+                "Include", help="Counts toward all totals and charts"),
+        },
+    )
+    ids = tdf["id"].tolist()
+    nc, oc = edited["Category"].tolist(), disp["Category"].tolist()
+    ni, oi = (edited["Include"].astype(bool).tolist(),
+              disp["Include"].astype(bool).tolist())
+    changed = False
+    for i in range(len(ids)):
+        if nc[i] != oc[i]:
+            db.set_transaction_category(ids[i], nc[i])
+            changed = True
+        if ni[i] != oi[i]:
+            db.set_transaction_included(ids[i], bool(ni[i]))
+            changed = True
+    if changed:
+        st.session_state.pop(key, None)  # rebuild from fresh data
+        st.rerun()
+
+
 def _manage_files_section(view, pid):
     """Imported-file list + legacy untracked-row cleanup. Lives in the Import tab."""
     st.subheader("🗂️ Imported files")
@@ -256,9 +360,9 @@ goals = goals_for_view(view)
 
 st.title(f"{view} — Overview")
 
-tab_dash, tab_import, tab_cats, tab_goals, tab_networth, tab_ai = st.tabs(
-    ["📊 Dashboard", "📥 Import", "🏷️ Categories", "🎯 Goals", "💵 Net Worth",
-     "🤖 AI Insights"]
+tab_dash, tab_analysis, tab_import, tab_cats, tab_goals, tab_networth, tab_ai = st.tabs(
+    ["📊 Dashboard", "📈 Analysis", "📥 Import", "🏷️ Categories", "🎯 Goals",
+     "💵 Net Worth", "🤖 AI Insights"]
 )
 
 # ---------------------------------------------------------------- DASHBOARD
@@ -320,113 +424,285 @@ with tab_dash:
                           delta=None if dash_nw_delta is None else f"{dash_nw_delta:+,.0f}",
                           help="Assets minus liabilities — see the 💵 Net Worth tab.")
 
-        # --- Monthly savings trend
-        with st.container(border=True):
-            st.subheader("Monthly savings")
-            if not savings.empty:
-                sav = savings.reset_index()  # month, income, spend, savings, complete
-                base = alt.Chart(sav).encode(x=alt.X("month:N", title=None))
-                bars = base.mark_bar().encode(
-                    y=alt.Y("savings:Q", title=None, axis=alt.Axis(format="$,.0f")),
-                    color=alt.condition(alt.datum.savings >= 0,
-                                        alt.value("#0F766E"), alt.value("#C0584E")),
-                    # partial (incomplete) months are rendered faded so they read
-                    # as "not a full month" rather than a real dip/spike.
-                    opacity=alt.condition(alt.datum.complete, alt.value(1.0), alt.value(0.35)),
-                    tooltip=[alt.Tooltip("month:N", title="Month"),
-                             alt.Tooltip("savings:Q", title="Savings", format="$,.2f"),
-                             alt.Tooltip("complete:N", title="Full month?")],
-                )
-                zero = base.mark_rule(color="#9CA3AF").encode(y=alt.datum(0))
-                st.altair_chart(bars + zero, use_container_width=True)
-                if not bool(sav["complete"].all()):
-                    st.caption("Faded bars are partial statement cycles, not full months.")
-            else:
-                st.caption("No data yet.")
+        # --- Trends across all imported months. A month-range slider focuses the
+        #     charts; each chart is also .interactive() (drag to pan, scroll to
+        #     zoom) on its temporal x-axis.
+        if savings.empty:
+            st.caption("Import a month or two to see trends.")
+        else:
+            months = list(savings.index)            # sorted 'YYYY-MM'
+            lo, hi = months[0], months[-1]
+            if len(months) >= 2:
+                lo, hi = st.select_slider(
+                    "Month range", options=months, value=(months[0], months[-1]),
+                    key="dash_range",
+                    help="Focus the charts on a span of months. You can also drag to "
+                         "pan and scroll to zoom inside each chart.")
+            in_range = [m for m in months if lo <= m <= hi]
 
-        # --- Spending by category over time (stacked area)
-        with st.container(border=True):
-            st.subheader("Spending by category over time")
-            pivot = analytics.spending_by_category_over_time(txns)
-            if not pivot.empty:
-                long = pivot.reset_index().melt(
-                    "month", var_name="category", value_name="spend")
-                area = alt.Chart(long).mark_area().encode(
-                    x=alt.X("month:N", title=None),
-                    y=alt.Y("spend:Q", stack=True, title=None,
-                            axis=alt.Axis(format="$,.0f")),
-                    color=alt.Color("category:N", title="Category"),
-                    tooltip=[alt.Tooltip("month:N", title="Month"),
-                             alt.Tooltip("category:N", title="Category"),
-                             alt.Tooltip("spend:Q", title="Spend", format="$,.2f")],
-                )
-                st.altair_chart(area, use_container_width=True)
-            else:
-                st.caption("No spending (negative-amount) transactions yet.")
+            def _month_dt(df):
+                df = df.copy()
+                df["date"] = pd.to_datetime(df["month"] + "-01")
+                return df
 
-        # --- Category breakdown (horizontal bars)
-        def _cat_bar(data, value, color):
-            d = pd.DataFrame({"category": list(data), value: list(data.values())})
-            return alt.Chart(d).mark_bar(color=color).encode(
-                x=alt.X(f"{value}:Q", title=None, axis=alt.Axis(format="$,.0f")),
-                y=alt.Y("category:N", sort="-x", title=None),
-                tooltip=[alt.Tooltip("category:N", title="Category"),
-                         alt.Tooltip(f"{value}:Q", title=value.title(), format="$,.2f")],
-            )
+            # 1) Overall spend vs income per month
+            with st.container(border=True):
+                st.subheader("Spend vs income by month")
+                sav = savings.reset_index()
+                sav = _month_dt(sav[sav["month"].isin(in_range)])
+                flow = sav.melt(["month", "date"], value_vars=["income", "spend"],
+                                var_name="flow", value_name="amount")
+                st.altair_chart(alt.Chart(flow).mark_line(point=True).encode(
+                    x=alt.X("date:T", title=None,
+                            axis=alt.Axis(format="%b %Y", tickCount="month")),
+                    y=alt.Y("amount:Q", title=None, axis=alt.Axis(format="$,.0f")),
+                    color=alt.Color("flow:N", title=None, scale=alt.Scale(
+                        domain=["income", "spend"], range=["#0F766E", "#C0584E"])),
+                    tooltip=[alt.Tooltip("month:N", title="Month"), "flow:N",
+                             alt.Tooltip("amount:Q", title="Amount", format="$,.2f")],
+                ).interactive(), width="stretch")
 
-        with st.container(border=True):
-            col_sp, col_in = st.columns(2)
-            with col_sp:
-                st.subheader("Spending by category")
-                totals = analytics.category_totals(txns)
-                if totals:
-                    st.altair_chart(_cat_bar(totals, "spend", "#C0584E"),
-                                    use_container_width=True)
+            # 2) Spending per category per month (one line per category)
+            with st.container(border=True):
+                st.subheader("Spending by category by month")
+                pivot = analytics.spending_by_category_over_time(txns)
+                if pivot.empty:
+                    st.caption("No spending (negative-amount) transactions yet.")
                 else:
-                    st.caption("No spending to categorize.")
-            with col_in:
-                st.subheader("Income by category")
-                inc = analytics.income_by_category(txns)
-                if inc:
-                    st.altair_chart(_cat_bar(inc, "income", "#0F766E"),
-                                    use_container_width=True)
-                else:
-                    st.caption("No income to categorize.")
+                    cats_present = sorted(pivot.columns)
+                    pick = st.multiselect("Categories (blank = all)", cats_present,
+                                          key="dash_cats")
+                    long = pivot.reset_index().melt(
+                        "month", var_name="category", value_name="spend")
+                    long = long[long["month"].isin(in_range)]
+                    if pick:
+                        long = long[long["category"].isin(pick)]
+                    long = _month_dt(long)
+                    st.altair_chart(alt.Chart(long).mark_line(point=True).encode(
+                        x=alt.X("date:T", title=None,
+                            axis=alt.Axis(format="%b %Y", tickCount="month")),
+                        y=alt.Y("spend:Q", title=None, axis=alt.Axis(format="$,.0f")),
+                        color=alt.Color("category:N", title="Category"),
+                        tooltip=[alt.Tooltip("month:N", title="Month"),
+                                 alt.Tooltip("category:N", title="Category"),
+                                 alt.Tooltip("spend:Q", title="Spend", format="$,.2f")],
+                    ).interactive(), width="stretch")
 
-        # --- Transactions with per-row include/exclude toggle
+        # --- Transactions: edit Category (dropdown) and toggle Include inline
         with st.container(border=True):
             st.subheader("Transactions")
-            st.caption("Uncheck **Include** to drop a row from every total and chart "
-                       "(e.g. a credit-card payment). Excluded rows are dimmed; "
-                       "changes save immediately.")
-            tdf = pd.DataFrame(txns)
-            disp = pd.DataFrame({
-                "Date": tdf["date"],
-                "Description": tdf["description"],
-                "Amount": tdf["amount"].astype(float),
-                "Category": tdf["category"],
-                "Include": (tdf["included"].astype(bool)
-                            if "included" in tdf.columns else True),
-            })
-            tx_key = f"txntable::{view}"
-            edited_tx = st.data_editor(
-                _style_amounts(disp), use_container_width=True, hide_index=True,
-                key=tx_key, disabled=["Date", "Description", "Amount", "Category"],
-                column_config={
-                    "Include": st.column_config.CheckboxColumn(
-                        "Include", help="Counts toward all totals and charts"),
-                },
-            )
-            new_inc = edited_tx["Include"].astype(bool).tolist()
-            old_inc = disp["Include"].astype(bool).tolist()
-            ids = tdf["id"].tolist()
-            changed = [(ids[i], new_inc[i])
-                       for i in range(len(ids)) if new_inc[i] != old_inc[i]]
-            if changed:
-                for tid, val in changed:
-                    db.set_transaction_included(tid, val)
-                st.session_state.pop(tx_key, None)  # rebuild editor from fresh data
-                st.rerun()
+            st.caption("Change a row's **Category** or uncheck **Include** to drop it "
+                       "from every total and chart. Excluded rows are dimmed; changes "
+                       "save immediately.")
+            # View by source file (the imported statement a row came from).
+            fmap = {}  # label -> file_hash
+            for im in db.list_imports(pid):
+                lbl = im["filename"]
+                if view == "Household":
+                    lbl += f" · {im['person']}"
+                if lbl in fmap:
+                    lbl += f" ({im['file_hash'][:6]})"
+                fmap[lbl] = im["file_hash"]
+            has_untracked = any(t.get("file_hash") is None for t in txns)
+            file_opts = (["All files"] + list(fmap)
+                         + (["Untracked"] if has_untracked else []))
+            pick_file = st.selectbox("View file", file_opts, key=f"txnfile::{view}")
+            if pick_file == "All files":
+                shown = txns
+            elif pick_file == "Untracked":
+                shown = [t for t in txns if t.get("file_hash") is None]
+            else:
+                fh = fmap[pick_file]
+                shown = [t for t in txns if t.get("file_hash") == fh]
+            _editable_txn_table(shown, f"txntable::{view}::{pick_file}",
+                                _view_category_names(view))
+
+# ---------------------------------------------------------------- ANALYSIS
+with tab_analysis:
+    if not txns:
+        st.info("No transactions yet — import some in the 📥 Import tab first.")
+    else:
+        _dts = sorted(t["date"] for t in txns)
+        dmin = pd.to_datetime(_dts[0]).date()
+        dmax = pd.to_datetime(_dts[-1]).date()
+        cat_opts = sorted({t["category"] for t in txns})
+
+        mode = st.radio("Mode", ["Explore", "Compare", "People"],
+                        horizontal=True, label_visibility="collapsed")
+
+        # ---- shared filter bar (control-driven; maps 1:1 to filter_transactions)
+        with st.container(border=True):
+            st.caption("Filters apply to the charts below.")
+            fc1, fc2, fc3 = st.columns([2, 1, 1])
+            dr = fc1.date_input("Date range", value=(dmin, dmax),
+                                min_value=dmin, max_value=dmax, key="an_dr")
+            daytype = fc2.radio("Days", ["All", "Weekdays", "Weekends"], key="an_daytype")
+            ev_choice = fc3.selectbox("Event", ["(none)", "Workdays", "Weekends"],
+                                      key="an_event")
+            dow_sel = st.multiselect("Specific days of week", analytics.DOW_NAMES,
+                                     key="an_dow")
+            all_months = sorted({t["date"][:7] for t in txns})
+            month_sel = st.multiselect("Months (blank = all)", all_months,
+                                       key="an_months",
+                                       help="Pick specific months — they don't have to "
+                                            "be next to each other.")
+            cat_sel = st.multiselect("Categories (blank = all)", cat_opts, key="an_cats")
+
+        kw = {}
+        if isinstance(dr, (list, tuple)) and len(dr) == 2:
+            kw["date_range"] = (dr[0].isoformat(), dr[1].isoformat())
+        if month_sel:
+            kw["months"] = month_sel
+        if daytype == "Weekdays":
+            kw["day_types"] = ["weekday"]
+        elif daytype == "Weekends":
+            kw["day_types"] = ["weekend"]
+        if dow_sel:
+            kw["dow"] = [analytics.DOW_NAMES.index(d) for d in dow_sel]
+        if ev_choice == "Workdays":
+            kw["event"] = analytics.WORKDAYS
+        elif ev_choice == "Weekends":
+            kw["event"] = analytics.WEEKENDS
+        if cat_sel:
+            kw["categories"] = cat_sel
+        fsel = analytics.filter_transactions(txns, **kw)
+
+        if not fsel:
+            st.warning("No transactions match these filters.")
+        elif mode == "Explore":
+            cats = analytics.drill(fsel, "category")
+            m1, m2 = st.columns(2)
+            m1.metric("Spend (filtered)", f"${sum(cats.values()):,.0f}")
+            m2.metric("Transactions", f"{len(fsel):,}")
+            with st.container(border=True):
+                st.subheader("Spending by category")
+                if cats:
+                    st.altair_chart(_hbar(cats, "spend", "#C0584E", "Spend"),
+                                    width="stretch")
+                # Drill: Total -> Category -> Vendor -> Rows (control-driven).
+                # Vendor groups collapse merchant variants (all Amazon forms ->
+                # "Amazon", all MTA -> "MTA"); manage them in the expander below.
+                vrules = _view_vendor_rules(view)
+                drill_cat = st.selectbox("🔎 Drill into a category",
+                                         ["(all)"] + list(cats), key="an_drillcat")
+                if drill_cat != "(all)":
+                    vendors = analytics.drill(fsel, "vendor", parent=drill_cat,
+                                              vendor_rules=vrules)
+                    st.markdown(f"**{drill_cat} · by vendor**")
+                    if vendors:
+                        st.altair_chart(_hbar(vendors, "spend", "#C0584E", "Spend"),
+                                        width="stretch")
+                    drill_v = st.selectbox("🔎 Drill into a vendor",
+                                           ["(all)"] + list(vendors), key="an_drillv")
+                    cat_rows = [t for t in fsel if t["category"] == drill_cat]
+                    rows = (analytics.drill(cat_rows, "rows", parent=drill_v,
+                                            vendor_rules=vrules)
+                            if drill_v != "(all)" else cat_rows)
+                    st.caption("Edit a row's **Category** here too — it saves "
+                               "immediately and re-categorizes that transaction.")
+                    _editable_txn_table(rows, f"an_rows::{view}::{drill_cat}::{drill_v}",
+                                        _view_category_names(view))
+                # --- manage vendor groups (how merchants roll up)
+                with st.expander("🏷️ Vendor groups — how merchants roll up"):
+                    _vendor_manager(view, "an")
+            with st.container(border=True):
+                st.subheader("Spending over time (filtered)")
+                pv = analytics.spending_by_category_over_time(fsel)
+                if not pv.empty:
+                    long = pv.reset_index().melt("month", var_name="category",
+                                                 value_name="spend")
+                    st.altair_chart(alt.Chart(long).mark_area().encode(
+                        x=alt.X("month:N", title=None),
+                        y=alt.Y("spend:Q", stack=True, title=None,
+                                axis=alt.Axis(format="$,.0f")),
+                        color=alt.Color("category:N", title="Category"),
+                    ), width="stretch")
+                else:
+                    st.caption("No spending in range.")
+
+        elif mode == "Compare":
+            preset = st.selectbox("Comparison",
+                                  ["Weekdays vs Weekends", "This month vs last month"],
+                                  key="an_cmp")
+            normalize = st.radio("Measure", ["Per day (fair)", "Totals"],
+                                 horizontal=True, key="an_norm")
+            base = {k: v for k, v in kw.items() if k not in ("day_types", "event")}
+            ga = gb = None
+            if preset == "Weekdays vs Weekends":
+                ga = {**base, "label": "Weekdays", "day_types": ["weekday"]}
+                gb = {**base, "label": "Weekends", "day_types": ["weekend"]}
+            else:
+                months = sorted({t["date"][:7] for t in txns})
+                if len(months) < 2:
+                    st.info("Need at least two months of data for month-over-month.")
+                else:
+                    import calendar as _cal
+
+                    def _mrange(m):
+                        y, mo = int(m[:4]), int(m[5:7])
+                        return (f"{m}-01", f"{m}-{_cal.monthrange(y, mo)[1]:02d}")
+                    ga = {"label": months[-2], "date_range": _mrange(months[-2])}
+                    gb = {"label": months[-1], "date_range": _mrange(months[-1])}
+            if ga and gb:
+                cmp_df = analytics.compare(txns, ga, gb)
+                if cmp_df.empty:
+                    st.warning("Nothing to compare for these filters.")
+                else:
+                    yf = "per_day" if normalize.startswith("Per") else "total"
+                    yt = "$/day" if yf == "per_day" else "Total $"
+                    st.altair_chart(alt.Chart(cmp_df).mark_bar().encode(
+                        x=alt.X("category:N", title=None, sort="-y"),
+                        y=alt.Y(f"{yf}:Q", title=yt, axis=alt.Axis(format="$,.0f")),
+                        color=alt.Color("bucket:N", title="Bucket"),
+                        xOffset="bucket:N",
+                        tooltip=["bucket:N", "category:N",
+                                 alt.Tooltip(f"{yf}:Q", format="$,.2f")],
+                    ), width="stretch")
+                    tot = cmp_df.groupby("bucket")[yf].sum()
+                    cols = st.columns(len(tot))
+                    for col, (b, v) in zip(cols, tot.items()):
+                        col.metric(str(b), f"${v:,.0f}"
+                                   + ("/day" if yf == "per_day" else ""))
+
+        else:  # People
+            if view != "Household":
+                st.info("Switch to the **Household** view to compare people.")
+            else:
+                ids = list(name_to_id.values())
+                a_id, b_id = ids[0], ids[1]
+                a_name, b_name = id_to_name[a_id], id_to_name[b_id]
+                rows = analytics.user_overlap(fsel, a_id, b_id)
+                if not rows:
+                    st.caption("No spending to compare.")
+                else:
+                    shared = [r for r in rows if r["shared"]]
+                    m1, m2, m3 = st.columns(3)
+                    m1.metric(f"{a_name} spend",
+                              f"${sum(r['a_spend'] for r in rows):,.0f}")
+                    m2.metric(f"{b_name} spend",
+                              f"${sum(r['b_spend'] for r in rows):,.0f}")
+                    m3.metric("Shared categories", f"{len(shared)}")
+                    dd = []
+                    for r in rows:
+                        dd.append({"category": r["category"], "person": a_name,
+                                   "amount": -r["a_spend"]})
+                        dd.append({"category": r["category"], "person": b_name,
+                                   "amount": r["b_spend"]})
+                    st.altair_chart(alt.Chart(pd.DataFrame(dd)).mark_bar().encode(
+                        y=alt.Y("category:N", title=None),
+                        x=alt.X("amount:Q", title=f"← {a_name}   |   {b_name} →",
+                                axis=alt.Axis(format="$,.0f")),
+                        color=alt.Color("person:N", title="Person"),
+                        tooltip=["person:N", "category:N",
+                                 alt.Tooltip("amount:Q", format="$,.2f")],
+                    ), width="stretch")
+                    if shared:
+                        st.markdown("**Mutual spending (both spent)**")
+                        st.dataframe(pd.DataFrame([{
+                            "Category": r["category"], a_name: round(r["a_spend"], 2),
+                            b_name: round(r["b_spend"], 2)} for r in shared]),
+                            width="stretch", hide_index=True)
+
 
 # ---------------------------------------------------------------- IMPORT
 with tab_import:
@@ -468,11 +744,19 @@ with tab_import:
             # Already imported? Don't re-parse and don't allow a second import.
             existing = db.get_import(pid, file_hash)
             if existing:
-                st.info(
-                    f"✓ Already imported — {existing['count']} transactions on "
-                    f"{existing['imported_at']}. This exact file can't be imported "
-                    "again (clear this person's transactions to re-enable)."
-                )
+                if file_hash in st.session_state.get("imported_now", set()):
+                    # Just imported in this session; the file is still sitting in
+                    # the uploader. Reassure rather than warn.
+                    st.success(
+                        f"✅ Imported — {existing['count']} transactions added. "
+                        "You can remove this file from the uploader above; "
+                        "re-uploading it won't import it twice.", icon="✅")
+                else:
+                    st.info(
+                        f"✓ Already imported — {existing['count']} transactions on "
+                        f"{existing['imported_at']}. This exact file can't be imported "
+                        "again (clear this person's transactions to re-enable)."
+                    )
                 continue
 
             if st.button("🔄 Re-parse", key=f"reparse::{cache_key}"):
@@ -528,7 +812,7 @@ with tab_import:
                 )
                 with st.expander("➕ Add this as a new file type"):
                     st.caption("Preview of the raw file:")
-                    st.dataframe(prev["raw_preview"], use_container_width=True,
+                    st.dataframe(prev["raw_preview"], width="stretch",
                                  hide_index=True)
                     prop_key = f"prop::{cache_key}"
                     if st.button("🔍 Analyze with local agent", key=f"an::{cache_key}",
@@ -592,13 +876,29 @@ with tab_import:
             df.columns = ["Date", "Description", "Amount", "Category", "Include"]
             df["Include"] = df["Include"].astype(bool)
 
-            options = sorted(set(_category_names(pid)) | {"Uncategorized"}
-                             | set(df["Category"]))
-            st.caption(
-                "Edit categories and toggle **Include** (detected transfers start "
-                "excluded and dimmed), then click **Import** to apply all changes "
-                "at once.  🟢 money in · 🔴 money out"
-            )
+            existing_cats = sorted(_category_names(pid))
+            cat_options = sorted(set(existing_cats) | {"Uncategorized"}
+                                 | set(df["Category"]))
+            # Quick category creator. It lives OUTSIDE the edit form (below), so
+            # clicking Add takes effect immediately and the new name joins the
+            # dropdown; the form keeps your in-progress edits across the rerun.
+            ccap, cadd = st.columns([4, 1])
+            ccap.caption(
+                "Pick a category from each row's dropdown, or add a new one with "
+                "**➕ New category** →. Toggle **Include** (detected transfers start "
+                "excluded and dimmed), then click **Import**.  🟢 money in · 🔴 money out")
+            with cadd.popover("➕ New category"):
+                _nc = st.text_input("New category name", key=f"newcat::{cache_key}")
+                if st.button("Add", key=f"addcat::{cache_key}"):
+                    nm = (_nc or "").strip()
+                    if not nm:
+                        st.warning("Enter a name.")
+                    elif nm in existing_cats:
+                        st.info("That category already exists.")
+                    else:
+                        db.upsert_category(pid, nm, "")
+                        st.toast(f"Added category '{nm}'.", icon="✅")
+                        st.rerun()
 
             # Counts/metrics reflect the last-applied state. Edits are batched in a
             # form below and only commit when a button is pressed, so these don't
@@ -644,13 +944,14 @@ with tab_import:
                 # One table: red/green amount cells (Styler) AND an editable
                 # Category dropdown. Colors are display-only; Category stays editable.
                 edited = st.data_editor(
-                    _style_amounts(df), use_container_width=True, hide_index=True,
+                    _style_amounts(df), width="stretch", hide_index=True,
                     key=f"edit::{cache_key}",
                     disabled=["Date", "Description", "Amount"],
                     column_config={
                         "Category": st.column_config.SelectboxColumn(
-                            "Category", options=options,
-                            help="Inferred from the description — change if wrong."),
+                            "Category", options=cat_options,
+                            help="Pick a category. Need a new one? Use "
+                                 "➕ New category above the table."),
                         "Include": st.column_config.CheckboxColumn(
                             "Include",
                             help="Counts toward totals. Detected transfers (e.g. "
@@ -674,10 +975,10 @@ with tab_import:
                 cols = st.columns([1, 1])
                 do_import = cols[0].form_submit_button(
                     f"✅ Import {len(df)} transactions", type="primary",
-                    use_container_width=True)
+                    width="stretch")
                 do_ai = cols[1].form_submit_button(
                     f"🤖 Auto-categorize with AI ({n_uncat} left)",
-                    disabled=not ok or n_uncat == 0, use_container_width=True,
+                    disabled=not ok or n_uncat == 0, width="stretch",
                     help="Runs the local model on the still-uncategorized rows "
                          "(may take a while); the app is busy during this call.")
 
@@ -739,11 +1040,20 @@ with tab_import:
             # ---- Import: save all rows and their categories at once.
             if do_import:
                 final_cats = edited["Category"].tolist()
+                known = set(_category_names(pid))
                 rows = []
                 learned = 0
+                created = 0
                 for i, (_, r) in enumerate(edited.iterrows()):
-                    cat = final_cats[i]
+                    cat = (str(final_cats[i]) if final_cats[i] is not None else "").strip()
+                    cat = cat or "Uncategorized"
                     included = bool(r["Include"])
+                    # A category typed into the table that doesn't exist yet is
+                    # created now, so it persists and can learn a keyword.
+                    if included and cat != "Uncategorized" and cat not in known:
+                        db.upsert_category(pid, cat, "")
+                        known.add(cat)
+                        created += 1
                     # Learn a keyword for every included, categorized row (however it
                     # was categorized — keyword, AI, or hand-edit) so the same
                     # merchant auto-tags next time. Excluded rows (transfers) don't
@@ -764,6 +1074,8 @@ with tab_import:
                                  datetime.now().strftime("%Y-%m-%d %H:%M"))
                 st.session_state.pop(cache_key, None)
                 msg = f"✅ Imported {len(rows)} transactions from {f.name}."
+                if created:
+                    msg += f" Created {created} new category(ies)."
                 if learned:
                     msg += f" Learned {learned} new keyword rule(s) for next time."
                 # Refresh / create a Net Worth account from the statement balance.
@@ -779,6 +1091,10 @@ with tab_import:
                                                   snapshot_date=sb["date"])
                         msg += f" Updated '{chosen['name']}' to ${sb['amount']:,.0f}."
                 st.session_state["import_done_msg"] = msg
+                # Remember we imported THIS file this session, so the post-rerun
+                # render (the file is still in the uploader) shows a positive
+                # "just imported" note rather than the dedup warning.
+                st.session_state.setdefault("imported_now", set()).add(file_hash)
                 st.rerun()
 
         st.divider()
@@ -809,6 +1125,13 @@ with tab_cats:
             if col2.button("Delete", key=f"delcat{c['id']}"):
                 db.delete_category(c["id"])
                 st.rerun()
+
+        st.divider()
+        st.subheader("Vendor groups")
+        st.caption("Collapse merchant-name variants (Amazon.com, AMAZON MKTPL, "
+                   "AMAZON PRIME → one **Amazon**) into a single line in the Analysis "
+                   "drill-down. Edit them here or in the Analysis tab.")
+        _vendor_manager(view, "cat")
 
         st.divider()
         st.subheader("Auto-categorize with the local agent")
@@ -888,8 +1211,9 @@ with tab_goals:
 
 # ---------------------------------------------------------------- NET WORTH
 with tab_networth:
-    st.caption("Assets minus liabilities. Balances are a manual ledger; importing "
-               "a bank statement can refresh an account (Import tab).")
+    st.caption("Assets minus liabilities. Add an account, then **Manage** it to "
+               "populate month-end balances from your imported bank statements, or "
+               "record balances by hand (investments, 401k, HSA…).")
     accounts = accounts_for_view(view)
     nw = analytics.net_worth(accounts)
     trend = analytics.net_worth_trend(snapshots_for_view(view))
@@ -917,7 +1241,7 @@ with tab_networth:
                          alt.Tooltip("assets:Q", title="Assets", format="$,.2f"),
                          alt.Tooltip("liabilities:Q", title="Liabilities", format="$,.2f")],
             )
-            st.altair_chart(line, use_container_width=True)
+            st.altair_chart(line, width="stretch")
         else:
             st.caption("Update balances over time (or import statements) to see a trend.")
 
@@ -930,18 +1254,90 @@ with tab_networth:
             label = f"**{a['name']}**  ·  _{a['kind']}_  ·  {tag}  ·  ${a['balance']:,.0f}"
             if view == "Household":
                 label += f"  ·  {id_to_name.get(a['person_id'], 'Shared')}"
-            top, edit = st.columns([5, 1])
-            top.markdown(label)
-            with edit:
-                with st.popover("Edit"):
-                    nb = st.number_input("Balance", value=float(a["balance"]),
-                                         step=100.0, key=f"acctbal{a['id']}")
-                    if st.button("Update", key=f"acctupd{a['id']}"):
-                        db.update_account_balance(a["id"], nb)
-                        st.rerun()
-                    if st.button("🗑️ Delete", key=f"acctdel{a['id']}"):
-                        db.delete_account(a["id"])
-                        st.rerun()
+            with st.container(border=True):
+                top, edit = st.columns([5, 1])
+                top.markdown(label)
+                with edit:
+                    with st.popover("Manage"):
+                        # -- current balance + delete
+                        nb = st.number_input("Current balance",
+                                             value=float(a["balance"]), step=100.0,
+                                             key=f"acctbal{a['id']}")
+                        if st.button("Update balance", key=f"acctupd{a['id']}"):
+                            db.update_account_balance(a["id"], nb)
+                            st.rerun()
+
+                        # -- populate month-end balances from imported statements
+                        st.divider()
+                        st.markdown("**Populate month-end balances from statements**")
+                        imps = db.list_imports(a["person_id"])
+                        opt_map = {}
+                        for im in imps:
+                            lbl = im["filename"]
+                            if a["person_id"] is None:
+                                lbl += f" · {im['person']}"
+                            if lbl in opt_map:
+                                lbl += f" ({im['file_hash'][:6]})"
+                            opt_map[lbl] = im
+                        if opt_map:
+                            pick = st.multiselect(
+                                "Bank statement file(s)", list(opt_map),
+                                key=f"acctpick{a['id']}",
+                                help="Uses each statement's running balance to record "
+                                     "the balance at the end of every month it covers.")
+                            if st.button("Populate", key=f"acctpop{a['id']}") and pick:
+                                rows = []
+                                for lbl in pick:
+                                    im = opt_map[lbl]
+                                    rows += db.transactions_for_file(
+                                        im["person_id"], im["file_hash"])
+                                meb = analytics.month_end_balances(rows)
+                                if not meb:
+                                    st.warning("Those files have no running-balance "
+                                               "data. Re-import the bank statement "
+                                               "(its 'Running Bal.' column powers this).")
+                                else:
+                                    for pt in meb:
+                                        db.write_snapshot(a["id"], pt["date"], pt["balance"])
+                                    last = meb[-1]
+                                    db.update_account_balance(
+                                        a["id"], last["balance"], snapshot_date=last["date"])
+                                    st.toast(f"Recorded {len(meb)} month-end balance(s).",
+                                             icon="✅")
+                                    st.rerun()
+                        else:
+                            st.caption("No imported files for this owner yet.")
+
+                        # -- record a manual balance point (investments, 401k, HSA…)
+                        st.divider()
+                        st.markdown("**Record a balance as of a date**")
+                        md = st.date_input("As of", key=f"acctsnapdate{a['id']}")
+                        mv = st.number_input("Balance on that date",
+                                             value=float(a["balance"]), step=100.0,
+                                             key=f"acctsnapval{a['id']}")
+                        if st.button("Save balance point", key=f"acctsnapadd{a['id']}"):
+                            db.write_snapshot(a["id"], md.isoformat(), mv)
+                            st.toast("Saved.", icon="✅")
+                            st.rerun()
+
+                        st.divider()
+                        if st.button("🗑️ Delete account", key=f"acctdel{a['id']}"):
+                            db.delete_account(a["id"])
+                            st.rerun()
+
+                # -- per-account balance history (month-end points)
+                snaps = db.account_snapshots(a["id"])
+                if len(snaps) >= 2:
+                    sdf = pd.DataFrame(snaps)
+                    sdf["date"] = pd.to_datetime(sdf["date"])
+                    st.altair_chart(alt.Chart(sdf).mark_line(point=True,
+                                    color="#0F766E").encode(
+                        x=alt.X("date:T", title=None),
+                        y=alt.Y("balance:Q", title=None, axis=alt.Axis(format="$,.0f")),
+                        tooltip=[alt.Tooltip("date:T", title="As of"),
+                                 alt.Tooltip("balance:Q", title="Balance",
+                                             format="$,.2f")],
+                    ), width="stretch")
 
         with st.expander("➕ Add account"):
             # Picking a Kind re-derives Type (asset/liability), so a loan or card

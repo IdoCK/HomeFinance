@@ -300,13 +300,14 @@ def _apply_spec(raw_df, spec, source, categorize_fn, category_rules,
         if source == "amazon" and amt > 0:
             amt = -amt
 
-        # --- running balance (optional): remember the latest-dated one. Dates are
-        # ISO strings, so a string compare orders them. Not stored on the row.
-        if balance_col is not None:
-            bval = _clean_amount(r[balance_col])
-            if bval is not None and (statement_balance is None
-                                     or date > statement_balance["date"]):
-                statement_balance = {"amount": bval, "date": date}
+        # --- running balance (optional): keep it on the row (powers month-end
+        # balance history for Net Worth accounts) AND remember the latest-dated
+        # one as the statement's ending balance. Dates are ISO strings, so a
+        # string compare orders them.
+        bval = _clean_amount(r[balance_col]) if balance_col is not None else None
+        if bval is not None and (statement_balance is None
+                                 or date > statement_balance["date"]):
+            statement_balance = {"amount": bval, "date": date}
 
         desc = desc_cell
         rows.append({
@@ -316,6 +317,7 @@ def _apply_spec(raw_df, spec, source, categorize_fn, category_rules,
             "category": categorize_fn(desc, category_rules),
             "source": source,
             "included": not is_excluded,
+            "balance": bval,
         })
     if progress_cb:
         progress_cb(total_rows, total_rows)
