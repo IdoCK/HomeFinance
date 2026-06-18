@@ -39,9 +39,56 @@ view = st.sidebar.radio(
     label_visibility="collapsed",
 )
 st.sidebar.divider()
+with st.sidebar.popover("⚙️ Manage people"):
+    st.caption("Rename a household member. Their data, goals, and accounts move "
+               "with the name.")
+    for _p in people:
+        with st.form(f"rename::{_p['id']}"):
+            _new = st.text_input(f"Name for {_p['name']}", value=_p["name"],
+                                 key=f"rn::{_p['id']}")
+            if st.form_submit_button("Rename"):
+                _new = (_new or "").strip()
+                if not _new:
+                    st.warning("Name can't be blank.")
+                elif _new == _p["name"]:
+                    st.info("That's already the name.")
+                elif _new in {q["name"] for q in people if q["id"] != _p["id"]}:
+                    st.warning("The other member already uses that name.")
+                else:
+                    db.rename_person(_p["id"], _new)
+                    st.toast(f"Renamed to {_new}.", icon="✏️")
+                    st.rerun()
 with st.sidebar.popover("🔒 Privacy"):
     st.write("Local-only. Your data never leaves this machine except the "
              "anonymized aggregates you choose to send for AI insights.")
+
+
+def _danger_button(label, message, action, *, key, confirm_label="Yes, delete",
+                   help=None):
+    """A destructive button guarded by a confirmation dialog. Clicking it opens an
+    st.dialog; the `action` callback runs only after the user confirms. A pending
+    flag in session_state keeps the dialog open across the confirm/cancel reruns.
+    Returns True on the run where the action actually fired."""
+    state_key = f"_confirm::{key}"
+    if st.button(label, key=key, help=help):
+        st.session_state[state_key] = True
+    fired = False
+    if st.session_state.get(state_key):
+        @st.dialog("Please confirm")
+        def _dlg():
+            nonlocal fired
+            st.warning(message)
+            c1, c2 = st.columns(2)
+            if c1.button(confirm_label, type="primary", key=f"{key}::yes"):
+                action()
+                st.session_state.pop(state_key, None)
+                fired = True
+                st.rerun()
+            if c2.button("Cancel", key=f"{key}::no"):
+                st.session_state.pop(state_key, None)
+                st.rerun()
+        _dlg()
+    return fired
 
 
 def person_id_for_view(view):
@@ -245,6 +292,31 @@ def _view_vendor_rules(view):
     return rules
 
 
+def _view_category_parents(view):
+    """{category_name: parent_name} for the view. In the Household view the two
+    people's maps are merged; a category keeps the first non-empty parent seen."""
+    if view != "Household":
+        return db.category_parents(name_to_id[view])
+    merged = {}
+    for p in name_to_id.values():
+        for cat, parent in db.category_parents(p).items():
+            if parent or cat not in merged:
+                merged[cat] = parent
+    return merged
+
+
+def _view_budgets(view):
+    """Budget rows [{category, amount}] for the view. In the Household view each
+    person's budgets are summed per category so the pacing reflects joint spend."""
+    if view != "Household":
+        return db.get_budgets(name_to_id[view])
+    totals = {}
+    for p in name_to_id.values():
+        for b in db.get_budgets(p):
+            totals[b["category"]] = totals.get(b["category"], 0.0) + float(b["amount"] or 0)
+    return [{"category": c, "amount": a} for c, a in totals.items()]
+
+
 def _vendor_manager(view, key_prefix):
     """Add / edit / delete vendor groups for the current person. Shared by the
     Categories tab and the Analysis drill-down. Vendor groups collapse merchant
@@ -408,11 +480,18 @@ def _manage_files_section(view, pid):
             c1, c2, c3 = st.columns([5, 2, 1])
             c1.write(label)
             c2.caption(f"{imp['live_count']}/{imp['count']} rows · {imp['imported_at']}")
-            if c3.button("Delete", key=f"delimp::{imp['person_id']}::{imp['file_hash']}",
-                         help="Remove this file's transactions and its import record"):
-                n = db.delete_import(imp["person_id"], imp["file_hash"])
-                st.toast(f"Deleted {n} transaction(s) from {imp['filename']}.", icon="🗑️")
-                st.rerun()
+            def _del_import(im=imp):
+                n = db.delete_import(im["person_id"], im["file_hash"])
+                st.toast(f"Deleted {n} transaction(s) from {im['filename']}.", icon="🗑️")
+            with c3:
+                _danger_button(
+                    "Delete",
+                    f"Remove **{imp['filename']}** and its "
+                    f"{imp['live_count']} transaction(s)? This can't be undone "
+                    "(you can re-import the file).",
+                    _del_import,
+                    key=f"delimp::{imp['person_id']}::{imp['file_hash']}",
+                    help="Remove this file's transactions and its import record")
     else:
         st.caption("No tracked imported files yet. Files you import from now on "
                    "appear here and can be deleted individually.")
@@ -434,6 +513,83 @@ def _manage_files_section(view, pid):
             st.toast(f"Deleted {removed} untracked transaction(s). Re-import for "
                      "a clean, tracked copy.", icon="🧹")
             st.rerun()
+
+
+def _budgets_card(view, view_txns):
+    """Dashboard 'this month's budgets' card: a pace bar per budget showing spend
+    so far against the pro-rated target for today, plus a straight-line month-end
+    projection (analytics.budget_status). Renders nothing if no budgets are set."""
+    budgets = [b for b in _view_budgets(view) if float(b["amount"] or 0) > 0]
+    if not budgets:
+        return
+    rows = analytics.budget_status(view_txns, budgets, _view_category_parents(view))
+    rows = [r for r in rows if r["budget"] > 0]
+    if not rows:
+        return
+    rows.sort(key=lambda r: r["pct"], reverse=True)
+    icon = {"on_track": "🟢", "ahead": "🟡", "over": "🔴"}
+    with st.container(border=True):
+        st.subheader("This month's budgets")
+        st.caption("Spend vs a straight-line target for today. "
+                   "🟢 on track · 🟡 ahead of pace · 🔴 over budget. "
+                   "Set budgets in the 🏷️ Categories tab.")
+        for r in rows:
+            st.markdown(
+                f"{icon.get(r['status'], '')} **{r['category']}** — "
+                f"${r['spent']:,.0f} of ${r['budget']:,.0f}  ·  "
+                f"_projected ${r['projected_eom']:,.0f} by month-end_")
+            st.progress(min(r["pct"], 1.0))
+
+
+def _recurring_section(view_txns, view):
+    """Recurring / subscription panel: detected charges + committed monthly total +
+    anomalies. Scans the FULL history for the active view (cadence detection needs
+    several months), so the Analysis filter bar deliberately doesn't apply here."""
+    rec = analytics.recurring_charges(view_txns, _view_vendor_rules(view))
+    if not rec:
+        st.caption("No recurring charges detected yet — a merchant needs at least "
+                   "three charges at a regular cadence (weekly/monthly/yearly).")
+        return
+    cm = analytics.committed_monthly(rec)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Committed / mo", f"${cm['total']:,.0f}",
+              help="Estimated recurring monthly spend (subscriptions + regular bills).")
+    c2.metric("Fixed / mo", f"${cm['fixed']:,.0f}",
+              help="Steady-amount subscriptions (Netflix, gym…).")
+    c3.metric("Variable / mo", f"${cm['variable']:,.0f}",
+              help="Regular but usage-based bills (phone, electric…).")
+
+    min_conf = st.slider("Min confidence", 0.0, 1.0, 0.5, 0.05,
+                         key=f"rec_conf::{view}",
+                         help="Hide low-confidence guesses. Higher = stricter.")
+    shown = [r for r in rec if r["confidence"] >= min_conf]
+    if not shown:
+        st.caption("Nothing above this confidence — lower the slider to see more.")
+    else:
+        df = pd.DataFrame([{
+            "Vendor": r["vendor"], "Category": r["category"], "Cadence": r["cadence"],
+            "Type": r["kind"], "Typical": r["typical_amount"],
+            "Monthly": r["monthly_cost"], "Annual": r["annual_cost"],
+            "Last charge": r["last_date"], "Next ~": r["next_expected"],
+            "Seen": r["count"], "Confidence": r["confidence"],
+        } for r in shown])
+        st.dataframe(df, width="stretch", hide_index=True, column_config={
+            "Typical": st.column_config.NumberColumn(format="$%.2f"),
+            "Monthly": st.column_config.NumberColumn(format="$%.2f"),
+            "Annual": st.column_config.NumberColumn(format="$%.2f"),
+            "Confidence": st.column_config.ProgressColumn(
+                min_value=0.0, max_value=1.0, format="%.2f"),
+        })
+
+    anoms = analytics.recurring_anomalies(rec)
+    if anoms:
+        st.markdown("**⚠️ Anomalies**")
+        label = {"price_change": "💵 Price change",
+                 "possibly_canceled": "🛑 Possibly canceled", "new": "🆕 New"}
+        st.dataframe(pd.DataFrame([{
+            "Vendor": a["vendor"], "What": label.get(a["type"], a["type"]),
+            "Detail": a["detail"]} for a in anoms]),
+            width="stretch", hide_index=True)
 
 
 pid = person_id_for_view(view)
@@ -506,6 +662,49 @@ with tab_dash:
                           delta=None if dash_nw_delta is None else f"{dash_nw_delta:+,.0f}",
                           help="Assets minus liabilities — see the 💵 Net Worth tab.")
 
+        # --- Spending alerts: categories that moved sharply vs a rolling baseline.
+        alerts = analytics.spending_alerts(txns)
+        if alerts:
+            with st.container(border=True):
+                st.subheader("⚠️ Spending alerts")
+                st.caption("Latest complete month vs the average of the prior few "
+                           "months. Only sizeable swings are shown.")
+                for a in alerts[:6]:
+                    if a["new"]:
+                        st.markdown(
+                            f"🆕 **{a['category']}** — new this month at "
+                            f"${a['current']:,.0f} (no recent history).")
+                    else:
+                        arrow = "🔺" if a["direction"] == "up" else "🔻"
+                        word = "up" if a["direction"] == "up" else "down"
+                        st.markdown(
+                            f"{arrow} **{a['category']}** {word} "
+                            f"**{abs(a['pct']):.0f}%** — ${a['current']:,.0f} vs "
+                            f"${a['baseline']:,.0f} baseline "
+                            f"(${abs(a['delta']):,.0f} {word}).")
+
+        # --- This month's budgets: pace bars against pro-rated targets.
+        _budgets_card(view, txns)
+
+        # --- Committed recurring spend: a compact read on fixed obligations, with
+        #     an alert count. Full breakdown lives in 📈 Analysis › Recurring.
+        dash_rec = analytics.recurring_charges(txns, _view_vendor_rules(view))
+        if dash_rec:
+            with st.container(border=True):
+                cm = analytics.committed_monthly(dash_rec)
+                anoms = analytics.recurring_anomalies(dash_rec)
+                rc1, rc2, rc3 = st.columns(3)
+                rc1.metric("Committed / mo", f"${cm['total']:,.0f}",
+                           help="Recurring monthly spend (subscriptions + regular "
+                                "bills). Details in 📈 Analysis › Recurring.")
+                rc2.metric("Fixed vs variable",
+                           f"${cm['fixed']:,.0f} / ${cm['variable']:,.0f}",
+                           help="Steady subscriptions vs usage-based bills.")
+                rc3.metric("Recurring alerts",
+                           f"⚠️ {len(anoms)}" if anoms else "0",
+                           help="Price changes, likely cancellations, or new "
+                                "subscriptions — see 📈 Analysis › Recurring.")
+
         # --- Trends across all imported months. A month-range slider focuses the
         #     charts; each chart is also .interactive() (drag to pan, scroll to
         #     zoom) on its temporal x-axis.
@@ -544,6 +743,40 @@ with tab_dash:
                              alt.Tooltip("amount:Q", title="Amount", format="$,.2f")],
                 ).interactive(), width="stretch")
 
+            # 1b) Net cash flow per month (green surplus / red deficit) with the
+            #     cumulative savings trajectory overlaid as a line.
+            with st.container(border=True):
+                st.subheader("Net cash flow by month")
+                st.caption("Bars: each month's surplus (green) or deficit (red). "
+                           "Line: cumulative net saved over the shown range.")
+                cf = analytics.cash_flow(txns)
+                cf = _month_dt(cf[cf["month"].isin(in_range)])
+                if cf.empty:
+                    st.caption("Not enough data yet.")
+                else:
+                    cf["cumulative"] = cf["net"].cumsum()   # re-base to shown range
+                    cf["sign"] = cf["net"].apply(
+                        lambda v: "surplus" if v >= 0 else "deficit")
+                    base = alt.Chart(cf)
+                    bars = base.mark_bar().encode(
+                        x=alt.X("date:T", title=None,
+                                axis=alt.Axis(format="%b %Y", tickCount="month")),
+                        y=alt.Y("net:Q", title=None, axis=alt.Axis(format="$,.0f")),
+                        color=alt.Color("sign:N", title=None, scale=alt.Scale(
+                            domain=["surplus", "deficit"],
+                            range=["#0F766E", "#C0584E"])),
+                        tooltip=[alt.Tooltip("month:N", title="Month"),
+                                 alt.Tooltip("net:Q", title="Net", format="$,.2f")])
+                    line = base.mark_line(point=True, color="#475569").encode(
+                        x="date:T",
+                        y=alt.Y("cumulative:Q", title=None),
+                        tooltip=[alt.Tooltip("month:N", title="Month"),
+                                 alt.Tooltip("cumulative:Q", title="Cumulative",
+                                             format="$,.2f")])
+                    st.altair_chart(
+                        alt.layer(bars, line).resolve_scale(y="independent")
+                        .interactive(), width="stretch")
+
             # 2) Spending per category per month (one line per category)
             with st.container(border=True):
                 st.subheader("Spending by category by month")
@@ -551,11 +784,23 @@ with tab_dash:
                 if pivot.empty:
                     st.caption("No spending (negative-amount) transactions yet.")
                 else:
-                    cats_present = sorted(pivot.columns)
-                    pick = st.multiselect("Categories (blank = all)", cats_present,
-                                          key="dash_cats")
+                    parents = _view_category_parents(view)
+                    roll = (st.toggle("Roll up to parent groups", key="dash_rollup",
+                                      help="Group categories by their parent (set in "
+                                           "the 🏷️ Categories tab).")
+                            if any((p or "").strip() for p in parents.values())
+                            else False)
                     long = pivot.reset_index().melt(
                         "month", var_name="category", value_name="spend")
+                    if roll:
+                        long["category"] = long["category"].map(
+                            lambda c: (parents.get(c) or "").strip() or c)
+                        long = (long.groupby(["month", "category"], as_index=False)
+                                ["spend"].sum())
+                    label = "Groups" if roll else "Categories"
+                    cats_present = sorted(long["category"].unique())
+                    pick = st.multiselect(f"{label} (blank = all)", cats_present,
+                                          key="dash_cats")
                     long = long[long["month"].isin(in_range)]
                     if pick:
                         long = long[long["category"].isin(pick)]
@@ -599,6 +844,36 @@ with tab_dash:
             _editable_txn_table(shown, f"txntable::{view}::{pick_file}",
                                 _view_category_names(view))
 
+        # --- Possible internal transfers: equal in/out pairs that net to zero
+        #     (money moved between accounts or partners). Offer to exclude both.
+        live_pairs = [p for p in analytics.find_transfer_pairs(txns)
+                      if p["both_included"]]
+        if live_pairs:
+            with st.container(border=True):
+                st.subheader("🔁 Possible transfers")
+                st.caption("Equal in/out pairs that look like money moved between "
+                           "accounts or people — not real spend or income. Exclude "
+                           "both sides so they don't distort totals.")
+                if st.button("Exclude all (both sides)", key=f"xferall::{view}"):
+                    for p in live_pairs:
+                        db.set_transaction_included(p["out_id"], False)
+                        db.set_transaction_included(p["in_id"], False)
+                    st.toast(f"Excluded {len(live_pairs)} transfer pair(s).", icon="🔁")
+                    st.rerun()
+                for p in live_pairs:
+                    who = ""
+                    if p["cross_person"]:
+                        who = (f"  ·  {id_to_name.get(p['out_person'], '?')} → "
+                               f"{id_to_name.get(p['in_person'], '?')}")
+                    c1, c2 = st.columns([5, 1])
+                    c1.markdown(
+                        f"**${p['amount']:,.2f}**{who}  —  out _{p['out_desc'][:36]}_ "
+                        f"({p['out_date']}) ↔ in _{p['in_desc'][:36]}_ ({p['in_date']})")
+                    if c2.button("Exclude", key=f"xfer::{p['out_id']}::{p['in_id']}"):
+                        db.set_transaction_included(p["out_id"], False)
+                        db.set_transaction_included(p["in_id"], False)
+                        st.rerun()
+
 # ---------------------------------------------------------------- ANALYSIS
 with tab_analysis:
     if not txns:
@@ -609,7 +884,7 @@ with tab_analysis:
         dmax = pd.to_datetime(_dts[-1]).date()
         cat_opts = sorted({t["category"] for t in txns})
 
-        mode = st.radio("Mode", ["Explore", "Compare", "People"],
+        mode = st.radio("Mode", ["Explore", "Compare", "People", "Recurring"],
                         horizontal=True, label_visibility="collapsed")
 
         # ---- shared filter bar (control-driven; maps 1:1 to filter_transactions)
@@ -656,7 +931,7 @@ with tab_analysis:
         with st.expander("🗓️ Manage events — windows, recurring rules, tags"):
             _event_manager(view, txns)
 
-        if not fsel:
+        if not fsel and mode != "Recurring":
             st.warning("No transactions match these filters.")
         elif mode == "Explore":
             cats = analytics.drill(fsel, "category")
@@ -753,7 +1028,7 @@ with tab_analysis:
                         col.metric(str(b), f"${v:,.0f}"
                                    + ("/day" if yf == "per_day" else ""))
 
-        else:  # People
+        elif mode == "People":
             if view != "Household":
                 st.info("Switch to the **Household** view to compare people.")
             else:
@@ -791,6 +1066,11 @@ with tab_analysis:
                             "Category": r["category"], a_name: round(r["a_spend"], 2),
                             b_name: round(r["b_spend"], 2)} for r in shared]),
                             width="stretch", hide_index=True)
+
+        elif mode == "Recurring":
+            st.caption("Recurring charges across your **full** history for this view "
+                       "— the filter bar above doesn't apply here.")
+            _recurring_section(txns, view)
 
 
 # ---------------------------------------------------------------- IMPORT
@@ -959,6 +1239,25 @@ with tab_import:
                 st.warning(w)
             if prev.get("skipped"):
                 st.caption(f"Skipped {prev['skipped']} non-transaction/summary row(s).")
+
+            # ---- reconciliation: does the running balance tie out to the penny?
+            rec = analytics.reconcile(prev["rows"])
+            if rec:
+                msg = (f"opening **${rec['begin']:,.2f}**  +  net "
+                       f"**${rec['sum_amounts']:,.2f}**  =  closing "
+                       f"**${rec['computed_end']:,.2f}**")
+                if rec["ok"]:
+                    st.success(f"✅ Statement reconciles — {msg}, matching the "
+                               f"running balance across {rec['n']} rows.")
+                else:
+                    st.warning(
+                        f"⚠️ Statement is **off by ${abs(rec['discrepancy']):,.2f}** — "
+                        f"{msg}, but the statement's ending balance is "
+                        f"${rec['end']:,.2f}"
+                        + (f" ({rec['chain_breaks']} row(s) where the running balance "
+                           "jumps unexpectedly)." if rec["chain_breaks"] else ".")
+                        + " A missing or mis-parsed row is the usual cause; you can "
+                        "still import.")
 
             df = pd.DataFrame(prev["rows"])[
                 ["date", "description", "amount", "category", "included"]]
@@ -1187,9 +1486,14 @@ with tab_import:
                 st.rerun()
 
         st.divider()
-        if txns and st.button("⚠️ Clear all of this person's transactions"):
-            db.clear_transactions(pid)
-            st.rerun()
+        if txns:
+            _danger_button(
+                "⚠️ Clear all of this person's transactions",
+                f"This permanently deletes **all {len(txns)} transactions** for "
+                f"**{view}**. This cannot be undone.",
+                lambda: db.clear_transactions(pid),
+                key="clearall",
+                confirm_label="Yes, delete everything")
 
     with st.expander("🗂️ Manage imported files"):
         _manage_files_section(view, pid)
@@ -1210,9 +1514,58 @@ with tab_cats:
                 st.rerun()
         for c in db.get_categories(pid):
             col1, col2 = st.columns([4, 1])
-            col1.write(f"**{c['name']}** — {c['keywords'] or '_no keywords_'}")
+            parent_tag = f"  ·  ↳ _{c['parent']}_" if c.get("parent") else ""
+            col1.write(f"**{c['name']}** — {c['keywords'] or '_no keywords_'}{parent_tag}")
             if col2.button("Delete", key=f"delcat{c['id']}"):
                 db.delete_category(c["id"])
+                st.rerun()
+
+        cats = db.get_categories(pid)
+
+        st.divider()
+        st.subheader("📂 Category rollups")
+        st.caption("Group related categories under a **parent** (e.g. Groceries + "
+                   "Eating Out → *Food*). Parents roll up spend on charts and can "
+                   "carry their own budget. Leave blank for no parent.")
+        if cats:
+            pdf = pd.DataFrame([{"Category": c["name"], "Parent": c["parent"] or ""}
+                               for c in cats])
+            edited_p = st.data_editor(
+                pdf, width="stretch", hide_index=True, disabled=["Category"],
+                key="parent_editor",
+                column_config={"Parent": st.column_config.TextColumn(
+                    "Parent", help="A rollup group name. Reuse the same name across "
+                                   "categories to group them.")})
+            if st.button("Save rollups"):
+                cmap = {c["name"]: c for c in cats}
+                for _, row in edited_p.iterrows():
+                    c = cmap[row["Category"]]
+                    db.upsert_category(pid, c["name"], c["keywords"] or "",
+                                       (row["Parent"] or "").strip())
+                st.toast("Rollups saved.", icon="📂")
+                st.rerun()
+
+        st.divider()
+        st.subheader("🎯 Monthly budgets")
+        st.caption("Set a monthly cap per category — or per parent group, which caps "
+                   "all its children together. The Dashboard shows live pace bars "
+                   "against a pro-rated target. $0 = no budget.")
+        parent_names = sorted({(c["parent"] or "").strip() for c in cats} - {""})
+        existing = {b["category"]: float(b["amount"] or 0) for b in db.get_budgets(pid)}
+        targets = [c["name"] for c in cats] + parent_names
+        if targets:
+            bdf = pd.DataFrame([
+                {"Category": t, "Kind": ("parent" if t in parent_names else "category"),
+                 "Budget $": float(existing.get(t, 0.0))} for t in targets])
+            edited_b = st.data_editor(
+                bdf, width="stretch", hide_index=True, disabled=["Category", "Kind"],
+                key="budget_editor",
+                column_config={"Budget $": st.column_config.NumberColumn(
+                    min_value=0.0, step=10.0, format="$%.0f")})
+            if st.button("Save budgets"):
+                for _, row in edited_b.iterrows():
+                    db.set_budget(pid, row["Category"], float(row["Budget $"] or 0))
+                st.toast("Budgets saved.", icon="🎯")
                 st.rerun()
 
         st.divider()
@@ -1410,9 +1763,12 @@ with tab_networth:
                             st.rerun()
 
                         st.divider()
-                        if st.button("🗑️ Delete account", key=f"acctdel{a['id']}"):
-                            db.delete_account(a["id"])
-                            st.rerun()
+                        _danger_button(
+                            "🗑️ Delete account",
+                            f"Delete the account **{a['name']}** and its balance "
+                            "history? This can't be undone.",
+                            lambda aid=a["id"]: db.delete_account(aid),
+                            key=f"acctdel{a['id']}")
 
                 # -- per-account balance history (month-end points)
                 snaps = db.account_snapshots(a["id"])
