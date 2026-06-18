@@ -25,6 +25,18 @@ streamlit run app.py
 ```
 Opens at http://localhost:8501
 
+## Run the new API (in development)
+The React UI is served by a FastAPI layer that reuses the same engine and database.
+
+```bash
+pip install -r requirements.txt
+python run_api.py        # http://localhost:8000 — /api/* JSON
+```
+
+The web frontend (added in a later wave) runs separately with `npm run dev` and
+proxies to this API. In production the built frontend is served by this same
+process, so only `python run_api.py` is needed.
+
 ## Enable AI insights (optional)
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...   # Windows: set ANTHROPIC_API_KEY=...
