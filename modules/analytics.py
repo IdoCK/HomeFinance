@@ -191,6 +191,72 @@ def month_over_month_change(transactions):
     return changes
 
 
+def cash_flow(transactions):
+    """Per-month cash flow for the cash-flow chart: a DataFrame with columns
+    [month, income, spend, net, cumulative]. `net` is income − spend for the
+    month; `cumulative` is the running sum of net across months (the savings
+    trajectory). Empty input → empty frame."""
+    s = monthly_savings(transactions)
+    if s.empty:
+        return pd.DataFrame()
+    out = s[["income", "spend"]].copy()
+    out["net"] = out["income"] - out["spend"]
+    out["cumulative"] = out["net"].cumsum()
+    return out.reset_index()
+
+
+def spending_alerts(transactions, *, baseline_months=3, threshold_pct=40.0,
+                    min_amount=50.0):
+    """Flag categories whose spend in the latest *complete* month departs sharply
+    from a rolling baseline (the mean of up to `baseline_months` prior complete
+    months).
+
+    A category is flagged when the change is both material (≥ `min_amount`) and
+    large (≥ `threshold_pct`). A category with no baseline spend that suddenly
+    appears is flagged as `new`. Returns a list sorted by absolute dollar change:
+    {category, current, baseline, delta, pct, direction ('up'|'down'), new}.
+    Partial months are excluded so a half-finished statement cycle doesn't read
+    as a spending drop."""
+    pivot = spending_by_category_over_time(transactions)
+    if pivot.empty:
+        return []
+    sav = monthly_savings(transactions)
+    if not sav.empty and "complete" in sav.columns:
+        complete = set(sav.index[sav["complete"]])
+        months = [m for m in pivot.index if m in complete]
+    else:
+        months = list(pivot.index)
+    if len(months) < 2:
+        return []
+    current = months[-1]
+    baseline = months[max(0, len(months) - 1 - baseline_months):len(months) - 1]
+    if not baseline:
+        return []
+    cur_row = pivot.loc[current]
+    base_df = pivot.loc[baseline]
+    alerts = []
+    for cat in pivot.columns:
+        c = float(cur_row.get(cat, 0.0))
+        b = float(base_df[cat].mean()) if cat in base_df.columns else 0.0
+        delta = c - b
+        if abs(delta) < min_amount:
+            continue
+        if b == 0:
+            if c >= min_amount:
+                alerts.append({"category": cat, "current": round(c, 2),
+                               "baseline": 0.0, "delta": round(delta, 2),
+                               "pct": None, "direction": "up", "new": True})
+            continue
+        pct = delta / b * 100
+        if abs(pct) >= threshold_pct:
+            alerts.append({"category": cat, "current": round(c, 2),
+                           "baseline": round(b, 2), "delta": round(delta, 2),
+                           "pct": round(pct, 1),
+                           "direction": "up" if delta > 0 else "down", "new": False})
+    alerts.sort(key=lambda a: abs(a["delta"]), reverse=True)
+    return alerts
+
+
 def net_worth(accounts):
     """{'assets', 'liabilities', 'net'} from a list of account dicts.
 
