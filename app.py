@@ -1012,6 +1012,25 @@ with tab_import:
             if prev.get("skipped"):
                 st.caption(f"Skipped {prev['skipped']} non-transaction/summary row(s).")
 
+            # ---- reconciliation: does the running balance tie out to the penny?
+            rec = analytics.reconcile(prev["rows"])
+            if rec:
+                msg = (f"opening **${rec['begin']:,.2f}**  +  net "
+                       f"**${rec['sum_amounts']:,.2f}**  =  closing "
+                       f"**${rec['computed_end']:,.2f}**")
+                if rec["ok"]:
+                    st.success(f"✅ Statement reconciles — {msg}, matching the "
+                               f"running balance across {rec['n']} rows.")
+                else:
+                    st.warning(
+                        f"⚠️ Statement is **off by ${abs(rec['discrepancy']):,.2f}** — "
+                        f"{msg}, but the statement's ending balance is "
+                        f"${rec['end']:,.2f}"
+                        + (f" ({rec['chain_breaks']} row(s) where the running balance "
+                           "jumps unexpectedly)." if rec["chain_breaks"] else ".")
+                        + " A missing or mis-parsed row is the usual cause; you can "
+                        "still import.")
+
             df = pd.DataFrame(prev["rows"])[
                 ["date", "description", "amount", "category", "included"]]
             df.columns = ["Date", "Description", "Amount", "Category", "Include"]
