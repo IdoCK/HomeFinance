@@ -191,6 +191,89 @@ def month_over_month_change(transactions):
     return changes
 
 
+# Description hints that a row is a money-move rather than spend/income.
+_TRANSFER_HINTS = ("transfer", "zelle", "venmo", "withdrawal", "deposit", "wire",
+                   "online banking", "paypal", "cash app", "payment to",
+                   "payment from")
+
+
+def _looks_transfer(desc):
+    d = (desc or "").lower()
+    return any(h in d for h in _TRANSFER_HINTS)
+
+
+def find_transfer_pairs(txns, *, days=3):
+    """Detect internal transfers: an outflow matched to an inflow of equal
+    magnitude within `days` days — e.g. a Zelle from one partner to the other, or
+    a move between your own accounts. Such pairs net to zero and shouldn't count
+    as spend or income, so the UI can exclude both sides.
+
+    Greedy nearest-date matching by magnitude; each transaction is used at most
+    once. A pair only counts when it looks like a genuine transfer — the two
+    sides belong to different people, OR a transfer keyword appears in either
+    description — which keeps coincidental same-magnitude purchases out. Pairs
+    where both sides are on a spend feed (credit_card/amazon) are skipped, since
+    those are a purchase and its refund (already handled by refund-netting).
+
+    Returns a list (largest amount first) of dicts: amount, out_id, in_id,
+    out_date, in_date, out_desc, in_desc, out_person, in_person, days_apart,
+    cross_person, both_included."""
+    from collections import defaultdict
+    outs, ins = defaultdict(list), defaultdict(list)
+    for t in txns:
+        amt = float(t["amount"])
+        key = round(abs(amt), 2)
+        if key == 0:
+            continue
+        rec = {"t": t, "date": pd.to_datetime(t["date"])}
+        (outs if amt < 0 else ins)[key].append(rec)
+
+    pairs = []
+    for key, olist in outs.items():
+        ilist = ins.get(key)
+        if not ilist:
+            continue
+        olist.sort(key=lambda r: r["date"])
+        ilist.sort(key=lambda r: r["date"])
+        used = set()
+        for o in olist:
+            ot = o["t"]
+            best = None
+            for j, i in enumerate(ilist):
+                if j in used:
+                    continue
+                it = i["t"]
+                gap = abs((i["date"] - o["date"]).days)
+                if gap > days:
+                    continue
+                if (ot.get("source") in _SPEND_SOURCES
+                        and it.get("source") in _SPEND_SOURCES):
+                    continue
+                cross = ot.get("person_id") != it.get("person_id")
+                if not (cross or _looks_transfer(ot.get("description"))
+                        or _looks_transfer(it.get("description"))):
+                    continue
+                if best is None or gap < best[1]:
+                    best = (j, gap)
+            if best is None:
+                continue
+            j = best[0]
+            used.add(j)
+            it = ilist[j]["t"]
+            pairs.append({
+                "amount": key, "out_id": ot.get("id"), "in_id": it.get("id"),
+                "out_date": ot["date"], "in_date": it["date"],
+                "out_desc": ot.get("description", ""),
+                "in_desc": it.get("description", ""),
+                "out_person": ot.get("person_id"), "in_person": it.get("person_id"),
+                "days_apart": best[1],
+                "cross_person": ot.get("person_id") != it.get("person_id"),
+                "both_included": bool(ot.get("included", 1)) and bool(it.get("included", 1)),
+            })
+    pairs.sort(key=lambda p: p["amount"], reverse=True)
+    return pairs
+
+
 def net_worth(accounts):
     """{'assets', 'liabilities', 'net'} from a list of account dicts.
 
