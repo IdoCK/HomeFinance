@@ -354,6 +354,57 @@ def _manage_files_section(view, pid):
             st.rerun()
 
 
+def _recurring_section(view_txns, view):
+    """Recurring / subscription panel: detected charges + committed monthly total +
+    anomalies. Scans the FULL history for the active view (cadence detection needs
+    several months), so the Analysis filter bar deliberately doesn't apply here."""
+    rec = analytics.recurring_charges(view_txns, _view_vendor_rules(view))
+    if not rec:
+        st.caption("No recurring charges detected yet — a merchant needs at least "
+                   "three charges at a regular cadence (weekly/monthly/yearly).")
+        return
+    cm = analytics.committed_monthly(rec)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Committed / mo", f"${cm['total']:,.0f}",
+              help="Estimated recurring monthly spend (subscriptions + regular bills).")
+    c2.metric("Fixed / mo", f"${cm['fixed']:,.0f}",
+              help="Steady-amount subscriptions (Netflix, gym…).")
+    c3.metric("Variable / mo", f"${cm['variable']:,.0f}",
+              help="Regular but usage-based bills (phone, electric…).")
+
+    min_conf = st.slider("Min confidence", 0.0, 1.0, 0.5, 0.05,
+                         key=f"rec_conf::{view}",
+                         help="Hide low-confidence guesses. Higher = stricter.")
+    shown = [r for r in rec if r["confidence"] >= min_conf]
+    if not shown:
+        st.caption("Nothing above this confidence — lower the slider to see more.")
+    else:
+        df = pd.DataFrame([{
+            "Vendor": r["vendor"], "Category": r["category"], "Cadence": r["cadence"],
+            "Type": r["kind"], "Typical": r["typical_amount"],
+            "Monthly": r["monthly_cost"], "Annual": r["annual_cost"],
+            "Last charge": r["last_date"], "Next ~": r["next_expected"],
+            "Seen": r["count"], "Confidence": r["confidence"],
+        } for r in shown])
+        st.dataframe(df, width="stretch", hide_index=True, column_config={
+            "Typical": st.column_config.NumberColumn(format="$%.2f"),
+            "Monthly": st.column_config.NumberColumn(format="$%.2f"),
+            "Annual": st.column_config.NumberColumn(format="$%.2f"),
+            "Confidence": st.column_config.ProgressColumn(
+                min_value=0.0, max_value=1.0, format="%.2f"),
+        })
+
+    anoms = analytics.recurring_anomalies(rec)
+    if anoms:
+        st.markdown("**⚠️ Anomalies**")
+        label = {"price_change": "💵 Price change",
+                 "possibly_canceled": "🛑 Possibly canceled", "new": "🆕 New"}
+        st.dataframe(pd.DataFrame([{
+            "Vendor": a["vendor"], "What": label.get(a["type"], a["type"]),
+            "Detail": a["detail"]} for a in anoms]),
+            width="stretch", hide_index=True)
+
+
 pid = person_id_for_view(view)
 txns = transactions_for_view(view)
 goals = goals_for_view(view)
@@ -423,6 +474,25 @@ with tab_dash:
                 c5.metric("Net worth", f"${dash_nw['net']:,.0f}",
                           delta=None if dash_nw_delta is None else f"{dash_nw_delta:+,.0f}",
                           help="Assets minus liabilities — see the 💵 Net Worth tab.")
+
+        # --- Committed recurring spend: a compact read on fixed obligations, with
+        #     an alert count. Full breakdown lives in 📈 Analysis › Recurring.
+        dash_rec = analytics.recurring_charges(txns, _view_vendor_rules(view))
+        if dash_rec:
+            with st.container(border=True):
+                cm = analytics.committed_monthly(dash_rec)
+                anoms = analytics.recurring_anomalies(dash_rec)
+                rc1, rc2, rc3 = st.columns(3)
+                rc1.metric("Committed / mo", f"${cm['total']:,.0f}",
+                           help="Recurring monthly spend (subscriptions + regular "
+                                "bills). Details in 📈 Analysis › Recurring.")
+                rc2.metric("Fixed vs variable",
+                           f"${cm['fixed']:,.0f} / ${cm['variable']:,.0f}",
+                           help="Steady subscriptions vs usage-based bills.")
+                rc3.metric("Recurring alerts",
+                           f"⚠️ {len(anoms)}" if anoms else "0",
+                           help="Price changes, likely cancellations, or new "
+                                "subscriptions — see 📈 Analysis › Recurring.")
 
         # --- Trends across all imported months. A month-range slider focuses the
         #     charts; each chart is also .interactive() (drag to pan, scroll to
@@ -527,7 +597,7 @@ with tab_analysis:
         dmax = pd.to_datetime(_dts[-1]).date()
         cat_opts = sorted({t["category"] for t in txns})
 
-        mode = st.radio("Mode", ["Explore", "Compare", "People"],
+        mode = st.radio("Mode", ["Explore", "Compare", "People", "Recurring"],
                         horizontal=True, label_visibility="collapsed")
 
         # ---- shared filter bar (control-driven; maps 1:1 to filter_transactions)
@@ -567,7 +637,7 @@ with tab_analysis:
             kw["categories"] = cat_sel
         fsel = analytics.filter_transactions(txns, **kw)
 
-        if not fsel:
+        if not fsel and mode != "Recurring":
             st.warning("No transactions match these filters.")
         elif mode == "Explore":
             cats = analytics.drill(fsel, "category")
@@ -664,7 +734,7 @@ with tab_analysis:
                         col.metric(str(b), f"${v:,.0f}"
                                    + ("/day" if yf == "per_day" else ""))
 
-        else:  # People
+        elif mode == "People":
             if view != "Household":
                 st.info("Switch to the **Household** view to compare people.")
             else:
@@ -702,6 +772,11 @@ with tab_analysis:
                             "Category": r["category"], a_name: round(r["a_spend"], 2),
                             b_name: round(r["b_spend"], 2)} for r in shared]),
                             width="stretch", hide_index=True)
+
+        elif mode == "Recurring":
+            st.caption("Recurring charges across your **full** history for this view "
+                       "— the filter bar above doesn't apply here.")
+            _recurring_section(txns, view)
 
 
 # ---------------------------------------------------------------- IMPORT

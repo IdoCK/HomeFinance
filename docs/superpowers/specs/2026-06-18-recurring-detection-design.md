@@ -30,7 +30,7 @@ Sums `monthly_cost` across matches, split by `kind`. Powers the Dashboard card.
 Derives flags from each match's own returned fields; no persistence:
 - **price_change** — `last_amount` deviates from `typical_amount` by > 15% (only meaningful for `fixed`; skip `variable`). Reports old/new/pct.
 - **possibly_canceled** — `next_expected` is more than 1.5× the cadence period in the past relative to `as_of`, with no newer charge.
-- **new** — the subscription's first charge is within ~2 cadence periods of `as_of` (newly appeared). (Requires first-charge date — return `first_date` from `recurring_charges` to support this.)
+- **new** — the subscription's first charge is within ~2.5 cadence periods of `as_of` (newly appeared). The headroom over 2× matters because a just-detected sub already has ≥3 charges spanning ~2 periods. (Requires first-charge date — `recurring_charges` returns `first_date`.)
 
 Each anomaly: `{vendor, type, detail, ...}` sorted by severity/recency.
 
