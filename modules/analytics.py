@@ -1,6 +1,7 @@
 """Compute the numbers the dashboard charts and the AI insights both rely on."""
 
 import json
+import statistics
 from datetime import date, timedelta
 import pandas as pd
 
@@ -274,6 +275,72 @@ def find_transfer_pairs(txns, *, days=3):
     return pairs
 
 
+def cash_flow(transactions):
+    """Per-month cash flow for the cash-flow chart: a DataFrame with columns
+    [month, income, spend, net, cumulative]. `net` is income − spend for the
+    month; `cumulative` is the running sum of net across months (the savings
+    trajectory). Empty input → empty frame."""
+    s = monthly_savings(transactions)
+    if s.empty:
+        return pd.DataFrame()
+    out = s[["income", "spend"]].copy()
+    out["net"] = out["income"] - out["spend"]
+    out["cumulative"] = out["net"].cumsum()
+    return out.reset_index()
+
+
+def spending_alerts(transactions, *, baseline_months=3, threshold_pct=40.0,
+                    min_amount=50.0):
+    """Flag categories whose spend in the latest *complete* month departs sharply
+    from a rolling baseline (the mean of up to `baseline_months` prior complete
+    months).
+
+    A category is flagged when the change is both material (≥ `min_amount`) and
+    large (≥ `threshold_pct`). A category with no baseline spend that suddenly
+    appears is flagged as `new`. Returns a list sorted by absolute dollar change:
+    {category, current, baseline, delta, pct, direction ('up'|'down'), new}.
+    Partial months are excluded so a half-finished statement cycle doesn't read
+    as a spending drop."""
+    pivot = spending_by_category_over_time(transactions)
+    if pivot.empty:
+        return []
+    sav = monthly_savings(transactions)
+    if not sav.empty and "complete" in sav.columns:
+        complete = set(sav.index[sav["complete"]])
+        months = [m for m in pivot.index if m in complete]
+    else:
+        months = list(pivot.index)
+    if len(months) < 2:
+        return []
+    current = months[-1]
+    baseline = months[max(0, len(months) - 1 - baseline_months):len(months) - 1]
+    if not baseline:
+        return []
+    cur_row = pivot.loc[current]
+    base_df = pivot.loc[baseline]
+    alerts = []
+    for cat in pivot.columns:
+        c = float(cur_row.get(cat, 0.0))
+        b = float(base_df[cat].mean()) if cat in base_df.columns else 0.0
+        delta = c - b
+        if abs(delta) < min_amount:
+            continue
+        if b == 0:
+            if c >= min_amount:
+                alerts.append({"category": cat, "current": round(c, 2),
+                               "baseline": 0.0, "delta": round(delta, 2),
+                               "pct": None, "direction": "up", "new": True})
+            continue
+        pct = delta / b * 100
+        if abs(pct) >= threshold_pct:
+            alerts.append({"category": cat, "current": round(c, 2),
+                           "baseline": round(b, 2), "delta": round(delta, 2),
+                           "pct": round(pct, 1),
+                           "direction": "up" if delta > 0 else "down", "new": False})
+    alerts.sort(key=lambda a: abs(a["delta"]), reverse=True)
+    return alerts
+
+
 def net_worth(accounts):
     """{'assets', 'liabilities', 'net'} from a list of account dicts.
 
@@ -302,6 +369,41 @@ def month_end_balances(transactions):
                           "balance": float(t["balance"]), "_key": key}
     return [{k: v for k, v in bymonth[m].items() if k != "_key"}
             for m in sorted(bymonth)]
+
+
+def reconcile(rows):
+    """Tie out a bank statement against its running-balance column.
+
+    `rows` are transaction dicts carrying 'amount' and (for bank feeds) a running
+    'balance'. We sort by date (stable, so same-day rows keep statement order),
+    take the opening balance as `first.balance - first.amount`, and check that
+    opening + Σ(all amounts) lands on the last row's balance. Σ is order-
+    independent, so this is robust to forward- or reverse-chronological exports.
+
+    Returns None when fewer than two rows carry a balance (e.g. a credit-card
+    feed has no running balance to reconcile). Otherwise a dict:
+    {ok, begin, end, sum_amounts, computed_end, discrepancy, n, chain_breaks}."""
+    bal = [r for r in rows
+           if r.get("balance") is not None and r.get("amount") is not None]
+    if len(bal) < 2:
+        return None
+    bal = sorted(bal, key=lambda r: r["date"])      # stable: keeps intra-day order
+    amounts = [float(r["amount"]) for r in bal]
+    balances = [float(r["balance"]) for r in bal]
+    begin = balances[0] - amounts[0]
+    end = balances[-1]
+    total = sum(amounts)
+    computed_end = begin + total
+    discrepancy = round(end - computed_end, 2)
+    # Count rows where the running balance doesn't equal the prior balance plus
+    # this row's amount — points at where a statement stops tying out.
+    chain_breaks = sum(
+        1 for i in range(1, len(bal))
+        if abs(balances[i] - (balances[i - 1] + amounts[i])) >= 0.01)
+    return {"ok": abs(discrepancy) < 0.01, "begin": round(begin, 2),
+            "end": round(end, 2), "sum_amounts": round(total, 2),
+            "computed_end": round(computed_end, 2), "discrepancy": discrepancy,
+            "n": len(bal), "chain_breaks": chain_breaks}
 
 
 def net_worth_trend(snapshots):
@@ -561,6 +663,151 @@ def drill(txns, level, *, parent=None, vendor_rules=None):
         return [t for t in txns
                 if vendor_of(t.get("description", ""), vendor_rules) == parent]
     return {}
+
+
+# ==========================================================================
+# Recurring / subscription detection. Pure, no DB: re-run each render over the
+# transaction list. Groups merchants via vendor_of (so AMAZON MKTPL collapses to
+# Amazon), routes through _df/_split (excluded rows + refund-netting honoured),
+# and a vendor that nets to ~zero is not treated as a live subscription.
+# ==========================================================================
+
+# Nominal length of each cadence, in days. ~30.44 / ~91.31 / ~365.25 keep the
+# month/quarter/year averages honest (leap years, uneven months).
+_CADENCE_DAYS = {"weekly": 7.0, "monthly": 30.44, "quarterly": 91.31, "yearly": 365.25}
+
+
+def _snap_cadence(median_gap):
+    """Nearest cadence (name, period_days) whose nominal length is within ±25% of
+    `median_gap`, or None if the gap matches no known cadence. Picks the closest
+    when several qualify."""
+    best = None
+    for name, period in _CADENCE_DAYS.items():
+        err = abs(median_gap - period)
+        if err <= 0.25 * period and (best is None or err < best[2]):
+            best = (name, period, err)
+    return (best[0], best[1]) if best else None
+
+
+def recurring_charges(txns, vendor_rules=None):
+    """Detect recurring charges (subscriptions, regular bills) from a txn list.
+
+    Groups spend by vendor (vendor_of), aggregates to one charge per day (a
+    subscription bills once per cycle), and flags a vendor as recurring when it
+    has >=3 charges whose median gap snaps to a known cadence (weekly/monthly/
+    quarterly/yearly) and whose gaps are reasonably regular. Each match is
+    classified 'fixed' (amount barely varies) or 'variable' (regular cadence,
+    varying amount — usage-based bills like phone/electric). Returns a list of
+    dicts sorted by (confidence, monthly_cost) descending."""
+    df = _df(txns)
+    if df.empty:
+        return []
+    s = _split(df)
+    s = s[s["spend"] > 0].copy()
+    if s.empty:
+        return []
+    s["vendor"] = [vendor_of(d, vendor_rules) for d in s["description"]]
+
+    out = []
+    for vendor, grp in s.groupby("vendor"):
+        # One charge per calendar day: a real subscription bills once per cycle,
+        # and same-day duplicates (e.g. a busy merchant) would fake a 0-day gap.
+        byday = grp.groupby(grp["date"].dt.normalize())["spend"].sum().sort_index()
+        if len(byday) < 3:
+            continue
+        dates = list(byday.index)
+        amounts = [float(a) for a in byday.values]
+        gaps = [(dates[i] - dates[i - 1]).days for i in range(1, len(dates))]
+        median_gap = statistics.median(gaps)
+        if median_gap <= 0:
+            continue
+        snapped = _snap_cadence(median_gap)
+        if not snapped:
+            continue
+        cadence, period = snapped
+        gap_mean = statistics.fmean(gaps)
+        gap_cv = (statistics.pstdev(gaps) / gap_mean) if gap_mean else 0.0
+        if gap_cv > 0.4:           # gaps too irregular to call it recurring
+            continue
+
+        typical = statistics.median(amounts)
+        amt_mean = statistics.fmean(amounts)
+        amt_cv = (statistics.pstdev(amounts) / amt_mean) if amt_mean else 0.0
+        kind = "fixed" if amt_cv <= 0.10 else "variable"
+
+        # Prior amounts (all but the last) let the anomaly pass spot a price
+        # change even though that change itself bumps the overall amount CV into
+        # 'variable' territory.
+        prior = amounts[:-1]
+        prior_typical = statistics.median(prior)
+        prior_mean = statistics.fmean(prior)
+        prior_cv = (statistics.pstdev(prior) / prior_mean) if prior_mean else 0.0
+
+        confidence = max(0.0, min(1.0, statistics.fmean([
+            1 - min(gap_cv, 1.0),             # regular timing
+            min(len(byday) / 6.0, 1.0),       # more occurrences -> surer
+            1 - min(amt_cv, 1.0),             # steady amount
+        ])))
+        monthly_cost = typical * (_CADENCE_DAYS["monthly"] / period)
+        mode = grp["category"].mode()
+        category = mode.iloc[0] if not mode.empty else None
+        out.append({
+            "vendor": vendor,
+            "category": category,
+            "cadence": cadence,
+            "kind": kind,
+            "typical_amount": round(typical, 2),
+            "prior_typical": round(prior_typical, 2),
+            "prior_stable": bool(prior_cv <= 0.10),
+            "first_date": dates[0].date().isoformat(),
+            "last_date": dates[-1].date().isoformat(),
+            "last_amount": round(amounts[-1], 2),
+            "next_expected": (dates[-1] + timedelta(days=round(median_gap))).date().isoformat(),
+            "count": len(byday),
+            "monthly_cost": round(monthly_cost, 2),
+            "annual_cost": round(monthly_cost * 12, 2),
+            "confidence": round(confidence, 3),
+        })
+    out.sort(key=lambda r: (r["confidence"], r["monthly_cost"]), reverse=True)
+    return out
+
+
+def committed_monthly(recurring):
+    """Total recurring monthly spend, split into 'fixed' / 'variable' / 'total'."""
+    fixed = sum(r["monthly_cost"] for r in recurring if r["kind"] == "fixed")
+    variable = sum(r["monthly_cost"] for r in recurring if r["kind"] == "variable")
+    return {"fixed": round(fixed, 2), "variable": round(variable, 2),
+            "total": round(fixed + variable, 2)}
+
+
+def recurring_anomalies(recurring, as_of=None):
+    """Flags derived from each match's own history (no persistence):
+    'price_change' (latest charge departs >15% from a previously-stable price),
+    'possibly_canceled' (next_expected is >1.5x the cadence overdue), and 'new'
+    (first charge within ~2 cadence periods of `as_of`). Sorted by severity."""
+    today = pd.to_datetime(as_of).date() if as_of else date.today()
+    out = []
+    for r in recurring:
+        period = _CADENCE_DAYS[r["cadence"]]
+        if r.get("prior_stable") and r["prior_typical"] > 0:
+            pct = (r["last_amount"] - r["prior_typical"]) / r["prior_typical"] * 100
+            if abs(pct) > 15:
+                out.append({"vendor": r["vendor"], "type": "price_change",
+                            "detail": f"{r['prior_typical']:.2f} -> {r['last_amount']:.2f}",
+                            "pct": round(pct, 1)})
+        overdue = (today - date.fromisoformat(r["next_expected"])).days
+        if overdue > 1.5 * period:
+            out.append({"vendor": r["vendor"], "type": "possibly_canceled",
+                        "detail": f"expected ~{r['next_expected']}, nothing since {r['last_date']}",
+                        "overdue_days": overdue})
+        age = (today - date.fromisoformat(r["first_date"])).days
+        # >=3 charges already span ~2 periods, so allow a little headroom.
+        if age <= 2.5 * period:
+            out.append({"vendor": r["vendor"], "type": "new",
+                        "detail": f"first charge {r['first_date']}", "age_days": age})
+    order = {"price_change": 0, "possibly_canceled": 1, "new": 2}
+    out.sort(key=lambda a: order.get(a["type"], 9))
+    return out
 
 
 def user_overlap(txns, person_a, person_b):
