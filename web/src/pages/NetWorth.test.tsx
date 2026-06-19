@@ -5,6 +5,7 @@ import { afterEach, expect, test, vi } from "vitest";
 const addAccount = vi.fn().mockResolvedValue({ ok: true, id: 9 });
 const updateAccountBalance = vi.fn().mockResolvedValue({ ok: true });
 const deleteAccount = vi.fn().mockResolvedValue({ ok: true });
+const getReconciliation = vi.fn().mockResolvedValue({ reconcilable: false });
 const getNetWorth = vi.fn().mockResolvedValue({
   summary: { assets: 30000, liabilities: 5000, net: 25000 },
   delta: 2000,
@@ -29,17 +30,28 @@ vi.mock("@/lib/api", () => ({
   addAccount: (...a: unknown[]) => addAccount(...a),
   updateAccountBalance: (...a: unknown[]) => updateAccountBalance(...a),
   deleteAccount: (...a: unknown[]) => deleteAccount(...a),
+  getReconciliation: (...a: unknown[]) => getReconciliation(...a),
 }));
 
 import NetWorth from "./NetWorth";
 
-afterEach(() => { addAccount.mockClear(); updateAccountBalance.mockClear(); deleteAccount.mockClear(); });
+afterEach(() => { addAccount.mockClear(); updateAccountBalance.mockClear(); deleteAccount.mockClear(); getReconciliation.mockClear(); });
 
 test("renders the net worth total and accounts", async () => {
   render(<NetWorth />);
   await waitFor(() => expect(screen.getByTestId("networth-total")).toHaveTextContent("$25,000.00"));
   expect(screen.getByText("Vanguard")).toBeInTheDocument();
   expect(screen.getByText("Visa")).toBeInTheDocument();
+});
+
+test("shows the reconciliation panel when statements tie out", async () => {
+  getReconciliation.mockResolvedValueOnce({
+    reconcilable: true, ok: true, begin: 1000, end: 1300, sum_amounts: 300,
+    computed_end: 1300, discrepancy: 0, n: 2, chain_breaks: 0,
+  });
+  render(<NetWorth />);
+  await waitFor(() => expect(screen.getByLabelText("Statement reconciliation")).toBeInTheDocument());
+  expect(screen.getByText(/statements tie out/i)).toBeInTheDocument();
 });
 
 test("editing a balance calls updateAccountBalance", async () => {

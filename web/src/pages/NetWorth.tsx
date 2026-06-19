@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
-import { getNetWorth, addAccount, updateAccountBalance, deleteAccount, type Account, type NetWorthData, type NetWorthPoint } from "@/lib/api";
+import { getNetWorth, addAccount, updateAccountBalance, deleteAccount, getReconciliation, type Account, type NetWorthData, type NetWorthPoint, type Reconciliation } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { Money, formatMoney } from "@/components/money";
 
@@ -67,6 +67,7 @@ function AccountRow({ a, onSave, onRemove }: {
 export default function NetWorth() {
   const { personId, label } = usePersona();
   const [data, setData] = useState<NetWorthData | null>(null);
+  const [recon, setRecon] = useState<Reconciliation | null>(null);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [kind, setKind] = useState("checking");
@@ -77,6 +78,9 @@ export default function NetWorth() {
     [personId],
   );
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    getReconciliation(personId).then(setRecon).catch(() => setRecon(null));
+  }, [personId]);
 
   const commitBalance = (a: Account, value: string) => {
     const next = Number(value);
@@ -128,6 +132,26 @@ export default function NetWorth() {
           ? <Sparkline points={trend} />
           : <div style={{ color: "var(--fl-muted)", fontSize: 13 }}>Add a second snapshot to see a trend.</div>}
       </section>
+
+      {recon && recon.reconcilable && (
+        <section className="frosted-card" aria-label="Statement reconciliation" style={{ padding: 20, display: "grid", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--fl-muted)" }}>
+              Statement reconciliation
+            </span>
+            <span style={{
+              fontWeight: 700, fontSize: 13,
+              color: recon.ok ? "#22C55E" : "#EF4444",
+            }}>
+              {recon.ok ? "✓ Statements tie out" : `⚠ Off by ${formatMoney(Math.abs(recon.discrepancy))}`}
+            </span>
+          </div>
+          <div style={{ color: "var(--fl-muted)", fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
+            {formatMoney(recon.begin)} opening → {formatMoney(recon.end)} ending across {recon.n} rows
+            {recon.chain_breaks > 0 && `; ${recon.chain_breaks} balance break${recon.chain_breaks === 1 ? "" : "s"}`}
+          </div>
+        </section>
+      )}
 
       {accounts.length === 0 && !adding && (
         <section className="frosted-card" style={{ padding: 32, textAlign: "center", color: "var(--fl-muted)" }}>
