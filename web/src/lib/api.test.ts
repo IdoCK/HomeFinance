@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { getOverview, getTransactions, updateTransaction } from "./api";
+import { getOverview, getTransactions, updateTransaction, getBudgets, setBudget, deleteBudget } from "./api";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -46,4 +46,30 @@ test("updateTransaction PATCHes category + included", async () => {
   expect(url).toBe("/api/transactions/5");
   expect(init.method).toBe("PATCH");
   expect(JSON.parse(init.body as string)).toEqual({ category: "Rent", included: false });
+});
+
+test("getBudgets builds /api/budgets with person_id", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+  vi.stubGlobal("fetch", fetchMock);
+  await getBudgets({ personId: 1 });
+  expect(fetchMock.mock.calls[0][0]).toBe("/api/budgets?person_id=1");
+});
+
+test("setBudget PUTs person_id + category + amount", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+  vi.stubGlobal("fetch", fetchMock);
+  await setBudget({ personId: 1, category: "Rent", amount: 2000 });
+  const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+  expect(url).toBe("/api/budgets");
+  expect(init.method).toBe("PUT");
+  expect(JSON.parse(init.body as string)).toEqual({ person_id: 1, category: "Rent", amount: 2000 });
+});
+
+test("deleteBudget DELETEs by id", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+  vi.stubGlobal("fetch", fetchMock);
+  await deleteBudget(7);
+  const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+  expect(url).toBe("/api/budgets/7");
+  expect(init.method).toBe("DELETE");
 });

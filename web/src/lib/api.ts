@@ -58,3 +58,25 @@ export const getTransactions = (p: { personId?: number }) =>
 
 export const updateTransaction = (id: number, body: { category?: string; included?: boolean }) =>
   apiSend<Transaction>("PATCH", `/transactions/${id}`, body);
+
+export type Budget = {
+  id: number;
+  person_id: number | null;
+  category: string;
+  amount: number;
+  budget: number;
+  spent: number;
+  expected_to_date: number;
+  projected_eom: number;
+  pct: number;
+  status: "on_track" | "ahead" | "over";
+};
+
+export const getBudgets = (p: { personId?: number }) =>
+  apiGet<Budget[]>("/budgets", { person_id: p.personId });
+
+export const setBudget = (b: { personId?: number; category: string; amount: number }) =>
+  apiSend<{ ok: boolean }>("PUT", "/budgets", { person_id: b.personId, category: b.category, amount: b.amount });
+
+export const deleteBudget = (id: number) =>
+  apiSend<{ ok: boolean }>("DELETE", `/budgets/${id}`);
