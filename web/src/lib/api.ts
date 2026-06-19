@@ -206,3 +206,35 @@ export const getInsightsPreview = (personId?: number) =>
   apiGet<InsightsPreview>("/insights/preview", { person_id: personId });
 export const generateInsights = (personId?: number) =>
   apiSend<{ text: string }>("POST", "/insights/generate", { person_id: personId });
+
+export type OllamaStatus = { ok: boolean; message: string };
+export type ImportRow = {
+  date: string; description: string; amount: number; category: string;
+  source: string; included: boolean; balance: number | null;
+};
+export type ImportParseResult = {
+  already_imported: boolean; file_hash: string; filename: string;
+  source: string; rows: ImportRow[]; warnings: string[];
+};
+
+export const getOllamaStatus = () => apiGet<OllamaStatus>("/import/status");
+
+// Multipart upload — let the browser set the Content-Type boundary, so this
+// doesn't go through apiSend (which sends JSON).
+export async function parseImport(file: File, source: string, personId: number): Promise<ImportParseResult> {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("source", source);
+  fd.append("person_id", String(personId));
+  const res = await fetch(`${BASE}/import/parse`, { method: "POST", body: fd });
+  if (!res.ok) throw new Error(`POST /import/parse -> ${res.status}`);
+  return res.json() as Promise<ImportParseResult>;
+}
+
+export const commitImport = (c: {
+  personId: number; filename: string; fileHash: string; source: string; rows: ImportRow[];
+}) =>
+  apiSend<{ imported: number }>("POST", "/import/commit", {
+    person_id: c.personId, filename: c.filename, file_hash: c.fileHash,
+    source: c.source, rows: c.rows,
+  });

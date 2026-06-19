@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { getOverview, getTransactions, updateTransaction, getBudgets, setBudget, deleteBudget, getRecurring, getGoals, addGoal, updateGoalSaved, deleteGoal, getNetWorth, addAccount, updateAccountBalance, deleteAccount, getCategories, upsertCategory, deleteCategory, getVendors, upsertVendor, deleteVendor, renamePerson, getInsightsPreview, generateInsights } from "./api";
+import { getOverview, getTransactions, updateTransaction, getBudgets, setBudget, deleteBudget, getRecurring, getGoals, addGoal, updateGoalSaved, deleteGoal, getNetWorth, addAccount, updateAccountBalance, deleteAccount, getCategories, upsertCategory, deleteCategory, getVendors, upsertVendor, deleteVendor, renamePerson, getInsightsPreview, generateInsights, getOllamaStatus, parseImport, commitImport, type ImportRow } from "./api";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -237,4 +237,37 @@ test("generateInsights POSTs person_id", async () => {
   expect(url).toBe("/api/insights/generate");
   expect(init.method).toBe("POST");
   expect(JSON.parse(init.body as string)).toEqual({ person_id: 2 });
+});
+
+test("getOllamaStatus builds /api/import/status", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, message: "ready" }) });
+  vi.stubGlobal("fetch", fetchMock);
+  await getOllamaStatus();
+  expect(fetchMock.mock.calls[0][0]).toBe("/api/import/status");
+});
+
+test("parseImport posts multipart form data", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ already_imported: false, rows: [] }) });
+  vi.stubGlobal("fetch", fetchMock);
+  const file = new File(["date,amt"], "june.csv", { type: "text/csv" });
+  await parseImport(file, "bank", 1);
+  const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+  expect(url).toBe("/api/import/parse");
+  expect(init.method).toBe("POST");
+  expect(init.body).toBeInstanceOf(FormData);
+  const fd = init.body as FormData;
+  expect(fd.get("source")).toBe("bank");
+  expect(fd.get("person_id")).toBe("1");
+  expect((fd.get("file") as File).name).toBe("june.csv");
+});
+
+test("commitImport posts the rows as JSON", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ imported: 1 }) });
+  vi.stubGlobal("fetch", fetchMock);
+  const rows: ImportRow[] = [{ date: "2026-06-01", description: "WF", amount: -5, category: "Groceries", source: "bank", included: true, balance: null }];
+  await commitImport({ personId: 1, filename: "june.csv", fileHash: "abc", source: "bank", rows });
+  const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+  expect(url).toBe("/api/import/commit");
+  expect(init.method).toBe("POST");
+  expect(JSON.parse(init.body as string)).toEqual({ person_id: 1, filename: "june.csv", file_hash: "abc", source: "bank", rows });
 });
