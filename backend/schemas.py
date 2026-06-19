@@ -58,3 +58,21 @@ class VendorUpsert(BaseModel):
 
 class InsightsRequest(BaseModel):
     person_id: Optional[int] = None
+
+
+class ImportRow(BaseModel):
+    date: str
+    description: str
+    amount: float
+    category: str = "Uncategorized"
+    source: str = "auto"
+    included: bool = True
+    balance: Optional[float] = None
+
+
+class ImportCommit(BaseModel):
+    person_id: int
+    filename: str
+    file_hash: str
+    source: str = "auto"
+    rows: list[ImportRow]
