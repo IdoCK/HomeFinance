@@ -38,3 +38,25 @@ def test_overview_empty_data(client, people):
     assert d["income"] == 0 and d["spend"] == 0 and d["net"] == 0
     assert d["months"] == [] and d["by_category"] == {}
     assert d["savings_rate"] is None
+    assert d["alerts"] == []
+
+
+def test_overview_includes_spending_alerts(client, people):
+    from modules import database as db
+    you = people[0]["id"]
+    rows = []
+    # Three complete baseline months of modest dining, then a spike in the latest.
+    # Each month must span 1st..last day to count as "complete".
+    for ym, last in (("2026-01", "31"), ("2026-02", "28"), ("2026-03", "31")):
+        rows += [
+            {"date": f"{ym}-01", "description": "Rent", "amount": -2000.0, "category": "Housing", "source": "bank"},
+            {"date": f"{ym}-{last}", "description": "Dining", "amount": -100.0, "category": "Eating out", "source": "card"},
+        ]
+    rows += [
+        {"date": "2026-04-01", "description": "Rent", "amount": -2000.0, "category": "Housing", "source": "bank"},
+        {"date": "2026-04-30", "description": "Dining spree", "amount": -600.0, "category": "Eating out", "source": "card"},
+    ]
+    db.add_transactions(you, rows)
+    d = client.get("/api/overview", params={"person_id": you}).json()
+    cats = [a["category"] for a in d["alerts"]]
+    assert "Eating out" in cats

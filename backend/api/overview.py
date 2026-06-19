@@ -11,7 +11,7 @@ router = APIRouter(prefix="/overview", tags=["overview"])
 
 def _empty():
     return {"month": None, "months": [], "income": 0.0, "spend": 0.0, "net": 0.0,
-            "savings_rate": None, "complete": False, "by_category": {}}
+            "savings_rate": None, "complete": False, "by_category": {}, "alerts": []}
 
 
 @router.get("")
@@ -48,4 +48,5 @@ def overview(person_id: Optional[int] = None, month: Optional[str] = None):
         "savings_rate": sel["savings_rate"],
         "complete": sel["complete"],
         "by_category": analytics.category_totals(month_txns),
+        "alerts": analytics.spending_alerts(txns),
     }
