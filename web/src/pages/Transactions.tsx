@@ -8,7 +8,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from "@tanstack/react-table";
-import { getTransactions, updateTransaction, type Transaction } from "@/lib/api";
+import { getTransactions, updateTransaction, getTransferPairs, type Transaction, type TransferPair } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { Money } from "@/components/money";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -36,13 +36,28 @@ export default function Transactions() {
   const [category, setCategory] = useState("all");
   const [include, setInclude] = useState<IncludeFilter>("all");
 
+  const [pairs, setPairs] = useState<TransferPair[]>([]);
+
   useEffect(() => {
     let alive = true;
     getTransactions({ personId }).then((d) => alive && setData(d)).catch(() => alive && setData([]));
+    getTransferPairs(personId).then((p) => alive && setPairs(p)).catch(() => alive && setPairs([]));
     return () => { alive = false; };
   }, [personId]);
 
   const isJoint = persona === "joint";
+
+  // Exclude both sides of a detected transfer, then refresh the list + suggestions.
+  const excludePair = async (p: TransferPair) => {
+    const ids = [p.out_id, p.in_id].filter((x): x is number => x != null);
+    await Promise.all(ids.map((id) => updateTransaction(id, { included: false })));
+    const [txns, next] = await Promise.all([getTransactions({ personId }), getTransferPairs(personId)]);
+    setData(txns);
+    setPairs(next);
+  };
+
+  // Only suggest pairs whose sides are still both counted (nothing to do otherwise).
+  const openPairs = pairs.filter((p) => p.both_included);
 
   const categories = useMemo(
     () => Array.from(new Set(data.map((t) => t.category))).sort(),
@@ -174,6 +189,25 @@ export default function Transactions() {
       <datalist id="hf-categories">
         {categories.map((c) => <option key={c} value={c} />)}
       </datalist>
+
+      {openPairs.length > 0 && (
+        <section aria-label="Transfer pairs" className="frosted-card" style={{ padding: 16, display: "grid", gap: 10 }}>
+          <div style={{ fontSize: 13 }}>
+            <strong>{openPairs.length} transfer {openPairs.length === 1 ? "pair" : "pairs"} detected.</strong>{" "}
+            <span style={{ color: "var(--fl-muted)" }}>Money moved between accounts isn't spend or income — exclude both sides so it doesn't double-count.</span>
+          </div>
+          {openPairs.map((p, i) => (
+            <div key={`${p.out_id}-${p.in_id}-${i}`} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 13 }}>
+              <span style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}><Money value={p.amount} /></span>
+              <span style={{ color: "var(--fl-muted)" }}>{p.out_desc} → {p.in_desc}</span>
+              {p.cross_person && <span style={{ ...pill, padding: "2px 8px", fontSize: 11 }}>cross-person</span>}
+              <button onClick={() => excludePair(p)} style={{ ...pill, marginLeft: "auto", fontWeight: 700, color: "var(--persona)" }}>
+                Exclude both
+              </button>
+            </div>
+          ))}
+        </section>
+      )}
 
       <section className="frosted-card" style={{ padding: 8 }}>
         <Table>

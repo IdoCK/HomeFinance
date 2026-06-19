@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { getOverview, getTransactions, updateTransaction, getBudgets, setBudget, deleteBudget, getRecurring, getGoals, addGoal, updateGoalSaved, deleteGoal, getNetWorth, addAccount, updateAccountBalance, deleteAccount, getCategories, upsertCategory, deleteCategory, getVendors, upsertVendor, deleteVendor, renamePerson, getInsightsPreview, generateInsights, getOllamaStatus, parseImport, commitImport, getReconciliation, type ImportRow } from "./api";
+import { getOverview, getTransactions, updateTransaction, getBudgets, setBudget, deleteBudget, getRecurring, getGoals, addGoal, updateGoalSaved, deleteGoal, getNetWorth, addAccount, updateAccountBalance, deleteAccount, getCategories, upsertCategory, deleteCategory, getVendors, upsertVendor, deleteVendor, renamePerson, getInsightsPreview, generateInsights, getOllamaStatus, parseImport, commitImport, getReconciliation, getTransferPairs, type ImportRow } from "./api";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -237,6 +237,13 @@ test("generateInsights POSTs person_id", async () => {
   expect(url).toBe("/api/insights/generate");
   expect(init.method).toBe("POST");
   expect(JSON.parse(init.body as string)).toEqual({ person_id: 2 });
+});
+
+test("getTransferPairs builds /api/transactions/transfers with person_id", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+  vi.stubGlobal("fetch", fetchMock);
+  await getTransferPairs(1);
+  expect(fetchMock.mock.calls[0][0]).toBe("/api/transactions/transfers?person_id=1");
 });
 
 test("getReconciliation builds /api/networth/reconcile with person_id", async () => {

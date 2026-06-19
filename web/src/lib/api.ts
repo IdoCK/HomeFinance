@@ -69,6 +69,24 @@ export const getTransactions = (p: { personId?: number }) =>
 export const updateTransaction = (id: number, body: { category?: string; included?: boolean }) =>
   apiSend<Transaction>("PATCH", `/transactions/${id}`, body);
 
+export type TransferPair = {
+  amount: number;
+  out_id: number | null;
+  in_id: number | null;
+  out_date: string;
+  in_date: string;
+  out_desc: string;
+  in_desc: string;
+  out_person: number | null;
+  in_person: number | null;
+  days_apart: number;
+  cross_person: boolean;
+  both_included: boolean;
+};
+
+export const getTransferPairs = (personId?: number) =>
+  apiGet<TransferPair[]>("/transactions/transfers", { person_id: personId });
+
 export type Budget = {
   id: number;
   person_id: number | null;
