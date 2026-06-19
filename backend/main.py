@@ -7,7 +7,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from modules import database as db
-from backend.api import budgets, overview, people, recurring, transactions
+from backend.api import budgets, goals, overview, people, recurring, transactions
 
 DIST_DIR = Path(__file__).resolve().parent.parent / "web" / "dist"
 
@@ -37,6 +37,7 @@ def create_app() -> FastAPI:
     app.include_router(overview.router, prefix="/api")
     app.include_router(budgets.router, prefix="/api")
     app.include_router(recurring.router, prefix="/api")
+    app.include_router(goals.router, prefix="/api")
 
     # Production: serve the built SPA from web/dist when it exists. Absent in dev,
     # where there's no frontend yet -- send the bare root to the API docs so

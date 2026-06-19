@@ -15,3 +15,17 @@ class BudgetUpsert(BaseModel):
     person_id: Optional[int] = None
     category: str
     amount: float
+
+
+class GoalCreate(BaseModel):
+    person_id: Optional[int] = None
+    name: str
+    target_amount: float
+    saved_amount: float = 0
+    target_date: Optional[str] = None
+    horizon: str = "short"
+    notes: str = ""
+
+
+class GoalSavedUpdate(BaseModel):
+    saved_amount: float
