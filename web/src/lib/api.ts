@@ -25,6 +25,15 @@ export async function apiSend<T>(method: "POST" | "PATCH" | "PUT" | "DELETE", pa
 }
 
 export type Person = { id: number; name: string };
+export type SpendingAlert = {
+  category: string;
+  current: number;
+  baseline: number;
+  delta: number;
+  pct: number | null;
+  direction: "up" | "down";
+  new: boolean;
+};
 export type Overview = {
   month: string | null;
   months: string[];
@@ -34,6 +43,7 @@ export type Overview = {
   savings_rate: number | null;
   complete: boolean;
   by_category: Record<string, number>;
+  alerts: SpendingAlert[];
 };
 
 export const getPeople = () => apiGet<Person[]>("/people");

@@ -40,6 +40,25 @@ export default function Overview() {
         </div>
       </header>
 
+      {data.alerts.length > 0 && (
+        <section aria-label="Spending alerts" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {data.alerts.map((a) => {
+            const up = a.direction === "up";
+            const color = up ? "#EF4444" : "#22C55E";
+            const detail = a.new ? "new this month" : `${up ? "↑" : "↓"} ${Math.abs(a.pct ?? 0)}% vs usual`;
+            return (
+              <span key={a.category} style={{
+                display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13,
+                padding: "6px 12px", borderRadius: 999,
+                background: `color-mix(in srgb, ${color} 12%, transparent)`, color,
+              }}>
+                <strong style={{ fontWeight: 700 }}>{a.category}</strong> {detail}
+              </span>
+            );
+          })}
+        </section>
+      )}
+
       <section className="frosted-card" style={{ padding: 24, display: "flex", gap: 32 }}>
         <Kpi label="Income" testId="income"><Money value={data.income} /></Kpi>
         <Kpi label="Spending" testId="spend"><Money value={data.spend} /></Kpi>
