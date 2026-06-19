@@ -3,6 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 
 from modules import database as db
+from modules import analytics
 from backend.schemas import TransactionUpdate
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
@@ -12,6 +13,14 @@ router = APIRouter(prefix="/transactions", tags=["transactions"])
 def list_transactions(person_id: Optional[int] = None):
     """person_id omitted -> all people (Joint)."""
     return db.get_transactions(person_id)
+
+
+@router.get("/transfers")
+def transfer_pairs(person_id: Optional[int] = None):
+    """Detected internal-transfer pairs (an outflow matched to an equal inflow).
+    Joint (person_id omitted) catches cross-person moves; a person scope catches
+    their own-account transfers. The UI can exclude both sides of a pair."""
+    return analytics.find_transfer_pairs(db.get_transactions(person_id))
 
 
 @router.patch("/{txn_id}")

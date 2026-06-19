@@ -30,3 +30,16 @@ def test_transactions_scoped_to_person(client, seeded):
     assert len(rows) == 1
     assert rows[0]["description"] == "Chipotle"
     assert rows[0]["category"] == "Eating out"
+
+
+def test_transfer_pairs_detects_cross_person_move(client, people):
+    from modules import database as db
+    a, b = people[0]["id"], people[1]["id"]
+    db.add_transactions(a, [{"date": "2026-05-01", "description": "Zelle to spouse",
+                             "amount": -500.0, "category": "x", "source": "bank"}])
+    db.add_transactions(b, [{"date": "2026-05-02", "description": "Zelle from spouse",
+                             "amount": 500.0, "category": "x", "source": "bank"}])
+    pairs = client.get("/api/transactions/transfers").json()
+    assert len(pairs) == 1
+    assert pairs[0]["amount"] == 500.0
+    assert pairs[0]["cross_person"] is True
