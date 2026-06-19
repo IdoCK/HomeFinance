@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { getOverview, getTransactions, updateTransaction, getBudgets, setBudget, deleteBudget, getRecurring, getGoals, addGoal, updateGoalSaved, deleteGoal } from "./api";
+import { getOverview, getTransactions, updateTransaction, getBudgets, setBudget, deleteBudget, getRecurring, getGoals, addGoal, updateGoalSaved, deleteGoal, getNetWorth, addAccount, updateAccountBalance, deleteAccount } from "./api";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -114,5 +114,41 @@ test("deleteGoal DELETEs by id", async () => {
   await deleteGoal(7);
   const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
   expect(url).toBe("/api/goals/7");
+  expect(init.method).toBe("DELETE");
+});
+
+test("getNetWorth builds /api/networth with person_id", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ summary: { assets: 0, liabilities: 0, net: 0 }, delta: null, accounts: [], trend: [] }) });
+  vi.stubGlobal("fetch", fetchMock);
+  await getNetWorth({ personId: 1 });
+  expect(fetchMock.mock.calls[0][0]).toBe("/api/networth?person_id=1");
+});
+
+test("addAccount POSTs derived is_asset", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, id: 1 }) });
+  vi.stubGlobal("fetch", fetchMock);
+  await addAccount({ personId: 1, name: "Vanguard", kind: "investment", isAsset: true, balance: 25000 });
+  const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+  expect(url).toBe("/api/networth/accounts");
+  expect(init.method).toBe("POST");
+  expect(JSON.parse(init.body as string)).toEqual({ person_id: 1, name: "Vanguard", kind: "investment", is_asset: true, balance: 25000 });
+});
+
+test("updateAccountBalance PATCHes balance", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+  vi.stubGlobal("fetch", fetchMock);
+  await updateAccountBalance(3, 1500);
+  const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+  expect(url).toBe("/api/networth/accounts/3");
+  expect(init.method).toBe("PATCH");
+  expect(JSON.parse(init.body as string)).toEqual({ balance: 1500 });
+});
+
+test("deleteAccount DELETEs by id", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+  vi.stubGlobal("fetch", fetchMock);
+  await deleteAccount(3);
+  const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+  expect(url).toBe("/api/networth/accounts/3");
   expect(init.method).toBe("DELETE");
 });

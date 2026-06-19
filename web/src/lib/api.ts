@@ -146,3 +146,36 @@ export const updateGoalSaved = (id: number, savedAmount: number) =>
 
 export const deleteGoal = (id: number) =>
   apiSend<{ ok: boolean }>("DELETE", `/goals/${id}`);
+
+export type Account = {
+  id: number;
+  person_id: number | null;
+  name: string;
+  kind: string;
+  is_asset: number;
+  balance: number;
+  updated_at: string;
+};
+
+export type NetWorthPoint = { date: string; assets: number; liabilities: number; net: number };
+
+export type NetWorthData = {
+  summary: { assets: number; liabilities: number; net: number };
+  delta: number | null;
+  accounts: Account[];
+  trend: NetWorthPoint[];
+};
+
+export const getNetWorth = (p: { personId?: number }) =>
+  apiGet<NetWorthData>("/networth", { person_id: p.personId });
+
+export const addAccount = (a: { personId?: number; name: string; kind: string; isAsset: boolean; balance: number }) =>
+  apiSend<{ ok: boolean; id: number }>("POST", "/networth/accounts", {
+    person_id: a.personId, name: a.name, kind: a.kind, is_asset: a.isAsset, balance: a.balance,
+  });
+
+export const updateAccountBalance = (id: number, balance: number) =>
+  apiSend<{ ok: boolean }>("PATCH", `/networth/accounts/${id}`, { balance });
+
+export const deleteAccount = (id: number) =>
+  apiSend<{ ok: boolean }>("DELETE", `/networth/accounts/${id}`);
