@@ -192,6 +192,155 @@ def month_over_month_change(transactions):
     return changes
 
 
+# Description hints that a row is a money-move rather than spend/income.
+_TRANSFER_HINTS = ("transfer", "zelle", "venmo", "withdrawal", "deposit", "wire",
+                   "online banking", "paypal", "cash app", "payment to",
+                   "payment from")
+
+
+def _looks_transfer(desc):
+    d = (desc or "").lower()
+    return any(h in d for h in _TRANSFER_HINTS)
+
+
+def find_transfer_pairs(txns, *, days=3):
+    """Detect internal transfers: an outflow matched to an inflow of equal
+    magnitude within `days` days — e.g. a Zelle from one partner to the other, or
+    a move between your own accounts. Such pairs net to zero and shouldn't count
+    as spend or income, so the UI can exclude both sides.
+
+    Greedy nearest-date matching by magnitude; each transaction is used at most
+    once. A pair only counts when it looks like a genuine transfer — the two
+    sides belong to different people, OR a transfer keyword appears in either
+    description — which keeps coincidental same-magnitude purchases out. Pairs
+    where both sides are on a spend feed (credit_card/amazon) are skipped, since
+    those are a purchase and its refund (already handled by refund-netting).
+
+    Returns a list (largest amount first) of dicts: amount, out_id, in_id,
+    out_date, in_date, out_desc, in_desc, out_person, in_person, days_apart,
+    cross_person, both_included."""
+    from collections import defaultdict
+    outs, ins = defaultdict(list), defaultdict(list)
+    for t in txns:
+        amt = float(t["amount"])
+        key = round(abs(amt), 2)
+        if key == 0:
+            continue
+        rec = {"t": t, "date": pd.to_datetime(t["date"])}
+        (outs if amt < 0 else ins)[key].append(rec)
+
+    pairs = []
+    for key, olist in outs.items():
+        ilist = ins.get(key)
+        if not ilist:
+            continue
+        olist.sort(key=lambda r: r["date"])
+        ilist.sort(key=lambda r: r["date"])
+        used = set()
+        for o in olist:
+            ot = o["t"]
+            best = None
+            for j, i in enumerate(ilist):
+                if j in used:
+                    continue
+                it = i["t"]
+                gap = abs((i["date"] - o["date"]).days)
+                if gap > days:
+                    continue
+                if (ot.get("source") in _SPEND_SOURCES
+                        and it.get("source") in _SPEND_SOURCES):
+                    continue
+                cross = ot.get("person_id") != it.get("person_id")
+                if not (cross or _looks_transfer(ot.get("description"))
+                        or _looks_transfer(it.get("description"))):
+                    continue
+                if best is None or gap < best[1]:
+                    best = (j, gap)
+            if best is None:
+                continue
+            j = best[0]
+            used.add(j)
+            it = ilist[j]["t"]
+            pairs.append({
+                "amount": key, "out_id": ot.get("id"), "in_id": it.get("id"),
+                "out_date": ot["date"], "in_date": it["date"],
+                "out_desc": ot.get("description", ""),
+                "in_desc": it.get("description", ""),
+                "out_person": ot.get("person_id"), "in_person": it.get("person_id"),
+                "days_apart": best[1],
+                "cross_person": ot.get("person_id") != it.get("person_id"),
+                "both_included": bool(ot.get("included", 1)) and bool(it.get("included", 1)),
+            })
+    pairs.sort(key=lambda p: p["amount"], reverse=True)
+    return pairs
+
+
+def cash_flow(transactions):
+    """Per-month cash flow for the cash-flow chart: a DataFrame with columns
+    [month, income, spend, net, cumulative]. `net` is income − spend for the
+    month; `cumulative` is the running sum of net across months (the savings
+    trajectory). Empty input → empty frame."""
+    s = monthly_savings(transactions)
+    if s.empty:
+        return pd.DataFrame()
+    out = s[["income", "spend"]].copy()
+    out["net"] = out["income"] - out["spend"]
+    out["cumulative"] = out["net"].cumsum()
+    return out.reset_index()
+
+
+def spending_alerts(transactions, *, baseline_months=3, threshold_pct=40.0,
+                    min_amount=50.0):
+    """Flag categories whose spend in the latest *complete* month departs sharply
+    from a rolling baseline (the mean of up to `baseline_months` prior complete
+    months).
+
+    A category is flagged when the change is both material (≥ `min_amount`) and
+    large (≥ `threshold_pct`). A category with no baseline spend that suddenly
+    appears is flagged as `new`. Returns a list sorted by absolute dollar change:
+    {category, current, baseline, delta, pct, direction ('up'|'down'), new}.
+    Partial months are excluded so a half-finished statement cycle doesn't read
+    as a spending drop."""
+    pivot = spending_by_category_over_time(transactions)
+    if pivot.empty:
+        return []
+    sav = monthly_savings(transactions)
+    if not sav.empty and "complete" in sav.columns:
+        complete = set(sav.index[sav["complete"]])
+        months = [m for m in pivot.index if m in complete]
+    else:
+        months = list(pivot.index)
+    if len(months) < 2:
+        return []
+    current = months[-1]
+    baseline = months[max(0, len(months) - 1 - baseline_months):len(months) - 1]
+    if not baseline:
+        return []
+    cur_row = pivot.loc[current]
+    base_df = pivot.loc[baseline]
+    alerts = []
+    for cat in pivot.columns:
+        c = float(cur_row.get(cat, 0.0))
+        b = float(base_df[cat].mean()) if cat in base_df.columns else 0.0
+        delta = c - b
+        if abs(delta) < min_amount:
+            continue
+        if b == 0:
+            if c >= min_amount:
+                alerts.append({"category": cat, "current": round(c, 2),
+                               "baseline": 0.0, "delta": round(delta, 2),
+                               "pct": None, "direction": "up", "new": True})
+            continue
+        pct = delta / b * 100
+        if abs(pct) >= threshold_pct:
+            alerts.append({"category": cat, "current": round(c, 2),
+                           "baseline": round(b, 2), "delta": round(delta, 2),
+                           "pct": round(pct, 1),
+                           "direction": "up" if delta > 0 else "down", "new": False})
+    alerts.sort(key=lambda a: abs(a["delta"]), reverse=True)
+    return alerts
+
+
 def net_worth(accounts):
     """{'assets', 'liabilities', 'net'} from a list of account dicts.
 
@@ -220,6 +369,41 @@ def month_end_balances(transactions):
                           "balance": float(t["balance"]), "_key": key}
     return [{k: v for k, v in bymonth[m].items() if k != "_key"}
             for m in sorted(bymonth)]
+
+
+def reconcile(rows):
+    """Tie out a bank statement against its running-balance column.
+
+    `rows` are transaction dicts carrying 'amount' and (for bank feeds) a running
+    'balance'. We sort by date (stable, so same-day rows keep statement order),
+    take the opening balance as `first.balance - first.amount`, and check that
+    opening + Σ(all amounts) lands on the last row's balance. Σ is order-
+    independent, so this is robust to forward- or reverse-chronological exports.
+
+    Returns None when fewer than two rows carry a balance (e.g. a credit-card
+    feed has no running balance to reconcile). Otherwise a dict:
+    {ok, begin, end, sum_amounts, computed_end, discrepancy, n, chain_breaks}."""
+    bal = [r for r in rows
+           if r.get("balance") is not None and r.get("amount") is not None]
+    if len(bal) < 2:
+        return None
+    bal = sorted(bal, key=lambda r: r["date"])      # stable: keeps intra-day order
+    amounts = [float(r["amount"]) for r in bal]
+    balances = [float(r["balance"]) for r in bal]
+    begin = balances[0] - amounts[0]
+    end = balances[-1]
+    total = sum(amounts)
+    computed_end = begin + total
+    discrepancy = round(end - computed_end, 2)
+    # Count rows where the running balance doesn't equal the prior balance plus
+    # this row's amount — points at where a statement stops tying out.
+    chain_breaks = sum(
+        1 for i in range(1, len(bal))
+        if abs(balances[i] - (balances[i - 1] + amounts[i])) >= 0.01)
+    return {"ok": abs(discrepancy) < 0.01, "begin": round(begin, 2),
+            "end": round(end, 2), "sum_amounts": round(total, 2),
+            "computed_end": round(computed_end, 2), "discrepancy": discrepancy,
+            "n": len(bal), "chain_breaks": chain_breaks}
 
 
 def net_worth_trend(snapshots):
@@ -311,13 +495,26 @@ def _with_dates(df):
 
 
 def event_mask(df, event):
-    """Boolean Series selecting df rows belonging to `event` (window or recurring)."""
-    if event.get("kind") == "window":
+    """Boolean Series selecting df rows belonging to `event`.
+
+    Kinds: 'window' (a date range), 'recurring' (a day rule), or 'tagged' (no
+    date predicate of its own). For ANY kind, transactions explicitly tagged to
+    the event via `event['ids']` are also included (union) — so a window event
+    can pick up a straggler dated just outside it."""
+    kind = event.get("kind")
+    if kind == "window":
         start = pd.to_datetime(event.get("start_date"))
         end = pd.to_datetime(event.get("end_date"))
-        return (df["date"] >= start) & (df["date"] <= end)
-    rule = _rule_of(event)
-    return df["date"].apply(lambda d: _day_matches_rule(d, rule))
+        mask = (df["date"] >= start) & (df["date"] <= end)
+    elif kind == "tagged":
+        mask = pd.Series(False, index=df.index)
+    else:
+        rule = _rule_of(event)
+        mask = df["date"].apply(lambda d: _day_matches_rule(d, rule))
+    ids = event.get("ids")
+    if ids and "id" in df.columns:
+        mask = mask | df["id"].isin(set(ids))
+    return mask
 
 
 def filter_transactions(txns, *, day_types=None, dow=None, date_range=None,
