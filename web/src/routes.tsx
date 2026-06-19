@@ -1,6 +1,5 @@
 import { createBrowserRouter, Outlet } from "react-router-dom";
 import { AppSidebar } from "@/components/app-sidebar";
-import { PagePlaceholder } from "@/components/page-placeholder";
 import Overview from "@/pages/Overview";
 import Transactions from "@/pages/Transactions";
 import Budgets from "@/pages/Budgets";
@@ -9,6 +8,7 @@ import Goals from "@/pages/Goals";
 import NetWorth from "@/pages/NetWorth";
 import Settings from "@/pages/Settings";
 import Insights from "@/pages/Insights";
+import Import from "@/pages/Import";
 
 function AppLayout() {
   return (
@@ -30,7 +30,7 @@ export const router = createBrowserRouter([
       { path: "recurring", element: <Recurring /> },
       { path: "goals", element: <Goals /> },
       { path: "networth", element: <NetWorth /> },
-      { path: "import", element: <PagePlaceholder title="Import" /> },
+      { path: "import", element: <Import /> },
       { path: "insights", element: <Insights /> },
       { path: "settings", element: <Settings /> },
     ],
