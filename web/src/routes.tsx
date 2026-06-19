@@ -3,6 +3,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { PagePlaceholder } from "@/components/page-placeholder";
 import Overview from "@/pages/Overview";
 import Transactions from "@/pages/Transactions";
+import Budgets from "@/pages/Budgets";
 
 function AppLayout() {
   return (
@@ -20,7 +21,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Overview /> },
       { path: "transactions", element: <Transactions /> },
-      { path: "budgets", element: <PagePlaceholder title="Budgets" /> },
+      { path: "budgets", element: <Budgets /> },
       { path: "recurring", element: <PagePlaceholder title="Recurring" /> },
       { path: "goals", element: <PagePlaceholder title="Goals" /> },
       { path: "networth", element: <PagePlaceholder title="Net Worth" /> },
