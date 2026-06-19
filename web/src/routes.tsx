@@ -5,6 +5,7 @@ import Overview from "@/pages/Overview";
 import Transactions from "@/pages/Transactions";
 import Budgets from "@/pages/Budgets";
 import Recurring from "@/pages/Recurring";
+import Goals from "@/pages/Goals";
 
 function AppLayout() {
   return (
@@ -24,7 +25,7 @@ export const router = createBrowserRouter([
       { path: "transactions", element: <Transactions /> },
       { path: "budgets", element: <Budgets /> },
       { path: "recurring", element: <Recurring /> },
-      { path: "goals", element: <PagePlaceholder title="Goals" /> },
+      { path: "goals", element: <Goals /> },
       { path: "networth", element: <PagePlaceholder title="Net Worth" /> },
       { path: "import", element: <PagePlaceholder title="Import" /> },
       { path: "insights", element: <PagePlaceholder title="AI Insights" /> },
