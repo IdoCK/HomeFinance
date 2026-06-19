@@ -41,3 +41,16 @@ class AccountCreate(BaseModel):
 
 class AccountBalanceUpdate(BaseModel):
     balance: float
+
+
+class CategoryUpsert(BaseModel):
+    person_id: int
+    name: str
+    keywords: str = ""
+    parent: Optional[str] = None
+
+
+class VendorUpsert(BaseModel):
+    person_id: int
+    name: str
+    keywords: str = ""
