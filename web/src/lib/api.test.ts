@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { getOverview, getTransactions, updateTransaction, getBudgets, setBudget, deleteBudget, getRecurring } from "./api";
+import { getOverview, getTransactions, updateTransaction, getBudgets, setBudget, deleteBudget, getRecurring, getGoals, addGoal, updateGoalSaved, deleteGoal } from "./api";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -79,4 +79,40 @@ test("getRecurring builds /api/recurring with person_id", async () => {
   vi.stubGlobal("fetch", fetchMock);
   await getRecurring({ personId: 2 });
   expect(fetchMock.mock.calls[0][0]).toBe("/api/recurring?person_id=2");
+});
+
+test("getGoals builds /api/goals with person_id", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+  vi.stubGlobal("fetch", fetchMock);
+  await getGoals({ personId: 1 });
+  expect(fetchMock.mock.calls[0][0]).toBe("/api/goals?person_id=1");
+});
+
+test("addGoal POSTs name + target + horizon", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+  vi.stubGlobal("fetch", fetchMock);
+  await addGoal({ personId: 1, name: "Car", targetAmount: 20000 });
+  const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+  expect(url).toBe("/api/goals");
+  expect(init.method).toBe("POST");
+  expect(JSON.parse(init.body as string)).toMatchObject({ person_id: 1, name: "Car", target_amount: 20000, horizon: "short" });
+});
+
+test("updateGoalSaved PATCHes saved_amount", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+  vi.stubGlobal("fetch", fetchMock);
+  await updateGoalSaved(7, 1500);
+  const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+  expect(url).toBe("/api/goals/7");
+  expect(init.method).toBe("PATCH");
+  expect(JSON.parse(init.body as string)).toEqual({ saved_amount: 1500 });
+});
+
+test("deleteGoal DELETEs by id", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+  vi.stubGlobal("fetch", fetchMock);
+  await deleteGoal(7);
+  const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+  expect(url).toBe("/api/goals/7");
+  expect(init.method).toBe("DELETE");
 });

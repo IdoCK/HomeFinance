@@ -118,3 +118,31 @@ export type RecurringData = {
 
 export const getRecurring = (p: { personId?: number }) =>
   apiGet<RecurringData>("/recurring", { person_id: p.personId });
+
+export type Goal = {
+  id: number;
+  person_id: number | null;
+  name: string;
+  target_amount: number;
+  saved_amount: number;
+  target_date: string | null;
+  horizon: string;
+  notes: string;
+  percent: number;
+  monthly_needed: number | null;
+};
+
+export const getGoals = (p: { personId?: number }) =>
+  apiGet<Goal[]>("/goals", { person_id: p.personId });
+
+export const addGoal = (g: { personId?: number; name: string; targetAmount: number; targetDate?: string; horizon?: string }) =>
+  apiSend<{ ok: boolean }>("POST", "/goals", {
+    person_id: g.personId, name: g.name, target_amount: g.targetAmount,
+    target_date: g.targetDate, horizon: g.horizon ?? "short",
+  });
+
+export const updateGoalSaved = (id: number, savedAmount: number) =>
+  apiSend<{ ok: boolean }>("PATCH", `/goals/${id}`, { saved_amount: savedAmount });
+
+export const deleteGoal = (id: number) =>
+  apiSend<{ ok: boolean }>("DELETE", `/goals/${id}`);
