@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { getOverview, getTransactions, updateTransaction, getBudgets, setBudget, deleteBudget, getRecurring, getGoals, addGoal, updateGoalSaved, deleteGoal, getNetWorth, addAccount, updateAccountBalance, deleteAccount, getCategories, upsertCategory, deleteCategory, getVendors, upsertVendor, deleteVendor, renamePerson } from "./api";
+import { getOverview, getTransactions, updateTransaction, getBudgets, setBudget, deleteBudget, getRecurring, getGoals, addGoal, updateGoalSaved, deleteGoal, getNetWorth, addAccount, updateAccountBalance, deleteAccount, getCategories, upsertCategory, deleteCategory, getVendors, upsertVendor, deleteVendor, renamePerson, getInsightsPreview, generateInsights } from "./api";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -213,4 +213,28 @@ test("renamePerson PATCHes the people endpoint", async () => {
   expect(url).toBe("/api/people/1");
   expect(init.method).toBe("PATCH");
   expect(JSON.parse(init.body as string)).toEqual({ name: "Adelaide" });
+});
+
+test("getInsightsPreview builds /api/insights/preview with person_id", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ payload: "[]", has_key: false }) });
+  vi.stubGlobal("fetch", fetchMock);
+  await getInsightsPreview(1);
+  expect(fetchMock.mock.calls[0][0]).toBe("/api/insights/preview?person_id=1");
+});
+
+test("getInsightsPreview omits person_id for Joint", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ payload: "[]", has_key: false }) });
+  vi.stubGlobal("fetch", fetchMock);
+  await getInsightsPreview(undefined);
+  expect(fetchMock.mock.calls[0][0]).toBe("/api/insights/preview");
+});
+
+test("generateInsights POSTs person_id", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ text: "ok" }) });
+  vi.stubGlobal("fetch", fetchMock);
+  await generateInsights(2);
+  const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+  expect(url).toBe("/api/insights/generate");
+  expect(init.method).toBe("POST");
+  expect(JSON.parse(init.body as string)).toEqual({ person_id: 2 });
 });
