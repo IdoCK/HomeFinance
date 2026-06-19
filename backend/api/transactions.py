@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 
 from modules import database as db
-from app.schemas import TransactionUpdate
+from backend.schemas import TransactionUpdate
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 

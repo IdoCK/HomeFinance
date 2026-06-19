@@ -3,7 +3,7 @@ import sqlite3
 from fastapi import APIRouter, HTTPException
 
 from modules import database as db
-from app.schemas import PersonUpdate
+from backend.schemas import PersonUpdate
 
 router = APIRouter(prefix="/people", tags=["people"])
 

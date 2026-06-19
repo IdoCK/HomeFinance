@@ -3,10 +3,11 @@ from pathlib import Path
 
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from modules import database as db
-from app.api import overview, people, transactions
+from backend.api import overview, people, transactions
 
 DIST_DIR = Path(__file__).resolve().parent.parent / "web" / "dist"
 
@@ -35,14 +36,20 @@ def create_app() -> FastAPI:
     app.include_router(transactions.router, prefix="/api")
     app.include_router(overview.router, prefix="/api")
 
-    # Production: serve the built SPA from web/dist when it exists. Absent in dev.
+    # Production: serve the built SPA from web/dist when it exists. Absent in dev,
+    # where there's no frontend yet -- send the bare root to the API docs so
+    # http://localhost:8000 lands somewhere useful instead of a 404.
     if DIST_DIR.is_dir():
         app.mount("/", StaticFiles(directory=DIST_DIR, html=True), name="spa")
+    else:
+        @app.get("/", include_in_schema=False)
+        def root():
+            return RedirectResponse(url="/docs")
 
     return app
 
 
-# uvicorn imports this module-level `app` (target "app.main:app"). Note: importing
-# app.main therefore calls create_app() -> db.init_db() against the real data/finance.db.
+# uvicorn imports this module-level `app` (target "backend.main:app"). Note: importing
+# backend.main therefore calls create_app() -> db.init_db() against the real data/finance.db.
 # Tests must monkeypatch database.DB_PATH (and reload this module) BEFORE importing it.
 app = create_app()

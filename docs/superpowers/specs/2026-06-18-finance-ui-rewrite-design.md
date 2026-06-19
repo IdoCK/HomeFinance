@@ -59,7 +59,7 @@ data/finance.db  (SQLite, unchanged schema)
 
 ### Project structure (added)
 ```
-app/                      # FastAPI backend (new)
+backend/                  # FastAPI backend (new)
   main.py                 # app factory, static-file serving, CORS for dev
   api/
     people.py  transactions.py  imports.py  categories.py
