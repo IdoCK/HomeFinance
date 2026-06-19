@@ -80,3 +80,41 @@ export const setBudget = (b: { personId?: number; category: string; amount: numb
 
 export const deleteBudget = (id: number) =>
   apiSend<{ ok: boolean }>("DELETE", `/budgets/${id}`);
+
+export type RecurringCharge = {
+  vendor: string;
+  category: string | null;
+  cadence: "weekly" | "monthly" | "quarterly" | "yearly";
+  kind: "fixed" | "variable";
+  typical_amount: number;
+  prior_typical: number;
+  prior_stable: boolean;
+  first_date: string;
+  last_date: string;
+  last_amount: number;
+  next_expected: string;
+  count: number;
+  monthly_cost: number;
+  annual_cost: number;
+  confidence: number;
+};
+
+export type RecurringAnomaly = {
+  vendor: string;
+  type: "price_change" | "possibly_canceled" | "new";
+  detail: string;
+  pct?: number;
+  overdue_days?: number;
+  age_days?: number;
+};
+
+export type Committed = { fixed: number; variable: number; total: number };
+
+export type RecurringData = {
+  charges: RecurringCharge[];
+  committed: Committed;
+  anomalies: RecurringAnomaly[];
+};
+
+export const getRecurring = (p: { personId?: number }) =>
+  apiGet<RecurringData>("/recurring", { person_id: p.personId });

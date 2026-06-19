@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { getOverview, getTransactions, updateTransaction, getBudgets, setBudget, deleteBudget } from "./api";
+import { getOverview, getTransactions, updateTransaction, getBudgets, setBudget, deleteBudget, getRecurring } from "./api";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -72,4 +72,11 @@ test("deleteBudget DELETEs by id", async () => {
   const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
   expect(url).toBe("/api/budgets/7");
   expect(init.method).toBe("DELETE");
+});
+
+test("getRecurring builds /api/recurring with person_id", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ charges: [], committed: { fixed: 0, variable: 0, total: 0 }, anomalies: [] }) });
+  vi.stubGlobal("fetch", fetchMock);
+  await getRecurring({ personId: 2 });
+  expect(fetchMock.mock.calls[0][0]).toBe("/api/recurring?person_id=2");
 });
