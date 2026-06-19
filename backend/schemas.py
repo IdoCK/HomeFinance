@@ -29,3 +29,15 @@ class GoalCreate(BaseModel):
 
 class GoalSavedUpdate(BaseModel):
     saved_amount: float
+
+
+class AccountCreate(BaseModel):
+    person_id: Optional[int] = None
+    name: str
+    kind: str
+    is_asset: bool
+    balance: float = 0
+
+
+class AccountBalanceUpdate(BaseModel):
+    balance: float
