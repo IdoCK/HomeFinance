@@ -9,3 +9,9 @@ class PersonUpdate(BaseModel):
 class TransactionUpdate(BaseModel):
     category: Optional[str] = None
     included: Optional[bool] = None
+
+
+class BudgetUpsert(BaseModel):
+    person_id: Optional[int] = None
+    category: str
+    amount: float
