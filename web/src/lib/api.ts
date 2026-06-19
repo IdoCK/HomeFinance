@@ -39,3 +39,22 @@ export type Overview = {
 export const getPeople = () => apiGet<Person[]>("/people");
 export const getOverview = (p: { personId?: number; month?: string }) =>
   apiGet<Overview>("/overview", { person_id: p.personId, month: p.month });
+
+export type Transaction = {
+  id: number;
+  person_id: number;
+  date: string;
+  description: string;
+  amount: number;
+  category: string;
+  source: string;
+  included: number; // 0 | 1
+  balance: number | null;
+  person: string;
+};
+
+export const getTransactions = (p: { personId?: number }) =>
+  apiGet<Transaction[]>("/transactions", { person_id: p.personId });
+
+export const updateTransaction = (id: number, body: { category?: string; included?: boolean }) =>
+  apiSend<Transaction>("PATCH", `/transactions/${id}`, body);
