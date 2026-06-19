@@ -2,6 +2,7 @@ import { createBrowserRouter, Outlet } from "react-router-dom";
 import { AppSidebar } from "@/components/app-sidebar";
 import { PagePlaceholder } from "@/components/page-placeholder";
 import Overview from "@/pages/Overview";
+import Transactions from "@/pages/Transactions";
 
 function AppLayout() {
   return (
@@ -18,7 +19,7 @@ export const router = createBrowserRouter([
     element: <AppLayout />,
     children: [
       { index: true, element: <Overview /> },
-      { path: "transactions", element: <PagePlaceholder title="Transactions" /> },
+      { path: "transactions", element: <Transactions /> },
       { path: "budgets", element: <PagePlaceholder title="Budgets" /> },
       { path: "recurring", element: <PagePlaceholder title="Recurring" /> },
       { path: "goals", element: <PagePlaceholder title="Goals" /> },
