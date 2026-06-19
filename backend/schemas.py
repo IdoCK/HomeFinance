@@ -54,3 +54,7 @@ class VendorUpsert(BaseModel):
     person_id: int
     name: str
     keywords: str = ""
+
+
+class InsightsRequest(BaseModel):
+    person_id: Optional[int] = None
