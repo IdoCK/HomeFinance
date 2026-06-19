@@ -13,14 +13,15 @@ const pill: CSSProperties = {
 };
 const h2: CSSProperties = { fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--fl-muted)", margin: 0 };
 
-type Rule = { id: number; name: string; keywords: string };
+type Rule = { id: number; name: string; keywords: string; parent?: string | null };
 
-function RuleSection({ kind, items, onSave, onAdd, onRemove }: {
+function RuleSection({ kind, items, onSave, onAdd, onRemove, onSaveParent }: {
   kind: "category" | "vendor";
   items: Rule[];
   onSave: (r: Rule, keywords: string) => void;
   onAdd: (name: string, keywords: string) => void;
   onRemove: (r: Rule) => void;
+  onSaveParent?: (r: Rule, parent: string) => void;
 }) {
   const [name, setName] = useState("");
   const [keywords, setKeywords] = useState("");
@@ -47,6 +48,15 @@ function RuleSection({ kind, items, onSave, onAdd, onRemove }: {
             placeholder="comma-separated keywords"
             style={{ ...pill, flex: 1, minWidth: 160 }}
           />
+          {kind === "category" && onSaveParent && (
+            <input
+              defaultValue={r.parent ?? ""}
+              aria-label={`Parent group for category ${r.name}`}
+              onBlur={(e) => onSaveParent(r, e.target.value)}
+              placeholder="parent group"
+              style={{ ...pill, width: 130 }}
+            />
+          )}
           <button onClick={() => onRemove(r)} aria-label={`Remove ${kind} ${r.name}`}
             style={{ border: "none", background: "none", color: "var(--fl-muted)", cursor: "pointer", fontSize: 16, lineHeight: 1 }}>✕</button>
         </div>
@@ -128,6 +138,7 @@ export default function Settings() {
         onSave={(r, keywords) => { if (selected != null && keywords !== r.keywords) upsertCategory({ personId: selected, name: r.name, keywords }).then(loadRules); }}
         onAdd={(name, keywords) => { if (selected != null) upsertCategory({ personId: selected, name, keywords }).then(loadRules); }}
         onRemove={(r) => deleteCategory(r.id).then(loadRules)}
+        onSaveParent={(r, parent) => { if (selected != null && parent !== (r.parent ?? "")) upsertCategory({ personId: selected, name: r.name, keywords: r.keywords ?? "", parent }).then(loadRules); }}
       />
 
       <RuleSection

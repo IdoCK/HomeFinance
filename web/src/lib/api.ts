@@ -224,8 +224,11 @@ export type Vendor = { id: number; person_id: number; name: string; keywords: st
 
 export const getCategories = (personId: number) =>
   apiGet<Category[]>("/categories", { person_id: personId });
-export const upsertCategory = (c: { personId: number; name: string; keywords: string }) =>
-  apiSend<{ ok: boolean }>("PUT", "/categories", { person_id: c.personId, name: c.name, keywords: c.keywords });
+export const upsertCategory = (c: { personId: number; name: string; keywords: string; parent?: string }) =>
+  apiSend<{ ok: boolean }>("PUT", "/categories", {
+    person_id: c.personId, name: c.name, keywords: c.keywords,
+    ...(c.parent !== undefined ? { parent: c.parent } : {}),
+  });
 export const deleteCategory = (id: number) =>
   apiSend<{ ok: boolean }>("DELETE", `/categories/${id}`);
 

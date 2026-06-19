@@ -170,6 +170,14 @@ test("upsertCategory PUTs person_id + name + keywords", async () => {
   expect(JSON.parse(init.body as string)).toEqual({ person_id: 1, name: "Travel", keywords: "airbnb,delta" });
 });
 
+test("upsertCategory includes parent when provided", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+  vi.stubGlobal("fetch", fetchMock);
+  await upsertCategory({ personId: 1, name: "Groceries", keywords: "wf", parent: "Essentials" });
+  const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+  expect(JSON.parse(init.body as string)).toEqual({ person_id: 1, name: "Groceries", keywords: "wf", parent: "Essentials" });
+});
+
 test("deleteCategory DELETEs by id", async () => {
   const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
   vi.stubGlobal("fetch", fetchMock);

@@ -66,3 +66,12 @@ test("deleting a category calls deleteCategory", async () => {
   await userEvent.click(screen.getByRole("button", { name: /remove category Groceries/i }));
   expect(deleteCategory).toHaveBeenCalledWith(10);
 });
+
+test("assigning a parent group calls upsertCategory with the parent (keywords preserved)", async () => {
+  render(<Settings />);
+  await waitFor(() => expect(screen.getByText("Groceries")).toBeInTheDocument());
+  const parent = screen.getByLabelText("Parent group for category Groceries");
+  await userEvent.type(parent, "Essentials");
+  await userEvent.tab();
+  expect(upsertCategory).toHaveBeenCalledWith({ personId: 1, name: "Groceries", keywords: "whole foods", parent: "Essentials" });
+});
