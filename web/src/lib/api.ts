@@ -179,3 +179,23 @@ export const updateAccountBalance = (id: number, balance: number) =>
 
 export const deleteAccount = (id: number) =>
   apiSend<{ ok: boolean }>("DELETE", `/networth/accounts/${id}`);
+
+export type Category = { id: number; person_id: number; name: string; keywords: string; parent?: string | null };
+export type Vendor = { id: number; person_id: number; name: string; keywords: string };
+
+export const getCategories = (personId: number) =>
+  apiGet<Category[]>("/categories", { person_id: personId });
+export const upsertCategory = (c: { personId: number; name: string; keywords: string }) =>
+  apiSend<{ ok: boolean }>("PUT", "/categories", { person_id: c.personId, name: c.name, keywords: c.keywords });
+export const deleteCategory = (id: number) =>
+  apiSend<{ ok: boolean }>("DELETE", `/categories/${id}`);
+
+export const getVendors = (personId: number) =>
+  apiGet<Vendor[]>("/vendors", { person_id: personId });
+export const upsertVendor = (v: { personId: number; name: string; keywords: string }) =>
+  apiSend<{ ok: boolean }>("PUT", "/vendors", { person_id: v.personId, name: v.name, keywords: v.keywords });
+export const deleteVendor = (id: number) =>
+  apiSend<{ ok: boolean }>("DELETE", `/vendors/${id}`);
+
+export const renamePerson = (id: number, name: string) =>
+  apiSend<{ id: number; name: string }>("PATCH", `/people/${id}`, { name });

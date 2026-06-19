@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { getOverview, getTransactions, updateTransaction, getBudgets, setBudget, deleteBudget, getRecurring, getGoals, addGoal, updateGoalSaved, deleteGoal, getNetWorth, addAccount, updateAccountBalance, deleteAccount } from "./api";
+import { getOverview, getTransactions, updateTransaction, getBudgets, setBudget, deleteBudget, getRecurring, getGoals, addGoal, updateGoalSaved, deleteGoal, getNetWorth, addAccount, updateAccountBalance, deleteAccount, getCategories, upsertCategory, deleteCategory, getVendors, upsertVendor, deleteVendor, renamePerson } from "./api";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -151,4 +151,66 @@ test("deleteAccount DELETEs by id", async () => {
   const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
   expect(url).toBe("/api/networth/accounts/3");
   expect(init.method).toBe("DELETE");
+});
+
+test("getCategories builds /api/categories with person_id", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+  vi.stubGlobal("fetch", fetchMock);
+  await getCategories(1);
+  expect(fetchMock.mock.calls[0][0]).toBe("/api/categories?person_id=1");
+});
+
+test("upsertCategory PUTs person_id + name + keywords", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+  vi.stubGlobal("fetch", fetchMock);
+  await upsertCategory({ personId: 1, name: "Travel", keywords: "airbnb,delta" });
+  const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+  expect(url).toBe("/api/categories");
+  expect(init.method).toBe("PUT");
+  expect(JSON.parse(init.body as string)).toEqual({ person_id: 1, name: "Travel", keywords: "airbnb,delta" });
+});
+
+test("deleteCategory DELETEs by id", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+  vi.stubGlobal("fetch", fetchMock);
+  await deleteCategory(10);
+  const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+  expect(url).toBe("/api/categories/10");
+  expect(init.method).toBe("DELETE");
+});
+
+test("getVendors builds /api/vendors with person_id", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+  vi.stubGlobal("fetch", fetchMock);
+  await getVendors(2);
+  expect(fetchMock.mock.calls[0][0]).toBe("/api/vendors?person_id=2");
+});
+
+test("upsertVendor PUTs person_id + name + keywords", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+  vi.stubGlobal("fetch", fetchMock);
+  await upsertVendor({ personId: 2, name: "Amazon", keywords: "amazon,amzn" });
+  const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+  expect(url).toBe("/api/vendors");
+  expect(init.method).toBe("PUT");
+  expect(JSON.parse(init.body as string)).toEqual({ person_id: 2, name: "Amazon", keywords: "amazon,amzn" });
+});
+
+test("deleteVendor DELETEs by id", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+  vi.stubGlobal("fetch", fetchMock);
+  await deleteVendor(20);
+  const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+  expect(url).toBe("/api/vendors/20");
+  expect(init.method).toBe("DELETE");
+});
+
+test("renamePerson PATCHes the people endpoint", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ id: 1, name: "Adelaide" }) });
+  vi.stubGlobal("fetch", fetchMock);
+  await renamePerson(1, "Adelaide");
+  const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+  expect(url).toBe("/api/people/1");
+  expect(init.method).toBe("PATCH");
+  expect(JSON.parse(init.body as string)).toEqual({ name: "Adelaide" });
 });
