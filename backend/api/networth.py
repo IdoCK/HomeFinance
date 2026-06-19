@@ -25,6 +25,16 @@ def get_networth(person_id: Optional[int] = None):
     return {"summary": summary, "delta": delta, "accounts": accounts, "trend": trend}
 
 
+@router.get("/reconcile")
+def reconcile(person_id: Optional[int] = None):
+    """Tie a person's bank statements out against their running-balance column.
+    Joint (person_id omitted) reconciles all transactions together."""
+    result = analytics.reconcile(db.get_transactions(person_id))
+    if result is None:
+        return {"reconcilable": False}
+    return {"reconcilable": True, **result}
+
+
 @router.post("/accounts")
 def create_account(body: AccountCreate):
     aid = db.add_account(body.person_id, body.name, body.kind, body.is_asset, body.balance)

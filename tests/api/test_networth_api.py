@@ -9,6 +9,30 @@ def test_networth_summary(client, people):
     assert len(data["accounts"]) == 2
 
 
+def test_reconcile_ties_out(client, people):
+    from modules import database as db
+    you = people[0]["id"]
+    # A tidy statement: opening 1000, two moves, running balance tracks them.
+    db.add_transactions(you, [
+        {"date": "2026-05-01", "description": "Open", "amount": -200.0, "category": "x", "source": "bank", "balance": 800.0},
+        {"date": "2026-05-02", "description": "Deposit", "amount": 500.0, "category": "x", "source": "bank", "balance": 1300.0},
+    ])
+    r = client.get("/api/networth/reconcile", params={"person_id": you}).json()
+    assert r["reconcilable"] is True
+    assert r["ok"] is True
+    assert r["begin"] == 1000.0 and r["end"] == 1300.0
+
+
+def test_reconcile_not_possible_without_balances(client, people):
+    from modules import database as db
+    you = people[0]["id"]
+    db.add_transactions(you, [
+        {"date": "2026-05-01", "description": "Card", "amount": -50.0, "category": "x", "source": "credit_card"},
+    ])
+    r = client.get("/api/networth/reconcile", params={"person_id": you}).json()
+    assert r["reconcilable"] is False
+
+
 def test_add_account_via_api(client, people):
     you = people[0]["id"]
     r = client.post("/api/networth/accounts", json={
