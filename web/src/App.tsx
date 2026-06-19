@@ -1,3 +1,14 @@
+import { RouterProvider } from "react-router-dom";
+import { PersonaProvider } from "@/lib/persona";
+import { ThemeProvider } from "@/lib/theme";
+import { router } from "@/routes";
+
 export default function App() {
-  return <div className="app-root">HomeFinance — Frosted Ledger (scaffold)</div>;
+  return (
+    <ThemeProvider>
+      <PersonaProvider>
+        <RouterProvider router={router} />
+      </PersonaProvider>
+    </ThemeProvider>
+  );
 }
