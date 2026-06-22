@@ -9,6 +9,7 @@ const NAV: { to: string; label: string }[] = [
   { to: "/recurring", label: "Recurring" },
   { to: "/goals", label: "Goals" },
   { to: "/networth", label: "Net Worth" },
+  { to: "/events", label: "Events" },
   { to: "/import", label: "＋ Import" },
   { to: "/insights", label: "AI Insights" },
   { to: "/settings", label: "Settings" },

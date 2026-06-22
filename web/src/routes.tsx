@@ -9,6 +9,7 @@ import NetWorth from "@/pages/NetWorth";
 import Settings from "@/pages/Settings";
 import Insights from "@/pages/Insights";
 import Import from "@/pages/Import";
+import Events from "@/pages/Events";
 
 function AppLayout() {
   return (
@@ -30,6 +31,7 @@ export const router = createBrowserRouter([
       { path: "recurring", element: <Recurring /> },
       { path: "goals", element: <Goals /> },
       { path: "networth", element: <NetWorth /> },
+      { path: "events", element: <Events /> },
       { path: "import", element: <Import /> },
       { path: "insights", element: <Insights /> },
       { path: "settings", element: <Settings /> },
