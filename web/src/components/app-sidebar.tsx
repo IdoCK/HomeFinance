@@ -1,23 +1,27 @@
 import { NavLink } from "react-router-dom";
+import {
+  LayoutGrid, List, PieChart, RefreshCw, Target, TrendingUp, Tag,
+  Plus, Sparkles, Settings as SettingsIcon, type LucideIcon,
+} from "lucide-react";
 import { usePersona, type PersonaKey } from "@/lib/persona";
 import { useTheme } from "@/lib/theme";
 
-type NavItem = { to: string; label: string; icon: string; important?: boolean };
+type NavItem = { to: string; label: string; Icon: LucideIcon; important?: boolean };
 
 // Two groups matching the reference: the "Money" surfaces, then "Utility".
 const MONEY: NavItem[] = [
-  { to: "/", label: "Overview", icon: "▦" },
-  { to: "/transactions", label: "Transactions", icon: "≣" },
-  { to: "/budgets", label: "Budgets", icon: "◔" },
-  { to: "/recurring", label: "Recurring", icon: "↻" },
-  { to: "/goals", label: "Goals", icon: "◎" },
-  { to: "/networth", label: "Net Worth", icon: "▲" },
-  { to: "/events", label: "Events", icon: "◆" },
+  { to: "/", label: "Overview", Icon: LayoutGrid },
+  { to: "/transactions", label: "Transactions", Icon: List },
+  { to: "/budgets", label: "Budgets", Icon: PieChart },
+  { to: "/recurring", label: "Recurring", Icon: RefreshCw },
+  { to: "/goals", label: "Goals", Icon: Target },
+  { to: "/networth", label: "Net Worth", Icon: TrendingUp },
+  { to: "/events", label: "Events", Icon: Tag },
 ];
 const UTILITY: NavItem[] = [
-  { to: "/import", label: "Import", icon: "＋", important: true },
-  { to: "/insights", label: "AI Insights", icon: "✦" },
-  { to: "/settings", label: "Settings", icon: "⚙" },
+  { to: "/import", label: "Import", Icon: Plus, important: true },
+  { to: "/insights", label: "AI Insights", Icon: Sparkles },
+  { to: "/settings", label: "Settings", Icon: SettingsIcon },
 ];
 
 const PERSONA_KEYS: { key: PersonaKey; dot: string }[] = [
@@ -102,7 +106,7 @@ function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
               boxShadow: isActive ? "0 8px 18px -8px rgba(22,24,29,.6)" : "none",
             })}
           >
-            <span aria-hidden style={{ width: 16, textAlign: "center", fontSize: 14, opacity: 0.85 }}>{n.icon}</span>
+            <n.Icon size={16} strokeWidth={2} aria-hidden style={{ flex: "none", opacity: 0.85 }} />
             {n.label}
           </NavLink>
         ))}
