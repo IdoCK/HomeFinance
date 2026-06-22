@@ -34,6 +34,7 @@ export default function Transactions() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [include, setInclude] = useState<IncludeFilter>("all");
+  const [ccyFilter, setCcyFilter] = useState<string>("all");
 
   const [pairs, setPairs] = useState<TransferPair[]>([]);
 
@@ -74,9 +75,10 @@ export default function Transactions() {
       data.filter(
         (t) =>
           (category === "all" || t.category === category) &&
-          (include === "all" || (include === "in" ? t.included === 1 : t.included === 0)),
+          (include === "all" || (include === "in" ? t.included === 1 : t.included === 0)) &&
+          (ccyFilter === "all" || t.original_currency === ccyFilter),
       ),
-    [data, category, include],
+    [data, category, include, ccyFilter],
   );
 
   const columns = useMemo<ColumnDef<Transaction>[]>(() => {
@@ -125,7 +127,7 @@ export default function Transactions() {
       {
         accessorKey: "amount",
         header: "Amount",
-        cell: (c) => <div style={{ textAlign: "right" }}><Money value={c.getValue<number>()} colored /></div>,
+        cell: (c) => <div style={{ textAlign: "right" }}><Money value={c.getValue<number>()} colored rateMissing={c.row.original.rate_stale} /></div>,
       },
       {
         id: "original",
@@ -195,6 +197,11 @@ export default function Transactions() {
             <option value="all">All</option>
             <option value="in">Included</option>
             <option value="out">Excluded</option>
+          </select>
+          <select value={ccyFilter} onChange={(e) => setCcyFilter(e.target.value)} style={pill}>
+            <option value="all">Any currency</option>
+            <option value="ILS">₪ entered</option>
+            <option value="USD">$ entered</option>
           </select>
         </div>
       </header>

@@ -18,10 +18,11 @@ export function formatMoney(n: number, currency: Currency = "USD"): string {
  *  surfaces an entered-in-another-currency marker. Tabular-nums for alignment. */
 export function Money({
   value, colored = false, accent = false, cents = true,
-  original,
+  original, rateMissing = false,
 }: {
   value: number; colored?: boolean; accent?: boolean; cents?: boolean;
   original?: { amount: number; currency: Currency };
+  rateMissing?: boolean;
 }) {
   const { currency } = useCurrency();
   const color = accent
@@ -38,6 +39,12 @@ export function Money({
           style={{ color: "var(--fl-muted)", fontSize: "0.82em", marginLeft: 4 }}
         >
           ≈
+        </span>
+      )}
+      {rateMissing && (
+        <span title="No exchange rate for this date — showing the original amount"
+              style={{ color: "var(--fl-muted)", fontSize: "0.78em", marginLeft: 4 }}>
+          (no rate)
         </span>
       )}
     </span>

@@ -18,3 +18,8 @@ test("Money colors negatives (USD default)", () => {
   wrap(<Money value={-10} colored />);
   expect(screen.getByText("-$10.00")).toHaveStyle({ color: "var(--neg)" });
 });
+
+test("Money flags a missing rate with a muted affordance", () => {
+  wrap(<Money value={400} rateMissing />);
+  expect(screen.getByText(/no rate/i)).toBeInTheDocument();
+});
