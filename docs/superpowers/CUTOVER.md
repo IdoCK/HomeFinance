@@ -27,7 +27,14 @@ Point the API at real data, `npm --prefix web run build`, `python run_api.py`, t
 - [ ] **Net Worth** — hero, delta, trend sparkline, accounts CRUD.
 - [ ] **Import** — Ollama chip; parse a real export; review; commit; dedup on re-import.
 - [ ] **AI Insights** — payload preview matches; generate (with a key) returns coaching text.
-- [ ] **Settings** — rename people; per-person categories + vendor groups CRUD.
+- [ ] **Settings** — rename people; per-person categories + vendor groups CRUD; **category parent groups**.
+- [ ] **Overview alerts** — spending-alert chips vs the rolling baseline (cashflow-alerts).
+- [ ] **Net Worth reconciliation** — statements tie out / discrepancy (statement-reconciliation).
+- [ ] **Transactions transfer pairs** — detected pairs + "exclude both" (transfer-matching).
+- [ ] **Events** — create/delete events, tag transactions, tagged-spend totals (event-tagging).
+
+> All of `origin/main`'s engine features are now surfaced in the React UI (Plan 12 alignment).
+> The merge brought recurring (already a page), people-safety (Settings), and the five above.
 
 ## Retire `app.py` (after the checklist passes)
 Streamlit-only bits that have no React home and can go with it:
@@ -50,3 +57,7 @@ Tracked so they aren't lost — none block cutover:
   learning on commit, statement-balance → Net Worth account refresh, drag-and-drop.
 - AI Insights: rich markdown rendering of the result; Overview "latest insight" teaser.
 - Backend foundation: `get_transaction(txn_id)` helper to collapse the PATCH double-scan.
+- Events (Plan 12): rule-based auto-membership (engine `rule`/`event_mask`) — v1 is explicit
+  tagging only; date/kind fields aren't editable in the UI yet.
+- Budgets parent-rollup: parents are assignable in Settings, but the Budgets page doesn't yet
+  render a parent→children grouped view (a budget on a parent name still rolls up correctly).
