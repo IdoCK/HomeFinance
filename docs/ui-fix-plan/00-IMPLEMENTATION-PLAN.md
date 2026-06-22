@@ -3,6 +3,14 @@
 **Branch:** `ui-fix` · **Goal:** bring the shipped UI up to the locked "Frosted Ledger" design.
 **Design source of truth:** `.superpowers/brainstorm/2658-1781817225/content/style-zentra.html`
 
+> **Status (2026-06-22): all phases implemented on `ui-fix`.** Phases 0, 0.1, 1, 2,
+> 3, 4 fully delivered; Phase 5 (page sweep) and Phase 6 (polish/floor) delivered
+> bar a few low-value items deferred: `pill`→`Pill` mechanical dedup, optional
+> lucide icon swap, per-person NetWorth comparative split, and route-level loading
+> skeletons (pages keep their existing "Loading…"/empty states). 83 frontend +
+> 163 backend tests pass; tsc clean; production build green; Overview + sidebar
+> verified in-browser against the reference.
+
 This is the master synthesis. Detailed analysis lives in the four section docs:
 - [`01-uiux.md`](01-uiux.md) — page-by-page UX gap analysis (all 10 routes)
 - [`02-frontend.md`](02-frontend.md) — styling strategy, primitives, charting, build sequence
