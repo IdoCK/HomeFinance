@@ -22,7 +22,25 @@ def get_networth(person_id: Optional[int] = None):
     trend_df = analytics.net_worth_trend(db.get_snapshots(scope))
     trend = [] if trend_df.empty else trend_df.to_dict(orient="records")
     delta = round(summary["net"] - trend[-2]["net"], 2) if len(trend) >= 2 else None
-    return {"summary": summary, "delta": delta, "accounts": accounts, "trend": trend}
+
+    # Joint view: break net worth down by owner (shared accounts → "Shared").
+    split = None
+    if person_id is None:
+        names = {p["id"]: p["name"] for p in db.list_people()}
+        groups: dict = {}
+        for a in accounts:
+            groups.setdefault(a.get("person_id"), []).append(a)
+        split = []
+        for pid, accs in groups.items():
+            s = analytics.net_worth(accs)
+            split.append({
+                "person_id": pid,
+                "name": names.get(pid, "Shared") if pid is not None else "Shared",
+                "net": s["net"], "assets": s["assets"], "liabilities": s["liabilities"],
+            })
+        split.sort(key=lambda r: r["net"], reverse=True)
+
+    return {"summary": summary, "delta": delta, "accounts": accounts, "trend": trend, "split": split}
 
 
 @router.get("/reconcile")
