@@ -171,7 +171,7 @@ export default function Transactions() {
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <header style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", margin: 0 }}>Transactions</h1>
+        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", fontSize: 24, margin: 0 }}>Transactions</h1>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
           <input placeholder="Search…" value={search} onChange={(e) => setSearch(e.target.value)} style={pill} />
           <select value={category} onChange={(e) => setCategory(e.target.value)} style={pill}>

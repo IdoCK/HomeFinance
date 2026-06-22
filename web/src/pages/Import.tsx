@@ -64,7 +64,7 @@ export default function Import() {
   if (personId == null) {
     return (
       <div style={{ display: "grid", gap: 12, maxWidth: 560 }}>
-        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", margin: 0 }}>Import</h1>
+        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", fontSize: 24, margin: 0 }}>Import</h1>
         <div className="frosted-card" style={{ padding: 24, color: "var(--fl-muted)" }}>
           Imports belong to one person. Switch to Ido or Aviv in the sidebar to import a file.
         </div>
@@ -109,7 +109,7 @@ export default function Import() {
   return (
     <div style={{ display: "grid", gap: 16, maxWidth: 960 }}>
       <header style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", margin: 0 }}>Import</h1>
+        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", fontSize: 24, margin: 0 }}>Import</h1>
         <span style={{ color: "var(--fl-muted)", fontSize: 13 }}>into {label}'s ledger</span>
       </header>
       <Stepper step={step} />

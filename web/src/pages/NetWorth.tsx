@@ -107,7 +107,7 @@ export default function NetWorth() {
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <header style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", margin: 0 }}>Net Worth · {label}</h1>
+        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", fontSize: 24, margin: 0 }}>Net Worth · {label}</h1>
         <span style={{ color: "var(--fl-muted)", fontSize: 13 }}>assets minus liabilities</span>
       </header>
 

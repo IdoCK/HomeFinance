@@ -52,7 +52,7 @@ export default function Events() {
   return (
     <div style={{ display: "grid", gap: 16, maxWidth: 820 }}>
       <header style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", margin: 0 }}>Events · {label}</h1>
+        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", fontSize: 24, margin: 0 }}>Events · {label}</h1>
         <span style={{ color: "var(--fl-muted)", fontSize: 13 }}>tag spending to trips, projects & occasions</span>
       </header>
 
