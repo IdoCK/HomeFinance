@@ -6,7 +6,7 @@ import { formatMoney } from "@/components/money";
 const ANOMALY: Record<RecurringAnomaly["type"], { label: string; color: string }> = {
   price_change: { label: "price change", color: "#F59E0B" },
   possibly_canceled: { label: "maybe canceled", color: "var(--fl-muted)" },
-  new: { label: "new", color: "var(--persona)" },
+  new: { label: "new", color: "var(--persona-solid)" },
 };
 
 const badge: CSSProperties = {

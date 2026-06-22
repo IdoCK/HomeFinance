@@ -61,7 +61,7 @@ export default function Events() {
         <select aria-label="Event kind" value={kind} onChange={(e) => setKind(e.target.value)} style={pill}>
           {KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
         </select>
-        <button onClick={add} style={{ ...pill, fontWeight: 700, color: "var(--persona)" }}>Add event</button>
+        <button onClick={add} style={{ ...pill, fontWeight: 700, color: "var(--persona-solid)" }}>Add event</button>
       </section>
 
       {events.length === 0 && (
@@ -81,7 +81,7 @@ export default function Events() {
               </span>
               <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
                 <button onClick={() => openEditor(e.id)} aria-label={`Tag transactions for ${e.name}`}
-                  style={{ ...pill, fontWeight: 700, color: "var(--persona)" }}>
+                  style={{ ...pill, fontWeight: 700, color: "var(--persona-solid)" }}>
                   Tag transactions
                 </button>
                 <button onClick={() => remove(e.id)} aria-label={`Delete ${e.name}`}
@@ -103,7 +103,7 @@ export default function Events() {
                   ))}
                 </div>
                 <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-                  <button onClick={saveMembers} style={{ ...pill, fontWeight: 700, color: "var(--persona)" }}>Save members</button>
+                  <button onClick={saveMembers} style={{ ...pill, fontWeight: 700, color: "var(--persona-solid)" }}>Save members</button>
                   <button onClick={() => setEditing(null)} style={{ ...pill, color: "var(--fl-muted)" }}>Cancel</button>
                 </div>
               </div>

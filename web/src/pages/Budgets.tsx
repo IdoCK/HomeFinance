@@ -113,11 +113,11 @@ export default function Budgets() {
         <section className="frosted-card" style={{ padding: 20, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <input placeholder="Category" value={newCat} onChange={(e) => setNewCat(e.target.value)} style={pill} />
           <input type="number" placeholder="Monthly cap" value={newAmt} onChange={(e) => setNewAmt(e.target.value)} style={{ ...pill, width: 130 }} />
-          <button onClick={addBudget} style={{ ...pill, fontWeight: 700, color: "var(--persona)" }}>Add budget</button>
+          <button onClick={addBudget} style={{ ...pill, fontWeight: 700, color: "var(--persona-solid)" }}>Add budget</button>
           <button onClick={() => setAdding(false)} style={{ ...pill, color: "var(--fl-muted)" }}>Cancel</button>
         </section>
       ) : (
-        <button onClick={() => setAdding(true)} style={{ ...pill, justifySelf: "start", color: "var(--persona)" }}>＋ Add a budget</button>
+        <button onClick={() => setAdding(true)} style={{ ...pill, justifySelf: "start", color: "var(--persona-solid)" }}>＋ Add a budget</button>
       )}
     </div>
   );

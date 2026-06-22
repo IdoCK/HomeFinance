@@ -40,7 +40,7 @@ function GoalCard({ g, onSave, onRemove }: {
         <div style={{ height: 10, width: `${pct}%`, borderRadius: 999, background: done ? "var(--pos)" : "var(--persona)", transition: "width .4s ease" }} />
       </div>
       <div style={{ display: "flex", gap: 8, fontSize: 12, color: "var(--fl-muted)" }}>
-        <span style={{ fontWeight: 600, color: done ? "var(--pos)" : "var(--persona)" }}>
+        <span style={{ fontWeight: 600, color: done ? "var(--pos)" : "var(--persona-solid)" }}>
           {done ? "reached 🎉" : `${Math.round(g.percent)}%`}
         </span>
         {!done && g.monthly_needed != null && (
@@ -130,11 +130,11 @@ export default function Goals() {
             <option value="short">Short-term</option>
             <option value="long">Long-term</option>
           </select>
-          <button onClick={submit} style={{ ...pill, fontWeight: 700, color: "var(--persona)" }}>Add goal</button>
+          <button onClick={submit} style={{ ...pill, fontWeight: 700, color: "var(--persona-solid)" }}>Add goal</button>
           <button onClick={() => setAdding(false)} style={{ ...pill, color: "var(--fl-muted)" }}>Cancel</button>
         </section>
       ) : (
-        <button onClick={() => setAdding(true)} style={{ ...pill, justifySelf: "start", color: "var(--persona)" }}>＋ Add a goal</button>
+        <button onClick={() => setAdding(true)} style={{ ...pill, justifySelf: "start", color: "var(--persona-solid)" }}>＋ Add a goal</button>
       )}
     </div>
   );

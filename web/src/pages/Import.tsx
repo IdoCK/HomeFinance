@@ -31,7 +31,7 @@ function Stepper({ step }: { step: Step }) {
         <span key={key} style={{
           display: "flex", alignItems: "center", gap: 6, fontSize: 13,
           fontWeight: i === at ? 700 : 500,
-          color: i <= at ? "var(--persona)" : "var(--fl-muted)",
+          color: i <= at ? "var(--persona-solid)" : "var(--fl-muted)",
         }}>
           <span style={{
             width: 20, height: 20, borderRadius: 999, display: "grid", placeItems: "center",

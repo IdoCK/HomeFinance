@@ -157,11 +157,11 @@ export default function NetWorth() {
           <span style={{ ...badge, color: isAssetKind(kind) ? "var(--pos)" : "var(--neg)", borderColor: "currentColor" }}>
             {isAssetKind(kind) ? "asset" : "liability"}
           </span>
-          <button onClick={submit} style={{ ...pill, fontWeight: 700, color: "var(--persona)" }}>Add account</button>
+          <button onClick={submit} style={{ ...pill, fontWeight: 700, color: "var(--persona-solid)" }}>Add account</button>
           <button onClick={() => setAdding(false)} style={{ ...pill, color: "var(--fl-muted)" }}>Cancel</button>
         </section>
       ) : (
-        <button onClick={() => setAdding(true)} style={{ ...pill, justifySelf: "start", color: "var(--persona)" }}>＋ Add an account</button>
+        <button onClick={() => setAdding(true)} style={{ ...pill, justifySelf: "start", color: "var(--persona-solid)" }}>＋ Add an account</button>
       )}
     </div>
   );

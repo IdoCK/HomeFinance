@@ -64,7 +64,7 @@ function RuleSection({ kind, items, onSave, onAdd, onRemove, onSaveParent }: {
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", borderTop: "1px solid var(--fl-line)", paddingTop: 10 }}>
         <input placeholder={namePh} value={name} onChange={(e) => setName(e.target.value)} style={{ ...pill, width: 160 }} />
         <input placeholder={kwPh} value={keywords} onChange={(e) => setKeywords(e.target.value)} style={{ ...pill, flex: 1, minWidth: 160 }} />
-        <button onClick={add} style={{ ...pill, fontWeight: 700, color: "var(--persona)" }}>{addLabel}</button>
+        <button onClick={add} style={{ ...pill, fontWeight: 700, color: "var(--persona-solid)" }}>{addLabel}</button>
       </div>
     </section>
   );

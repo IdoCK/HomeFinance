@@ -201,7 +201,7 @@ export default function Transactions() {
               <span style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}><Money value={p.amount} /></span>
               <span style={{ color: "var(--fl-muted)" }}>{p.out_desc} → {p.in_desc}</span>
               {p.cross_person && <span style={{ ...pill, padding: "2px 8px", fontSize: 11 }}>cross-person</span>}
-              <button onClick={() => excludePair(p)} style={{ ...pill, marginLeft: "auto", fontWeight: 700, color: "var(--persona)" }}>
+              <button onClick={() => excludePair(p)} style={{ ...pill, marginLeft: "auto", fontWeight: 700, color: "var(--persona-solid)" }}>
                 Exclude both
               </button>
             </div>
@@ -224,7 +224,7 @@ export default function Transactions() {
                       style={{
                         cursor: sortable ? "pointer" : "default",
                         textAlign: h.column.id === "amount" ? "right" : "left",
-                        color: dir ? "var(--persona)" : "var(--fl-muted)",
+                        color: dir ? "var(--persona-solid)" : "var(--fl-muted)",
                         userSelect: "none", textTransform: "uppercase", fontSize: 11, letterSpacing: "0.06em",
                       }}
                     >
