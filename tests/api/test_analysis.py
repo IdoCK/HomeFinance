@@ -56,3 +56,36 @@ def test_category_trend_month_filter(client, seeded):
 def test_category_trend_empty(client, people):
     d = client.get("/api/analysis/category-trend", params={"person_id": people[0]["id"]}).json()
     assert d == {"months": [], "series": []}
+
+
+def test_drill_category_ranks_spend(client, seeded):
+    d = client.get("/api/analysis/drill", params={"person_id": seeded, "level": "category"}).json()
+    assert d["level"] == "category"
+    by = {i["name"]: i["value"] for i in d["items"]}
+    assert by["Housing"] == 4000.0
+    assert by["Groceries"] == 550.0
+    assert d["items"][0]["name"] == "Housing"  # biggest first
+    assert d["rows"] == []
+
+
+def test_drill_vendor_within_category(client, seeded):
+    d = client.get("/api/analysis/drill",
+                   params={"person_id": seeded, "level": "vendor", "cat": "Groceries"}).json()
+    assert d["level"] == "vendor"
+    names = {i["name"] for i in d["items"]}
+    # Whole Foods is the only Groceries vendor; vendor_of derives it from the desc.
+    assert any("whole" in n.lower() or "foods" in n.lower() for n in names)
+    assert sum(i["value"] for i in d["items"]) == 550.0
+
+
+def test_drill_rows_leaf(client, seeded):
+    vend = client.get("/api/analysis/drill",
+                      params={"person_id": seeded, "level": "vendor", "cat": "Groceries"}).json()
+    vendor = vend["items"][0]["name"]
+    d = client.get("/api/analysis/drill",
+                   params={"person_id": seeded, "level": "rows", "cat": "Groceries", "vendor": vendor}).json()
+    assert d["level"] == "rows"
+    assert len(d["rows"]) == 2
+    assert {r["amount"] for r in d["rows"]} == {-300.0, -250.0}
+    # newest first
+    assert d["rows"][0]["date"] >= d["rows"][1]["date"]

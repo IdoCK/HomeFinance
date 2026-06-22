@@ -115,3 +115,50 @@ def category_trend(
     # Biggest spenders first — matches the old chart's legend ordering.
     series.sort(key=lambda s: s["total"], reverse=True)
     return {"months": month_labels, "series": series}
+
+
+@router.get("/drill")
+def drill(
+    person_id: Optional[int] = None,
+    level: str = "category",
+    cat: Optional[str] = None,
+    vendor: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    day_type: Optional[str] = None,
+    dow: Optional[list[int]] = Query(None),
+    months: Optional[list[str]] = Query(None),
+    categories: Optional[list[str]] = Query(None),
+    event_id: Optional[int] = None,
+):
+    """Drill one hierarchy level of spend (the old Explore drill-down):
+    'category' -> ranked categories; 'vendor' (needs cat) -> ranked vendors within
+    that category (merchant variants collapsed by the persona's vendor rules);
+    'rows' (needs cat + vendor) -> the underlying transactions.
+    Returns {level, items:[{name,value}], rows:[...]} — items for category/vendor,
+    rows for the leaf."""
+    txns = db.get_transactions(person_id)
+    kw = _filters(date_from=date_from, date_to=date_to, day_type=day_type, dow=dow,
+                  months=months, categories=categories,
+                  event=_event(person_id, event_id))
+    if kw:
+        txns = analytics.filter_transactions(txns, **kw)
+    rules = _vendor_rules(person_id)
+
+    if level == "rows":
+        cat_txns = [t for t in txns if t.get("category") == cat]
+        rows = analytics.drill(cat_txns, "rows", parent=vendor, vendor_rules=rules)
+        rows = [{"date": t.get("date"), "description": t.get("description"),
+                 "amount": float(t.get("amount") or 0.0), "category": t.get("category")}
+                for t in rows]
+        rows.sort(key=lambda r: r["date"] or "", reverse=True)
+        return {"level": "rows", "items": [], "rows": rows}
+
+    if level == "vendor":
+        data = analytics.drill(txns, "vendor", parent=cat, vendor_rules=rules)
+    else:
+        level = "category"
+        data = analytics.drill(txns, "category")
+
+    items = [{"name": str(k), "value": float(v)} for k, v in data.items()]
+    return {"level": level, "items": items, "rows": []}

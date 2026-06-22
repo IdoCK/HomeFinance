@@ -9,6 +9,7 @@ import { Pill } from "@/components/ui/pill";
 import { CardHeaderRow } from "@/components/ui/card";
 import { FilterBar } from "@/components/filter-bar";
 import { LineChart } from "@/components/charts/line-chart";
+import { DrillDown } from "@/components/analysis/drill-down";
 import { Loading } from "@/components/loading";
 
 const CARD: React.CSSProperties = { padding: 16 };
@@ -28,30 +29,37 @@ function ExploreTab({ personId, filters }: { personId?: number; filters: Analysi
   }, [personId, rollup, filters]);
 
   return (
-    <section className="frosted-card" style={CARD}>
-      <CardHeaderRow
-        action={
-          <Pill active={rollup} onClick={() => setRollup((r) => !r)}>
-            {rollup ? "Grouped" : "Roll up to groups"}
-          </Pill>
-        }
-      >
-        Spending by category over time
-      </CardHeaderRow>
-      {trend == null ? (
-        <Loading rows={2} />
-      ) : (
-        <LineChart
-          labels={trend.months}
-          series={trend.series.slice(0, MAX_LINES).map((s) => ({ name: s.name, values: s.values, total: s.total }))}
-        />
-      )}
-      {trend && trend.series.length > MAX_LINES && (
-        <div style={{ marginTop: 8, fontSize: 11.5, color: "var(--fl-muted)" }}>
-          Showing the {MAX_LINES} biggest categories. Use the Categories filter to focus on others.
-        </div>
-      )}
-    </section>
+    <div style={{ display: "grid", gap: 14 }}>
+      <section className="frosted-card" style={CARD}>
+        <CardHeaderRow
+          action={
+            <Pill active={rollup} onClick={() => setRollup((r) => !r)}>
+              {rollup ? "Grouped" : "Roll up to groups"}
+            </Pill>
+          }
+        >
+          Spending by category over time
+        </CardHeaderRow>
+        {trend == null ? (
+          <Loading rows={2} />
+        ) : (
+          <LineChart
+            labels={trend.months}
+            series={trend.series.slice(0, MAX_LINES).map((s) => ({ name: s.name, values: s.values, total: s.total }))}
+          />
+        )}
+        {trend && trend.series.length > MAX_LINES && (
+          <div style={{ marginTop: 8, fontSize: 11.5, color: "var(--fl-muted)" }}>
+            Showing the {MAX_LINES} biggest categories. Use the Categories filter to focus on others.
+          </div>
+        )}
+      </section>
+
+      <section className="frosted-card" style={CARD}>
+        <CardHeaderRow>Drill down</CardHeaderRow>
+        <DrillDown personId={personId} filters={filters} />
+      </section>
+    </div>
   );
 }
 

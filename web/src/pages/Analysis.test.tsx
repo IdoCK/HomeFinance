@@ -9,6 +9,7 @@ vi.mock("@/lib/persona", () => ({
 vi.mock("@/lib/api", () => ({
   getFilterOptions: (...a: unknown[]) => getFilterOptions(...a),
   getCategoryTrend: (...a: unknown[]) => getCategoryTrend(...a),
+  getDrill: vi.fn().mockResolvedValue({ level: "category", items: [], rows: [] }),
 }));
 
 import Analysis from "./Analysis";

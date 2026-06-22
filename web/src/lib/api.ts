@@ -364,6 +364,21 @@ export type CategoryTrend = {
 export const getCategoryTrend = (p: { personId?: number; rollup?: boolean; filters?: AnalysisFilters }) =>
   apiGet<CategoryTrend>(`/analysis/category-trend${analysisQuery(p.personId, p.filters, { rollup: p.rollup ? "true" : undefined })}`);
 
+export type DrillItem = { name: string; value: number };
+export type DrillRow = { date: string; description: string; amount: number; category: string };
+export type DrillResult = { level: "category" | "vendor" | "rows"; items: DrillItem[]; rows: DrillRow[] };
+
+export const getDrill = (p: {
+  personId?: number;
+  level: "category" | "vendor" | "rows";
+  cat?: string;
+  vendor?: string;
+  filters?: AnalysisFilters;
+}) =>
+  apiGet<DrillResult>(
+    `/analysis/drill${analysisQuery(p.personId, p.filters, { level: p.level, cat: p.cat, vendor: p.vendor })}`,
+  );
+
 export const getEvents = (personId?: number) =>
   apiGet<FinanceEvent[]>("/events", { person_id: personId });
 export const createEvent = (e: { personId?: number; name: string; kind: string }) =>
