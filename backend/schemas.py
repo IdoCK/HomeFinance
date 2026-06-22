@@ -15,6 +15,7 @@ class BudgetUpsert(BaseModel):
     person_id: Optional[int] = None
     category: str
     amount: float
+    currency: str = "USD"
 
 
 class GoalCreate(BaseModel):
@@ -25,6 +26,7 @@ class GoalCreate(BaseModel):
     target_date: Optional[str] = None
     horizon: str = "short"
     notes: str = ""
+    currency: str = "USD"
 
 
 class GoalSavedUpdate(BaseModel):
@@ -37,6 +39,7 @@ class AccountCreate(BaseModel):
     kind: str
     is_asset: bool
     balance: float = 0
+    currency: str = "USD"
 
 
 class AccountBalanceUpdate(BaseModel):

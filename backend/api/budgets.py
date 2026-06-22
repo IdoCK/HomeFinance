@@ -26,7 +26,7 @@ def list_budgets(person_id: Optional[int] = None, display: str = "USD"):
 
 @router.put("")
 def upsert_budget(body: BudgetUpsert):
-    db.set_budget(body.person_id, body.category, body.amount)
+    db.set_budget(body.person_id, body.category, body.amount, body.currency)
     return {"ok": True}
 
 

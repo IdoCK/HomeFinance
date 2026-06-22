@@ -79,7 +79,7 @@ def reconcile(person_id: Optional[int] = None):
 
 @router.post("/accounts")
 def create_account(body: AccountCreate):
-    aid = db.add_account(body.person_id, body.name, body.kind, body.is_asset, body.balance)
+    aid = db.add_account(body.person_id, body.name, body.kind, body.is_asset, body.balance, body.currency)
     return {"ok": True, "id": aid}
 
 

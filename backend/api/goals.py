@@ -25,7 +25,7 @@ def list_goals(person_id: Optional[int] = None, display: str = "USD"):
 @router.post("")
 def create_goal(body: GoalCreate):
     db.add_goal(body.person_id, body.name, body.target_amount, body.saved_amount,
-                body.target_date, body.horizon, body.notes)
+                body.target_date, body.horizon, body.notes, body.currency)
     return {"ok": True}
 
 

@@ -498,23 +498,23 @@ def get_budgets(person_id=None):
         return [dict(r) for r in rows]
 
 
-def set_budget(person_id, category, amount):
+def set_budget(person_id, category, amount, currency="USD"):
     """Upsert a monthly budget cap for a category (manual upsert so it also works
     for household budgets where person_id IS NULL — SQLite treats NULLs as
     distinct in UNIQUE constraints)."""
     with get_conn() as conn:
         if person_id is None:
             cur = conn.execute(
-                "UPDATE budgets SET amount=? WHERE person_id IS NULL AND category=?",
-                (amount, category))
+                "UPDATE budgets SET amount=?, currency=? WHERE person_id IS NULL AND category=?",
+                (amount, currency, category))
         else:
             cur = conn.execute(
-                "UPDATE budgets SET amount=? WHERE person_id=? AND category=?",
-                (amount, person_id, category))
+                "UPDATE budgets SET amount=?, currency=? WHERE person_id=? AND category=?",
+                (amount, currency, person_id, category))
         if cur.rowcount == 0:
             conn.execute(
-                "INSERT INTO budgets(person_id, category, amount) VALUES (?,?,?)",
-                (person_id, category, amount))
+                "INSERT INTO budgets(person_id, category, amount, currency) VALUES (?,?,?,?)",
+                (person_id, category, amount, currency))
 
 
 def delete_budget(budget_id):
@@ -590,13 +590,14 @@ def get_goals(person_id="all"):
         return [dict(r) for r in rows]
 
 
-def add_goal(person_id, name, target_amount, saved_amount, target_date, horizon, notes):
+def add_goal(person_id, name, target_amount, saved_amount, target_date, horizon, notes,
+             currency="USD"):
     with get_conn() as conn:
         conn.execute(
             """INSERT INTO goals
-               (person_id, name, target_amount, saved_amount, target_date, horizon, notes)
-               VALUES (?,?,?,?,?,?,?)""",
-            (person_id, name, target_amount, saved_amount, target_date, horizon, notes),
+               (person_id, name, target_amount, saved_amount, target_date, horizon, notes, currency)
+               VALUES (?,?,?,?,?,?,?,?)""",
+            (person_id, name, target_amount, saved_amount, target_date, horizon, notes, currency),
         )
 
 
@@ -612,20 +613,20 @@ def delete_goal(goal_id):
 
 # ---- accounts / net worth -------------------------------------------------
 
-def add_account(person_id, name, kind, is_asset, balance):
+def add_account(person_id, name, kind, is_asset, balance, currency="USD"):
     """Create an account and write an initial snapshot dated today. Returns id."""
     now = datetime.now().isoformat(timespec="seconds")
     with get_conn() as conn:
         cur = conn.execute(
-            """INSERT INTO accounts(person_id, name, kind, is_asset, balance, updated_at)
-               VALUES (?,?,?,?,?,?)""",
-            (person_id, name, kind, int(bool(is_asset)), float(balance), now),
+            """INSERT INTO accounts(person_id, name, kind, is_asset, balance, updated_at, currency)
+               VALUES (?,?,?,?,?,?,?)""",
+            (person_id, name, kind, int(bool(is_asset)), float(balance), now, currency),
         )
         aid = cur.lastrowid
         conn.execute(
-            """INSERT INTO balance_snapshots(account_id, date, balance) VALUES (?,?,?)
+            """INSERT INTO balance_snapshots(account_id, date, balance, currency) VALUES (?,?,?,?)
                ON CONFLICT(account_id, date) DO UPDATE SET balance=excluded.balance""",
-            (aid, date.today().isoformat(), float(balance)),
+            (aid, date.today().isoformat(), float(balance), currency),
         )
         return aid
 
