@@ -12,7 +12,7 @@ function Card({
       data-slot="card"
       data-size={size}
       className={cn(
-        "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-xl bg-card py-(--card-spacing) text-sm text-card-foreground ring-1 ring-foreground/10 [--card-spacing:--spacing(4)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(3)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl",
+        "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-[var(--radius-card)] bg-card py-(--card-spacing) text-sm text-card-foreground ring-1 ring-foreground/10 shadow-[0_10px_30px_-22px_rgba(22,24,29,.35)] [--card-spacing:--spacing(4)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(3)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl",
         className
       )}
       {...props}
@@ -69,6 +69,26 @@ function CardAction({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+/** Convenience header row matching the reference `.ch`: title on the left, an
+ *  action (or a muted `···` affordance) on the right. */
+function CardHeaderRow({
+  className,
+  children,
+  action,
+  ...props
+}: React.ComponentProps<"div"> & { action?: React.ReactNode }) {
+  return (
+    <div
+      data-slot="card-header-row"
+      className={cn("flex items-center justify-between mb-3", className)}
+      {...props}
+    >
+      <div className="text-[13px] font-bold text-card-foreground/80">{children}</div>
+      {action ?? <span aria-hidden className="text-fl-muted font-bold tracking-widest text-[13px]">···</span>}
+    </div>
+  );
+}
+
 function CardContent({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -95,6 +115,7 @@ function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
 export {
   Card,
   CardHeader,
+  CardHeaderRow,
   CardFooter,
   CardTitle,
   CardAction,
