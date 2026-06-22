@@ -76,3 +76,16 @@ class ImportCommit(BaseModel):
     file_hash: str
     source: str = "auto"
     rows: list[ImportRow]
+
+
+class EventCreate(BaseModel):
+    person_id: Optional[int] = None
+    name: str
+    kind: str = "event"
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    rule: Optional[dict] = None
+
+
+class EventTags(BaseModel):
+    transaction_ids: list[int]
