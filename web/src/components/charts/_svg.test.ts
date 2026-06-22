@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { allocateDots, layout, scale, toPath } from "./_svg";
+import { allocateDots, categoryColor, layout, layoutShared, scale, toPath } from "./_svg";
 
 test("scale maps value within range onto pixel size", () => {
   expect(scale(0, 0, 10, 100)).toBe(0);
@@ -27,6 +27,28 @@ test("toPath smooth emits cubic beziers for 3+ points", () => {
   const d = toPath([{ x: 0, y: 0 }, { x: 10, y: 10 }, { x: 20, y: 0 }], true);
   expect(d.startsWith("M 0 0")).toBe(true);
   expect(d).toContain("C ");
+});
+
+test("layoutShared puts all series on one domain so equal values share a y", () => {
+  const [a, b] = layoutShared([[0, 10], [0, 5]], 600, 100, 0);
+  // x positions line up across series
+  expect(a[0].x).toBe(b[0].x);
+  expect(a[1].x).toBe(b[1].x);
+  // the global max (10) sits at the top (y≈0); 5 is halfway down
+  expect(a[1].y).toBeCloseTo(0, 1);
+  expect(b[1].y).toBeCloseTo(50, 1);
+  // a value of 0 sits at the bottom in both
+  expect(a[0].y).toBe(b[0].y);
+});
+
+test("layoutShared handles empty input", () => {
+  expect(layoutShared([], 600, 100)).toEqual([]);
+});
+
+test("categoryColor cycles through the palette and is persona-independent", () => {
+  expect(categoryColor(0)).toBe("#3B82F6");
+  expect(categoryColor(1)).not.toBe(categoryColor(0)); // adjacent series differ
+  expect(categoryColor(8)).toBe(categoryColor(0)); // wraps
 });
 
 test("allocateDots apportions proportionally and sums to total", () => {

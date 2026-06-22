@@ -308,6 +308,62 @@ export type FinanceEvent = {
   total: number;
 };
 
+// ---- Analysis (deep-dive: Explore / Compare / People) ----
+
+/** Shared filter-bar state. Sparse: an absent field means "no constraint". */
+export type AnalysisFilters = {
+  dateFrom?: string;
+  dateTo?: string;
+  dayType?: "weekday" | "weekend";
+  dow?: number[];
+  months?: string[];
+  categories?: string[];
+  eventId?: number;
+};
+
+export type FilterOptions = {
+  months: string[];
+  categories: string[];
+  events: { id: number; name: string; kind: string }[];
+};
+
+export const getFilterOptions = (personId?: number) =>
+  apiGet<FilterOptions>("/analysis/filter-options", { person_id: personId });
+
+/** Build a full analysis query string: persona + filters (lists become repeated
+ *  keys, which FastAPI parses into list params) + any extra scalars. */
+export function analysisQuery(
+  personId: number | undefined,
+  filters: AnalysisFilters = {},
+  extra: Record<string, string | number | undefined> = {},
+): string {
+  const sp = new URLSearchParams();
+  const scalars: Record<string, string | number | undefined> = {
+    person_id: personId,
+    date_from: filters.dateFrom,
+    date_to: filters.dateTo,
+    day_type: filters.dayType,
+    event_id: filters.eventId,
+    ...extra,
+  };
+  for (const [k, v] of Object.entries(scalars)) {
+    if (v !== undefined && v !== "") sp.set(k, String(v));
+  }
+  for (const m of filters.months ?? []) sp.append("months", m);
+  for (const c of filters.categories ?? []) sp.append("categories", c);
+  for (const d of filters.dow ?? []) sp.append("dow", String(d));
+  const s = sp.toString();
+  return s ? `?${s}` : "";
+}
+
+export type CategoryTrend = {
+  months: string[];
+  series: { name: string; values: number[]; total: number }[];
+};
+
+export const getCategoryTrend = (p: { personId?: number; rollup?: boolean; filters?: AnalysisFilters }) =>
+  apiGet<CategoryTrend>(`/analysis/category-trend${analysisQuery(p.personId, p.filters, { rollup: p.rollup ? "true" : undefined })}`);
+
 export const getEvents = (personId?: number) =>
   apiGet<FinanceEvent[]>("/events", { person_id: personId });
 export const createEvent = (e: { personId?: number; name: string; kind: string }) =>
