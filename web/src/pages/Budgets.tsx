@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { pillStyle as pill } from "@/lib/ui";
 import { getBudgets, setBudget, deleteBudget, type Budget } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
+import { useCurrency } from "@/lib/currency";
 import { Money } from "@/components/money";
 
 const STATUS_COLOR: Record<Budget["status"], string> = {
@@ -29,14 +30,15 @@ function PaceMeter({ b }: { b: Budget }) {
 
 export default function Budgets() {
   const { personId, label } = usePersona();
+  const { currency } = useCurrency();
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [adding, setAdding] = useState(false);
   const [newCat, setNewCat] = useState("");
   const [newAmt, setNewAmt] = useState("");
 
   const load = useCallback(
-    () => getBudgets({ personId }).then(setBudgets).catch(() => setBudgets([])),
-    [personId],
+    () => getBudgets({ personId, display: currency }).then(setBudgets).catch(() => setBudgets([])),
+    [personId, currency],
   );
   useEffect(() => { load(); }, [load]);
 

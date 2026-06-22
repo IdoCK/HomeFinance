@@ -11,7 +11,8 @@ import {
 } from "@tanstack/react-table";
 import { getTransactions, updateTransaction, getTransferPairs, type Transaction, type TransferPair } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
-import { Money } from "@/components/money";
+import { useCurrency } from "@/lib/currency";
+import { Money, formatMoney } from "@/components/money";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type IncludeFilter = "all" | "in" | "out";
@@ -27,6 +28,7 @@ const personaColor = (personId: number, people: Person[]) =>
 
 export default function Transactions() {
   const { personId, persona, people } = usePersona();
+  const { currency } = useCurrency();
   const [data, setData] = useState<Transaction[]>([]);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [search, setSearch] = useState("");
@@ -37,10 +39,10 @@ export default function Transactions() {
 
   useEffect(() => {
     let alive = true;
-    getTransactions({ personId }).then((d) => alive && setData(d)).catch(() => alive && setData([]));
+    getTransactions({ personId, display: currency }).then((d) => alive && setData(d)).catch(() => alive && setData([]));
     getTransferPairs(personId).then((p) => alive && setPairs(p)).catch(() => alive && setPairs([]));
     return () => { alive = false; };
-  }, [personId]);
+  }, [personId, currency]);
 
   const isJoint = persona === "joint";
 
@@ -48,7 +50,7 @@ export default function Transactions() {
   const excludePair = async (p: TransferPair) => {
     const ids = [p.out_id, p.in_id].filter((x): x is number => x != null);
     await Promise.all(ids.map((id) => updateTransaction(id, { included: false })));
-    const [txns, next] = await Promise.all([getTransactions({ personId }), getTransferPairs(personId)]);
+    const [txns, next] = await Promise.all([getTransactions({ personId, display: currency }), getTransferPairs(personId)]);
     setData(txns);
     setPairs(next);
   };
@@ -126,6 +128,20 @@ export default function Transactions() {
         cell: (c) => <div style={{ textAlign: "right" }}><Money value={c.getValue<number>()} colored /></div>,
       },
       {
+        id: "original",
+        header: "Original",
+        enableSorting: false,
+        cell: (c) => {
+          const t = c.row.original;
+          if (t.original_currency === currency) return <span style={{ color: "var(--fl-muted)" }}>—</span>;
+          return (
+            <span style={{ color: "var(--fl-muted)", fontSize: 12, fontVariantNumeric: "tabular-nums" }}>
+              {formatMoney(t.original_amount, t.original_currency)}
+            </span>
+          );
+        },
+      },
+      {
         accessorKey: "included",
         header: "In",
         enableSorting: false,
@@ -143,7 +159,7 @@ export default function Transactions() {
       },
     );
     return cols;
-  }, [isJoint, people]);
+  }, [isJoint, people, currency]);
 
   const table = useReactTable({
     data: rows,

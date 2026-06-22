@@ -7,9 +7,9 @@ const getTransactions = vi.fn();
 const getTransferPairs = vi.fn();
 
 const ROWS = [
-  { id: 1, person_id: 1, date: "2026-05-02", description: "Trader Joes", amount: -84.2, category: "Groceries", source: "card", included: 1, balance: null, person: "Ada" },
-  { id: 2, person_id: 1, date: "2026-05-03", description: "Paycheck", amount: 5000, category: "Income", source: "bank", included: 1, balance: null, person: "Ada" },
-  { id: 3, person_id: 1, date: "2026-05-05", description: "Netflix", amount: -15.99, category: "Subscriptions", source: "card", included: 1, balance: null, person: "Ada" },
+  { id: 1, person_id: 1, date: "2026-05-02", description: "Trader Joes", amount: -84.2, category: "Groceries", source: "card", included: 1, balance: null, person: "Ada", original_amount: -300, original_currency: "ILS", amount_base: -84.2, rate_stale: false },
+  { id: 2, person_id: 1, date: "2026-05-03", description: "Paycheck", amount: 5000, category: "Income", source: "bank", included: 1, balance: null, person: "Ada", original_amount: 5000, original_currency: "USD", amount_base: 5000, rate_stale: false },
+  { id: 3, person_id: 1, date: "2026-05-05", description: "Netflix", amount: -15.99, category: "Subscriptions", source: "card", included: 1, balance: null, person: "Ada", original_amount: -15.99, original_currency: "USD", amount_base: -15.99, rate_stale: false },
 ];
 
 vi.mock("@/lib/currency", () => ({
@@ -40,6 +40,12 @@ test("renders the persona's transactions", async () => {
   await waitFor(() => expect(screen.getByText("Trader Joes")).toBeInTheDocument());
   expect(screen.getByText("Paycheck")).toBeInTheDocument();
   expect(screen.getByText("Netflix")).toBeInTheDocument();
+});
+
+test("shows an Original column header", async () => {
+  render(<Transactions />);
+  await waitFor(() => expect(screen.getByText("Trader Joes")).toBeInTheDocument());
+  expect(screen.getByText(/Original/i)).toBeInTheDocument();
 });
 
 test("search filters rows by description", async () => {
