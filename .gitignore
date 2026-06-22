@@ -1,4 +1,6 @@
 data/*.db
+data/*.bak*
+data/*.db.bak-*
 venv/
 __pycache__/
 .env
