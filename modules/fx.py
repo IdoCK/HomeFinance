@@ -125,6 +125,24 @@ def convert(amount_base_usd, display, on_date=None):
     return amount_base_usd * rate
 
 
+def display_factor(display, on_date=None):
+    """USD -> display multiplier for `on_date` (today if None). 1.0 for USD with
+    no lookup/network. None if the rate is unavailable (offline + uncached)."""
+    if display == PIVOT:
+        return 1.0
+    on = on_date or _date.today().isoformat()
+    return _rate_or_fetch(on, PIVOT, display)
+
+
+def base_txns(txns):
+    """Copies with `amount` set to the USD base, so analytics sum one currency."""
+    out = []
+    for t in txns:
+        base = t.get("amount_base")
+        out.append({**t, "amount": base if base is not None else t.get("amount")})
+    return out
+
+
 def resolve_rows(rows):
     """Fill `amount_base` (USD) for rows where it's None; set rate_stale=True
     where conversion failed. Mutates and returns rows."""
