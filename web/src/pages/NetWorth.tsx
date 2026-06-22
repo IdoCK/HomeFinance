@@ -85,7 +85,7 @@ export default function NetWorth() {
 
   if (!data) return <div style={{ color: "var(--fl-muted)" }}>Loading…</div>;
 
-  const { summary, delta, accounts, trend } = data;
+  const { summary, delta, accounts, trend, split } = data;
   const deltaColor = delta == null ? "var(--fl-muted)" : delta > 0 ? "var(--pos)" : delta < 0 ? "var(--neg)" : "var(--fl-muted)";
 
   return (
@@ -116,6 +116,24 @@ export default function NetWorth() {
           ? <AreaChart points={trend.map((p) => ({ value: p.net }))} area={false} mode="linear" height={64} accent="var(--persona-solid)" ariaLabel="Net worth trend" />
           : <div style={{ color: "var(--fl-muted)", fontSize: 13 }}>Add a second snapshot to see a trend.</div>}
       </section>
+
+      {personId == null && split && split.length > 0 && (
+        <section className="frosted-card" aria-label="Household breakdown" style={{ padding: 20, display: "grid", gap: 10 }}>
+          <span style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--fl-muted)", fontWeight: 700 }}>
+            Household breakdown
+          </span>
+          {split.map((s) => {
+            const color = s.name === "Ido" ? "var(--persona-you)" : s.name === "Aviv" ? "var(--persona-spouse)" : "var(--fl-muted)";
+            return (
+              <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
+                <span style={{ width: 9, height: 9, borderRadius: "50%", background: color }} />
+                <span style={{ fontWeight: 600 }}>{s.name}</span>
+                <span style={{ marginLeft: "auto", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}><Money value={s.net} colored /></span>
+              </div>
+            );
+          })}
+        </section>
+      )}
 
       {recon && recon.reconcilable && (
         <section className="frosted-card" aria-label="Statement reconciliation" style={{ padding: 20, display: "grid", gap: 8 }}>
