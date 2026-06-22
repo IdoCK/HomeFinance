@@ -10,6 +10,7 @@ import { AreaChart } from "@/components/charts/area-chart";
 import { BarChart } from "@/components/charts/bar-chart";
 import { StackedBars } from "@/components/charts/stacked-bars";
 import { DotMatrix, type Segment } from "@/components/charts/dot-matrix";
+import { Loading } from "@/components/loading";
 
 const CARD: React.CSSProperties = { padding: 16 };
 const CAT_PALETTE = ["var(--persona-solid)", "var(--persona-spouse)", "var(--saved)", "var(--fl-muted)"];
@@ -34,7 +35,7 @@ export default function Overview() {
     [data],
   );
 
-  if (!data) return <div style={{ color: "var(--fl-muted)" }}>Loading…</div>;
+  if (!data) return <Loading rows={4} />;
 
   const rate = data.savings_rate;
   const months = data.months;

@@ -3,6 +3,7 @@ import { getNetWorth, addAccount, updateAccountBalance, deleteAccount, getReconc
 import { usePersona } from "@/lib/persona";
 import { Money, formatMoney } from "@/components/money";
 import { AreaChart } from "@/components/charts/area-chart";
+import { Loading } from "@/components/loading";
 
 const KINDS = ["checking", "savings", "investment", "property", "credit_card", "loan", "other"];
 const LIABILITY_KINDS = new Set(["credit_card", "loan"]);
@@ -83,7 +84,7 @@ export default function NetWorth() {
     }
   };
 
-  if (!data) return <div style={{ color: "var(--fl-muted)" }}>Loading…</div>;
+  if (!data) return <Loading />;
 
   const { summary, delta, accounts, trend, split } = data;
   const deltaColor = delta == null ? "var(--fl-muted)" : delta > 0 ? "var(--pos)" : delta < 0 ? "var(--neg)" : "var(--fl-muted)";
