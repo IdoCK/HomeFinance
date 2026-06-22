@@ -19,6 +19,9 @@ Each format is one `## Identifier` heading followed by a ```json block:
     latest-dated row's balance is offered on import to refresh an account
     balance (Net Worth). Omit it on feeds without a running balance (cards).
   - `skip_summary_rows`: drop aggregate rows like "Total credits"/"Ending balance".
+  - `currency_header`: optional column holding an ISO code / symbol per row.
+  - `default_currency`: the file's currency when no column/symbol is present
+    (e.g. "USD" for a US bank layout, "ILS" for an Israeli one).
   - `exclude_keywords`: optional list of substrings (case-insensitive) marking
     internal transfers such as credit-card bill payments. Matching rows are kept
     but flagged as **excluded from calculations** (shown dimmed; the user can
@@ -47,6 +50,7 @@ Each format is one `## Identifier` heading followed by a ```json block:
     "spend_is_negative": true,
     "date_format": "%m/%d/%Y",
     "skip_summary_rows": true,
+    "default_currency": "USD",
     "exclude_keywords": ["payment to crd", "payment to acct"]
   }
 }
@@ -70,7 +74,8 @@ Each format is one `## Identifier` heading followed by a ```json block:
     "amount_already_signed": true,
     "spend_is_negative": true,
     "date_format": null,
-    "skip_summary_rows": true
+    "skip_summary_rows": true,
+    "default_currency": "USD"
   }
 }
 ```
@@ -94,6 +99,7 @@ Each format is one `## Identifier` heading followed by a ```json block:
     "spend_is_negative": true,
     "date_format": "%m/%d/%Y",
     "skip_summary_rows": true,
+    "default_currency": "USD",
     "exclude_keywords": ["payment from chk", "mobile recurring from chk"]
   }
 }
@@ -117,7 +123,8 @@ Each format is one `## Identifier` heading followed by a ```json block:
     "amount_already_signed": false,
     "spend_is_negative": false,
     "date_format": null,
-    "skip_summary_rows": true
+    "skip_summary_rows": true,
+    "default_currency": "USD"
   }
 }
 ```

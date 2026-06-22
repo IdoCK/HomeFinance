@@ -337,7 +337,17 @@ def _apply_spec(raw_df, spec, source, categorize_fn, category_rules,
         # are stripped by _clean_amount for the numeric parse above).
         raw_amount_cell = "" if amount_col is None else (
             "" if pd.isna(r[amount_col]) else str(r[amount_col]))
-        ccy, ccy_source = _detect_currency(raw_amount_cell, desc_cell, file_default)
+        # Currency: an explicit per-row column wins; else detect from the raw
+        # cell/symbol, falling back to the file/upload default then person USD.
+        if currency_col is not None:
+            raw_ccy = "" if pd.isna(r[currency_col]) else str(r[currency_col])
+            code = _CODE_CCY.get(raw_ccy.strip().upper())
+            if code:
+                ccy, ccy_source = code, "column"
+            else:
+                ccy, ccy_source = _detect_currency(raw_amount_cell, desc_cell, file_default)
+        else:
+            ccy, ccy_source = _detect_currency(raw_amount_cell, desc_cell, file_default)
 
         desc = desc_cell
         rows.append({

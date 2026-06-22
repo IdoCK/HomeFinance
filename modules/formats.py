@@ -168,6 +168,8 @@ def parse_with_format(raw_df, fmt, header_row, source, categorize_fn,
         "spend_is_negative": p.get("spend_is_negative", True),
         "date_format": p.get("date_format"),
         "exclude_keywords": p.get("exclude_keywords") or [],
+        "currency_col": _col_of(hdr_cells, p.get("currency_header")),
+        "file_default": p.get("default_currency"),
     }
     return agent_parser._apply_spec(
         raw_df, spec, source, categorize_fn, category_rules, progress_cb=progress_cb
