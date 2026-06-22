@@ -34,3 +34,9 @@ def refresh(body: FxRefresh):
         else:
             failed += 1
     return {"fetched": fetched, "failed": failed}
+
+
+@router.post("/recompute")
+def recompute():
+    updated, stale = db.recompute_amount_base()
+    return {"updated": updated, "stale": stale}

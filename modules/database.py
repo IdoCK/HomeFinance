@@ -308,6 +308,25 @@ def add_transactions(person_id, rows, file_hash=None):
         )
 
 
+def recompute_amount_base():
+    """Re-derive amount_base (USD) for every transaction from its stored
+    amount/currency/date. Returns (updated, stale). Used after a rate refresh."""
+    from modules import fx
+    with get_conn() as conn:
+        rows = [dict(r) for r in conn.execute(
+            "SELECT id, amount, currency, date FROM transactions")]
+        fx.resolve_rows(rows)  # fills amount_base / sets rate_stale
+        updated = stale = 0
+        for r in rows:
+            if r.get("rate_stale"):
+                stale += 1
+                continue
+            conn.execute("UPDATE transactions SET amount_base=? WHERE id=?",
+                         (r["amount_base"], r["id"]))
+            updated += 1
+    return updated, stale
+
+
 def set_transaction_included(txn_id, included):
     """Toggle whether a single transaction counts toward calculations."""
     with get_conn() as conn:
