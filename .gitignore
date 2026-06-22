@@ -5,3 +5,5 @@ __pycache__/
 .claude/
 .planning/
 .superpowers/
+web/node_modules/
+web/dist/

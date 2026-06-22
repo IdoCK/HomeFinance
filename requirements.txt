@@ -4,3 +4,7 @@ openpyxl>=3.1
 anthropic>=0.40
 altair>=5.0
 pytest>=8.0
+fastapi
+uvicorn[standard]
+python-multipart
+httpx
