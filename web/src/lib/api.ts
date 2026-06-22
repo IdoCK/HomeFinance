@@ -282,6 +282,7 @@ export type OllamaStatus = { ok: boolean; message: string };
 export type ImportRow = {
   date: string; description: string; amount: number; category: string;
   source: string; included: boolean; balance: number | null;
+  currency: string; currency_source: string;
 };
 export type ImportParseResult = {
   already_imported: boolean; file_hash: string; filename: string;
@@ -292,11 +293,13 @@ export const getOllamaStatus = () => apiGet<OllamaStatus>("/import/status");
 
 // Multipart upload — let the browser set the Content-Type boundary, so this
 // doesn't go through apiSend (which sends JSON).
-export async function parseImport(file: File, source: string, personId: number): Promise<ImportParseResult> {
+export async function parseImport(file: File, source: string, personId: number,
+                                  currency = "auto"): Promise<ImportParseResult> {
   const fd = new FormData();
   fd.append("file", file);
   fd.append("source", source);
   fd.append("person_id", String(personId));
+  fd.append("currency", currency);
   const res = await fetch(`${BASE}/import/parse`, { method: "POST", body: fd });
   if (!res.ok) throw new Error(`POST /import/parse -> ${res.status}`);
   return res.json() as Promise<ImportParseResult>;

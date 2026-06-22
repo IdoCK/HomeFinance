@@ -16,6 +16,8 @@ const cell: CSSProperties = { padding: "8px 10px", borderBottom: "1px solid var(
 const SOURCES: [string, string][] = [
   ["auto", "Auto-detect"], ["amazon", "Amazon"], ["card", "Credit card"], ["bank", "Bank"],
 ];
+const CURRENCIES = ["auto", "ILS", "USD", "EUR"];
+const symbolFor = (c: string) => (c === "ILS" ? "₪" : c === "EUR" ? "€" : "$");
 type Step = "upload" | "review" | "done";
 
 function Stepper({ step }: { step: Step }) {
@@ -47,6 +49,7 @@ export default function Import() {
   const [status, setStatus] = useState<OllamaStatus | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [source, setSource] = useState("auto");
+  const [uploadCurrency, setUploadCurrency] = useState("auto");
   const [step, setStep] = useState<Step>("upload");
   const [rows, setRows] = useState<ImportRow[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -79,7 +82,7 @@ export default function Import() {
     if (!file) return;
     setBusy(true); setAlreadyImported(false);
     try {
-      const res = await parseImport(file, source, personId);
+      const res = await parseImport(file, source, personId, uploadCurrency);
       if (res.already_imported) { setAlreadyImported(true); return; }
       setRows(res.rows); setWarnings(res.warnings);
       setParsed({ file_hash: res.file_hash, filename: res.filename, source: res.source });
@@ -103,6 +106,7 @@ export default function Import() {
     setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
 
   const plural = (n: number) => (n === 1 ? "" : "s");
+  const hasUnknown = rows.some((r) => r.currency_source === "unknown" || !r.currency);
 
   return (
     <div style={{ display: "grid", gap: 16, maxWidth: 960 }}>
@@ -153,6 +157,13 @@ export default function Import() {
               {SOURCES.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
             </select>
           </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <label style={h2} htmlFor="import-currency">Statement currency</label>
+            <select id="import-currency" value={uploadCurrency}
+                    onChange={(e) => setUploadCurrency(e.target.value)} style={pill}>
+              {CURRENCIES.map((c) => <option key={c} value={c}>{c === "auto" ? "Auto-detect" : c}</option>)}
+            </select>
+          </div>
           {alreadyImported && (
             <div style={{ fontSize: 13, color: NEG }}>
               This file is already imported for {label} — nothing to do.
@@ -173,11 +184,20 @@ export default function Import() {
               {warnings.map((w, i) => <div key={i}>{w}</div>)}
             </div>
           )}
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <span style={{ fontSize: 13, color: "var(--fl-muted)" }}>Set all currencies to</span>
+            {["ILS", "USD", "EUR"].map((c) => (
+              <button key={c} style={pill}
+                onClick={() => setRows((rs) => rs.map((r) => ({ ...r, currency: c, currency_source: "user_override" })))}>
+                {c}
+              </button>
+            ))}
+          </div>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  {["Date", "Description", "Amount", "Category", "Include"].map((h) => (
+                  {["Date", "Description", "Amount", "Currency", "Category", "Include"].map((h) => (
                     <th key={h} style={{ ...cell, ...h2, borderBottom: "1px solid var(--fl-line)" }}>{h}</th>
                   ))}
                 </tr>
@@ -188,7 +208,16 @@ export default function Import() {
                     <td style={{ ...cell, fontVariantNumeric: "tabular-nums" }}>{r.date}</td>
                     <td style={cell}>{r.description}</td>
                     <td style={{ ...cell, fontVariantNumeric: "tabular-nums", color: r.amount < 0 ? NEG : POS, fontWeight: 700 }}>
-                      {r.amount < 0 ? "−" : "+"}${Math.abs(r.amount).toFixed(2)}
+                      {r.amount < 0 ? "−" : "+"}{symbolFor(r.currency)}{Math.abs(r.amount).toFixed(2)}
+                    </td>
+                    <td style={cell}>
+                      <select value={r.currency || ""} aria-label={`Currency for ${r.description}`}
+                              onChange={(e) => editRow(i, { currency: e.target.value, currency_source: "user_override" })}
+                              style={{ ...pill, padding: "4px 10px",
+                                       borderColor: r.currency_source === "unknown" || !r.currency ? NEG : undefined }}>
+                        <option value="">—</option>
+                        {["ILS", "USD", "EUR"].map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
                     </td>
                     <td style={cell}>
                       <input
@@ -211,8 +240,10 @@ export default function Import() {
             </table>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={doCommit} disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.5 : 1 }}>
-              {busy ? "Importing…" : `Import ${rows.length} transaction${plural(rows.length)}`}
+            <button onClick={doCommit} disabled={busy || hasUnknown}
+              style={{ ...primaryBtn, opacity: busy || hasUnknown ? 0.5 : 1,
+                       cursor: hasUnknown ? "not-allowed" : "pointer" }}>
+              {hasUnknown ? "Set a currency for every row" : busy ? "Importing…" : `Import ${rows.length} transaction${plural(rows.length)}`}
             </button>
             <button onClick={() => setStep("upload")} style={pill}>Back</button>
           </div>

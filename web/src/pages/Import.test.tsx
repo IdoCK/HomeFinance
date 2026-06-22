@@ -21,7 +21,7 @@ vi.mock("@/lib/api", () => ({
 
 import Import from "./Import";
 
-const ROW = { date: "2026-06-01", description: "WHOLE FOODS", amount: -52.1, category: "Groceries", source: "bank", included: true, balance: null };
+const ROW = { date: "2026-06-01", description: "WHOLE FOODS", amount: -52.1, category: "Groceries", source: "bank", included: true, balance: null, currency: "USD", currency_source: "person_default" };
 
 beforeEach(() => {
   mockPersonId = 1;
@@ -42,7 +42,7 @@ test("upload then parse advances to the review table", async () => {
   const file = new File(["date,amt"], "june.csv", { type: "text/csv" });
   await userEvent.upload(screen.getByLabelText(/choose file/i), file);
   await userEvent.click(screen.getByRole("button", { name: /parse file/i }));
-  await waitFor(() => expect(parseImport).toHaveBeenCalledWith(file, expect.any(String), 1));
+  await waitFor(() => expect(parseImport).toHaveBeenCalledWith(file, expect.any(String), 1, expect.any(String)));
   expect(await screen.findByText("WHOLE FOODS")).toBeInTheDocument();
 });
 
@@ -57,6 +57,18 @@ test("committing the reviewed rows calls commitImport and shows the result", asy
     personId: 1, filename: "june.csv", fileHash: "h", rows: [ROW],
   })));
   expect(await screen.findByText(/imported 1 transaction/i)).toBeInTheDocument();
+});
+
+test("blocks commit while a row currency is unknown", async () => {
+  parseImport.mockResolvedValue({ already_imported: false, file_hash: "h", filename: "june.csv", source: "bank",
+    rows: [{ ...ROW, currency: "", currency_source: "unknown" }], warnings: [] });
+  render(<Import />);
+  const file = new File(["date,amt"], "june.csv", { type: "text/csv" });
+  await userEvent.upload(screen.getByLabelText(/choose file/i), file);
+  await userEvent.click(screen.getByRole("button", { name: /parse file/i }));
+  await screen.findByText("WHOLE FOODS");
+  const importBtn = screen.getByRole("button", { name: /set a currency for every row/i });
+  expect(importBtn).toBeDisabled();
 });
 
 test("an already-imported file is flagged, not re-reviewed", async () => {
