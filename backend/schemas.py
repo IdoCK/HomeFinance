@@ -68,6 +68,8 @@ class ImportRow(BaseModel):
     source: str = "auto"
     included: bool = True
     balance: Optional[float] = None
+    currency: str = "USD"
+    currency_source: str = "unknown"
 
 
 class ImportCommit(BaseModel):

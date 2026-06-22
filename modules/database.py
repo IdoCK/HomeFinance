@@ -289,18 +289,22 @@ def rename_person(person_id, new_name):
 
 def add_transactions(person_id, rows, file_hash=None):
     """rows: list of dicts with keys date, description, amount, category, source,
-    and optional included (defaults to 1). file_hash links every row to the
-    imported file (see imported_files)."""
+    currency, currency_source, amount_base, and optional included (defaults to 1).
+    file_hash links every row to the imported file (see imported_files)."""
     with get_conn() as conn:
         conn.executemany(
             """INSERT INTO transactions
                (person_id, date, description, amount, category, source,
-                file_hash, included, balance)
+                file_hash, included, balance, currency, currency_source, amount_base)
                VALUES (:person_id, :date, :description, :amount, :category,
-                       :source, :file_hash, :included, :balance)""",
+                       :source, :file_hash, :included, :balance,
+                       :currency, :currency_source, :amount_base)""",
             [{**r, "person_id": person_id, "file_hash": file_hash,
               "included": int(r.get("included", 1)),
-              "balance": r.get("balance")} for r in rows],
+              "balance": r.get("balance"),
+              "currency": r.get("currency", "USD"),
+              "currency_source": r.get("currency_source", "unknown"),
+              "amount_base": r.get("amount_base")} for r in rows],
         )
 
 

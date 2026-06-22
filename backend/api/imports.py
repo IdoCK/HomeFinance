@@ -46,7 +46,9 @@ def parse(file: UploadFile = File(...), source: str = Form("auto"),
 
 @router.post("/commit")
 def commit(body: ImportCommit):
+    from modules import fx
     rows = [r.model_dump() for r in body.rows]
+    fx.resolve_rows(rows)  # fills amount_base (USD) per row's date+currency
     db.add_transactions(body.person_id, rows, file_hash=body.file_hash)
     db.record_import(body.person_id, body.file_hash, body.filename, len(rows),
                      datetime.now().strftime("%Y-%m-%d %H:%M"))
