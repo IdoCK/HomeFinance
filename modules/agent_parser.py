@@ -367,7 +367,7 @@ def _apply_spec(raw_df, spec, source, categorize_fn, category_rules,
 
 
 def parse_file_with_agent(file_bytes, filename, source, categorize_fn,
-                          category_rules, model=DEFAULT_MODEL):
+                          category_rules, model=DEFAULT_MODEL, file_default=None):
     """Top-level entry: read raw, ask the local agent for a spec, apply it.
 
     Returns (rows, warnings). Mirrors the signature style of the simple parser
@@ -380,7 +380,8 @@ def parse_file_with_agent(file_bytes, filename, source, categorize_fn,
 
     sample = _sample_text(raw_df)
     spec = _call_ollama(model, sample, filename)
-    rows, skipped, _ = _apply_spec(raw_df, spec, source, categorize_fn, category_rules)
+    rows, skipped, _ = _apply_spec(raw_df, spec, source, categorize_fn,
+                                   category_rules, file_default=file_default)
 
     # The keyword rules above only tag descriptions that literally contain a
     # configured keyword. For everything still Uncategorized, ask the local
