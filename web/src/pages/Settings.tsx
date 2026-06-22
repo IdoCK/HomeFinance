@@ -4,9 +4,11 @@ import {
   getPeople, renamePerson,
   getCategories, upsertCategory, deleteCategory,
   getVendors, upsertVendor, deleteVendor,
-  type Person, type Category, type Vendor,
+  getFxRates,
+  type Person, type Category, type Vendor, type FxRatesInfo,
 } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
+import { useCurrency, type Currency } from "@/lib/currency";
 
 const h2: CSSProperties = { fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--fl-muted)", margin: 0 };
 
@@ -69,10 +71,14 @@ function RuleSection({ kind, items, onSave, onAdd, onRemove, onSaveParent }: {
 
 export default function Settings() {
   const { personId: activePersonId } = usePersona();
+  const { currency, setCurrency } = useCurrency();
   const [people, setPeople] = useState<Person[]>([]);
   const [selected, setSelected] = useState<number | null>(activePersonId ?? null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [fx, setFx] = useState<FxRatesInfo | null>(null);
+  useEffect(() => { getFxRates().then(setFx).catch(() => setFx(null)); }, []);
+  const CUR: { key: Currency; label: string }[] = [{ key: "USD", label: "$ USD" }, { key: "ILS", label: "₪ ILS" }];
 
   const loadPeople = useCallback(() => getPeople().then(setPeople).catch(() => setPeople([])), []);
   useEffect(() => { loadPeople(); }, [loadPeople]);
@@ -113,6 +119,26 @@ export default function Settings() {
             />
           </div>
         ))}
+      </section>
+
+      <section className="frosted-card" style={{ padding: 20, display: "grid", gap: 12 }}>
+        <h2 style={h2}>Money</h2>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, color: "var(--fl-muted)" }}>Default display currency</span>
+          {CUR.map((c) => (
+            <button key={c.key} onClick={() => setCurrency(c.key)} aria-pressed={currency === c.key}
+              style={{ ...pill, fontWeight: currency === c.key ? 700 : 500,
+                       background: currency === c.key ? "var(--persona)" : "transparent",
+                       color: currency === c.key ? "#fff" : "var(--fl-ink)" }}>
+              {c.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ fontSize: 12, color: "var(--fl-muted)" }}>
+          {fx && fx.count > 0
+            ? `Rates: ${fx.source ?? "—"}, last fetched ${fx.last_fetched ?? "never"} · ${fx.count} cached`
+            : "No exchange rates cached yet. Importing a non-USD statement fetches the rate it needs."}
+        </div>
       </section>
 
       <section className="frosted-card" style={{ padding: 16, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>

@@ -61,6 +61,12 @@ export type Overview = {
   split: PersonSpend[] | null;
 };
 
+export type FxRatesInfo = {
+  source: string | null; last_fetched: string | null; count: number;
+  rates: { rate_date: string; base: string; quote: string; rate: number; source: string }[];
+};
+export const getFxRates = () => apiGet<FxRatesInfo>("/fx/rates");
+
 export const getPeople = () => apiGet<Person[]>("/people");
 export const getOverview = (p: { personId?: number; month?: string; display?: Currency }) =>
   apiGet<Overview>("/overview", { person_id: p.personId, month: p.month, display: p.display });
