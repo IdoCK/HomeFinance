@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import { pillStyle as pill } from "@/lib/ui";
 import {
   getPeople, renamePerson,
   getCategories, upsertCategory, deleteCategory,
@@ -7,10 +8,6 @@ import {
 } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 
-const pill: CSSProperties = {
-  border: "1px solid var(--fl-line)", borderRadius: 999, padding: "6px 12px",
-  fontSize: 13, background: "transparent", color: "var(--fl-ink)",
-};
 const h2: CSSProperties = { fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--fl-muted)", margin: 0 };
 
 type Rule = { id: number; name: string; keywords: string; parent?: string | null };

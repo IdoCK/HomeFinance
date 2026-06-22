@@ -1,14 +1,11 @@
 import { useEffect, useState, type CSSProperties } from "react";
+import { pillStyle as pill } from "@/lib/ui";
 import { getOllamaStatus, parseImport, commitImport, type ImportRow, type OllamaStatus } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 
 const POS = "#22C55E";
 const NEG = "#EF4444";
 
-const pill: CSSProperties = {
-  border: "1px solid var(--fl-line)", borderRadius: 999, padding: "6px 12px",
-  fontSize: 13, background: "transparent", color: "var(--fl-ink)",
-};
 const primaryBtn: CSSProperties = {
   border: "none", borderRadius: 999, padding: "9px 18px", fontWeight: 700,
   fontSize: 14, cursor: "pointer", background: "var(--persona)", color: "#fff",

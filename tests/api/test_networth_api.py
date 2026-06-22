@@ -73,3 +73,22 @@ def test_trend_and_delta(client, people):
     assert len(data["trend"]) == 2
     assert data["trend"][0]["net"] == 8000.0
     assert data["delta"] == 2000.0  # current net 10000 - prior trend date 8000
+
+
+def test_networth_joint_split_per_person(client, people):
+    from modules import database as db
+    ido, aviv = people[0]["id"], people[1]["id"]
+    db.add_account(ido, "Ido Checking", "checking", 1, 1000.0)
+    db.add_account(aviv, "Aviv Savings", "savings", 1, 4000.0)
+    db.add_account(None, "Joint House", "property", 1, 200000.0)
+    # Joint: split present, one row per owner (+ Shared), nets sum to summary.net
+    d = client.get("/api/networth").json()
+    assert d["split"] is not None
+    by_name = {r["name"]: r["net"] for r in d["split"]}
+    assert by_name[people[0]["name"]] == 1000.0
+    assert by_name[people[1]["name"]] == 4000.0
+    assert by_name["Shared"] == 200000.0
+    assert round(sum(r["net"] for r in d["split"]), 2) == round(d["summary"]["net"], 2)
+    # Single persona: no split
+    d2 = client.get("/api/networth", params={"person_id": ido}).json()
+    assert d2["split"] is None

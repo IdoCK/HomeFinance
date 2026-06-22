@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { getRecurring, type RecurringAnomaly, type RecurringCharge, type RecurringData } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { formatMoney } from "@/components/money";
+import { Loading } from "@/components/loading";
 
 const ANOMALY: Record<RecurringAnomaly["type"], { label: string; color: string }> = {
   price_change: { label: "price change", color: "#F59E0B" },
@@ -49,7 +50,7 @@ export default function Recurring() {
     return () => { alive = false; };
   }, [personId]);
 
-  if (!data) return <div style={{ color: "var(--fl-muted)" }}>Loading…</div>;
+  if (!data) return <Loading />;
 
   const { charges, committed, anomalies } = data;
 

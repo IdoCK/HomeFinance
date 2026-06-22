@@ -199,12 +199,14 @@ export type Account = {
 };
 
 export type NetWorthPoint = { date: string; assets: number; liabilities: number; net: number };
+export type NetWorthSplit = { person_id: number | null; name: string; net: number; assets: number; liabilities: number };
 
 export type NetWorthData = {
   summary: { assets: number; liabilities: number; net: number };
   delta: number | null;
   accounts: Account[];
   trend: NetWorthPoint[];
+  split: NetWorthSplit[] | null;
 };
 
 export const getNetWorth = (p: { personId?: number }) =>

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { pillStyle as pill } from "@/lib/ui";
 import { getBudgets, setBudget, deleteBudget, type Budget } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { Money } from "@/components/money";
@@ -14,10 +15,6 @@ const STATUS_LABEL: Record<Budget["status"], string> = {
   over: "over budget",
 };
 
-const pill: CSSProperties = {
-  border: "1px solid var(--fl-line)", borderRadius: 999, padding: "6px 12px",
-  fontSize: 13, background: "transparent", color: "var(--fl-ink)",
-};
 
 function PaceMeter({ b }: { b: Budget }) {
   const fillPct = Math.min(b.budget > 0 ? (b.spent / b.budget) * 100 : 0, 100);

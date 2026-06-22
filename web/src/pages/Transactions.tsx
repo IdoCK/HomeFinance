@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { pillStyle as pill } from "@/lib/ui";
 import {
   flexRender,
   getCoreRowModel,
@@ -23,10 +24,6 @@ const personaColor = (personId: number, people: Person[]) =>
   : personId === people[1]?.id ? "var(--persona-spouse)"
   : "var(--fl-line)";
 
-const pill: CSSProperties = {
-  border: "1px solid var(--fl-line)", borderRadius: 999, padding: "6px 12px",
-  fontSize: 13, background: "transparent", color: "var(--fl-ink)",
-};
 
 export default function Transactions() {
   const { personId, persona, people } = usePersona();

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import { pillStyle as pill } from "@/lib/ui";
 import {
   getEvents, createEvent, deleteEvent, getEventTransactions, setEventTags,
   getTransactions, type FinanceEvent, type Transaction,
@@ -8,10 +9,6 @@ import { Money, formatMoney } from "@/components/money";
 
 const KINDS = ["trip", "project", "event", "celebration", "other"];
 
-const pill: CSSProperties = {
-  border: "1px solid var(--fl-line)", borderRadius: 999, padding: "6px 12px",
-  fontSize: 13, background: "transparent", color: "var(--fl-ink)",
-};
 const badge: CSSProperties = {
   border: "1px solid var(--fl-line)", borderRadius: 999, padding: "2px 10px",
   fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--fl-muted)",

@@ -1,12 +1,9 @@
-import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { pillStyle as pill } from "@/lib/ui";
 import { getGoals, addGoal, updateGoalSaved, deleteGoal, type Goal } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { Money, formatMoney } from "@/components/money";
 
-const pill: CSSProperties = {
-  border: "1px solid var(--fl-line)", borderRadius: 999, padding: "6px 12px",
-  fontSize: 13, background: "transparent", color: "var(--fl-ink)",
-};
 
 function GoalCard({ g, onSave, onRemove }: {
   g: Goal; onSave: (g: Goal, v: string) => void; onRemove: (g: Goal) => void;
