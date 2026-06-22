@@ -5,6 +5,7 @@ from fastapi import APIRouter
 
 from modules import database as db
 from modules import analytics
+from modules import fx
 
 router = APIRouter(prefix="/overview", tags=["overview"])
 
@@ -15,9 +16,15 @@ def _empty():
             "alerts": [], "series": [], "split": None}
 
 
+def _scale(v, f):
+    return v if v is None else round(v * f, 2)
+
+
 @router.get("")
-def overview(person_id: Optional[int] = None, month: Optional[str] = None):
-    txns = db.get_transactions(person_id)
+def overview(person_id: Optional[int] = None, month: Optional[str] = None,
+             display: str = "USD"):
+    txns = fx.base_txns(db.get_transactions(person_id))   # analytics in USD
+    f = fx.display_factor(display) or 1.0                  # offline fallback: USD
     sav = analytics.monthly_savings(txns)
     if sav.empty:
         return _empty()
@@ -55,16 +62,23 @@ def overview(person_id: Optional[int] = None, month: Optional[str] = None):
             spend = sum(analytics.category_totals(p_txns).values())
             split.append({"person_id": p["id"], "name": p["name"], "spend": float(spend)})
 
+    by_category = {k: _scale(v, f) for k, v in analytics.category_totals(month_txns).items()}
+    series = [{**p, "income": _scale(p["income"], f), "spend": _scale(p["spend"], f),
+               "net": _scale(p["net"], f)} for p in series]
+    if split is not None:
+        split = [{**s, "spend": _scale(s["spend"], f)} for s in split]
+    alerts = [{**a, "current": _scale(a["current"], f), "baseline": _scale(a["baseline"], f),
+               "delta": _scale(a["delta"], f)} for a in analytics.spending_alerts(txns)]
     return {
         "month": month,
         "months": months,
-        "income": sel["income"],
-        "spend": sel["spend"],
-        "net": sel["net"],
+        "income": _scale(sel["income"], f),
+        "spend": _scale(sel["spend"], f),
+        "net": _scale(sel["net"], f),
         "savings_rate": sel["savings_rate"],
         "complete": sel["complete"],
-        "by_category": analytics.category_totals(month_txns),
-        "alerts": analytics.spending_alerts(txns),
+        "by_category": by_category,
+        "alerts": alerts,
         "series": series,
         "split": split,
     }
