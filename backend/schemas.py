@@ -15,6 +15,7 @@ class BudgetUpsert(BaseModel):
     person_id: Optional[int] = None
     category: str
     amount: float
+    currency: str = "USD"
 
 
 class GoalCreate(BaseModel):
@@ -25,6 +26,7 @@ class GoalCreate(BaseModel):
     target_date: Optional[str] = None
     horizon: str = "short"
     notes: str = ""
+    currency: str = "USD"
 
 
 class GoalSavedUpdate(BaseModel):
@@ -37,6 +39,7 @@ class AccountCreate(BaseModel):
     kind: str
     is_asset: bool
     balance: float = 0
+    currency: str = "USD"
 
 
 class AccountBalanceUpdate(BaseModel):
@@ -68,6 +71,8 @@ class ImportRow(BaseModel):
     source: str = "auto"
     included: bool = True
     balance: Optional[float] = None
+    currency: str = "USD"
+    currency_source: str = "unknown"
 
 
 class ImportCommit(BaseModel):
@@ -76,6 +81,19 @@ class ImportCommit(BaseModel):
     file_hash: str
     source: str = "auto"
     rows: list[ImportRow]
+
+
+class FxRateUpsert(BaseModel):
+    rate_date: str
+    base: str = "USD"
+    quote: str = "ILS"
+    rate: float
+
+
+class FxRefresh(BaseModel):
+    dates: list[str]
+    base: str = "USD"
+    quote: str = "ILS"
 
 
 class EventCreate(BaseModel):

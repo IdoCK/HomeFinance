@@ -38,6 +38,13 @@ test("getTransactions omits person_id for Joint", async () => {
   expect(fetchMock.mock.calls[0][0]).toBe("/api/transactions");
 });
 
+test("getTransactions forwards display param", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+  vi.stubGlobal("fetch", fetchMock);
+  await getTransactions({ personId: 1, display: "ILS" });
+  expect(String(fetchMock.mock.calls[0][0])).toContain("display=ILS");
+});
+
 test("updateTransaction PATCHes category + included", async () => {
   const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ id: 5 }) });
   vi.stubGlobal("fetch", fetchMock);
@@ -322,7 +329,7 @@ test("parseImport posts multipart form data", async () => {
 test("commitImport posts the rows as JSON", async () => {
   const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ imported: 1 }) });
   vi.stubGlobal("fetch", fetchMock);
-  const rows: ImportRow[] = [{ date: "2026-06-01", description: "WF", amount: -5, category: "Groceries", source: "bank", included: true, balance: null }];
+  const rows: ImportRow[] = [{ date: "2026-06-01", description: "WF", amount: -5, category: "Groceries", source: "bank", included: true, balance: null, currency: "USD", currency_source: "person_default" }];
   await commitImport({ personId: 1, filename: "june.csv", fileHash: "abc", source: "bank", rows });
   const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
   expect(url).toBe("/api/import/commit");

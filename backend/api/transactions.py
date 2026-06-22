@@ -4,15 +4,27 @@ from fastapi import APIRouter, HTTPException
 
 from modules import database as db
 from modules import analytics
+from modules import fx
 from backend.schemas import TransactionUpdate
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
 
 @router.get("")
-def list_transactions(person_id: Optional[int] = None):
-    """person_id omitted -> all people (Joint)."""
-    return db.get_transactions(person_id)
+def list_transactions(person_id: Optional[int] = None, display: str = "USD"):
+    """person_id omitted -> all people (Joint). `display` re-expresses each row at
+    its own transaction-date rate; the original amount+currency are preserved."""
+    rows = db.get_transactions(person_id)
+    for t in rows:
+        base = t.get("amount_base")
+        base = t.get("amount") if base is None else base
+        conv = fx.convert(base, display, t.get("date"))
+        t["original_amount"] = t.get("amount")
+        t["original_currency"] = t.get("currency", "USD")
+        t["amount_base"] = base
+        t["rate_stale"] = conv is None
+        t["amount"] = base if conv is None else conv   # never show a wrong/zero number
+    return rows
 
 
 @router.get("/transfers")

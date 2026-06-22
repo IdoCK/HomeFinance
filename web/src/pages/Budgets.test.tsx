@@ -9,6 +9,9 @@ const getBudgets = vi.fn().mockResolvedValue([
   { id: 2, person_id: 1, category: "Rent", amount: 2000, budget: 2000, spent: 2000, expected_to_date: 1260, projected_eom: 2000, pct: 1.0, status: "over" },
 ]);
 
+vi.mock("@/lib/currency", () => ({
+  useCurrency: () => ({ currency: "USD", setCurrency: () => {}, symbol: "$", format: (n: number) => `$${n}` }),
+}));
 vi.mock("@/lib/persona", () => ({
   usePersona: () => ({
     persona: "you", personId: 1, label: "Ada",

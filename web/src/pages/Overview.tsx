@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { getOverview, type Overview as OverviewData } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
+import { useCurrency } from "@/lib/currency";
 import { Money } from "@/components/money";
 import { Kpi } from "@/components/kpi";
 import { Pill } from "@/components/ui/pill";
@@ -21,14 +22,15 @@ function personColor(name: string): string {
 
 export default function Overview() {
   const { personId, label } = usePersona();
+  const { currency } = useCurrency();
   const [data, setData] = useState<OverviewData | null>(null);
   const [month, setMonth] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     let alive = true;
-    getOverview({ personId, month }).then((d) => alive && setData(d)).catch(() => alive && setData(null));
+    getOverview({ personId, month, display: currency }).then((d) => alive && setData(d)).catch(() => alive && setData(null));
     return () => { alive = false; };
-  }, [personId, month]);
+  }, [personId, month, currency]);
 
   const cats = useMemo(
     () => Object.entries(data?.by_category ?? {}).sort((a, b) => b[1] - a[1]),

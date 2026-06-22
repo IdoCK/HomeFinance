@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { pillStyle as pill } from "@/lib/ui";
 import { getNetWorth, addAccount, updateAccountBalance, deleteAccount, getReconciliation, type Account, type NetWorthData, type Reconciliation } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
+import { useCurrency } from "@/lib/currency";
 import { Money, formatMoney } from "@/components/money";
 import { AreaChart } from "@/components/charts/area-chart";
 import { Loading } from "@/components/loading";
@@ -48,6 +49,7 @@ function AccountRow({ a, onSave, onRemove }: {
 
 export default function NetWorth() {
   const { personId, label } = usePersona();
+  const { currency } = useCurrency();
   const [data, setData] = useState<NetWorthData | null>(null);
   const [recon, setRecon] = useState<Reconciliation | null>(null);
   const [adding, setAdding] = useState(false);
@@ -56,8 +58,8 @@ export default function NetWorth() {
   const [balance, setBalance] = useState("");
 
   const load = useCallback(
-    () => getNetWorth({ personId }).then(setData).catch(() => setData(null)),
-    [personId],
+    () => getNetWorth({ personId, display: currency }).then(setData).catch(() => setData(null)),
+    [personId, currency],
   );
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
