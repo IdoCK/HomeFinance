@@ -280,3 +280,26 @@ export const commitImport = (c: {
     person_id: c.personId, filename: c.filename, file_hash: c.fileHash,
     source: c.source, rows: c.rows,
   });
+
+export type FinanceEvent = {
+  id: number;
+  person_id: number | null;
+  name: string;
+  kind: string;
+  start_date: string | null;
+  end_date: string | null;
+  rule: string | null;
+  txn_count: number;
+  total: number;
+};
+
+export const getEvents = (personId?: number) =>
+  apiGet<FinanceEvent[]>("/events", { person_id: personId });
+export const createEvent = (e: { personId?: number; name: string; kind: string }) =>
+  apiSend<{ id: number }>("POST", "/events", { person_id: e.personId, name: e.name, kind: e.kind });
+export const deleteEvent = (id: number) =>
+  apiSend<{ ok: boolean }>("DELETE", `/events/${id}`);
+export const getEventTransactions = (id: number) =>
+  apiGet<number[]>(`/events/${id}/transactions`);
+export const setEventTags = (id: number, transactionIds: number[]) =>
+  apiSend<{ ok: boolean }>("PUT", `/events/${id}/transactions`, { transaction_ids: transactionIds });

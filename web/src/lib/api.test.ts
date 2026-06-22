@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { getOverview, getTransactions, updateTransaction, getBudgets, setBudget, deleteBudget, getRecurring, getGoals, addGoal, updateGoalSaved, deleteGoal, getNetWorth, addAccount, updateAccountBalance, deleteAccount, getCategories, upsertCategory, deleteCategory, getVendors, upsertVendor, deleteVendor, renamePerson, getInsightsPreview, generateInsights, getOllamaStatus, parseImport, commitImport, getReconciliation, getTransferPairs, type ImportRow } from "./api";
+import { getOverview, getTransactions, updateTransaction, getBudgets, setBudget, deleteBudget, getRecurring, getGoals, addGoal, updateGoalSaved, deleteGoal, getNetWorth, addAccount, updateAccountBalance, deleteAccount, getCategories, upsertCategory, deleteCategory, getVendors, upsertVendor, deleteVendor, renamePerson, getInsightsPreview, generateInsights, getOllamaStatus, parseImport, commitImport, getReconciliation, getTransferPairs, getEvents, createEvent, deleteEvent, setEventTags, type ImportRow } from "./api";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -245,6 +245,42 @@ test("generateInsights POSTs person_id", async () => {
   expect(url).toBe("/api/insights/generate");
   expect(init.method).toBe("POST");
   expect(JSON.parse(init.body as string)).toEqual({ person_id: 2 });
+});
+
+test("getEvents builds /api/events with person_id", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+  vi.stubGlobal("fetch", fetchMock);
+  await getEvents(1);
+  expect(fetchMock.mock.calls[0][0]).toBe("/api/events?person_id=1");
+});
+
+test("createEvent POSTs person_id, name, kind", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ id: 5 }) });
+  vi.stubGlobal("fetch", fetchMock);
+  await createEvent({ personId: 1, name: "Hawaii", kind: "trip" });
+  const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+  expect(url).toBe("/api/events");
+  expect(init.method).toBe("POST");
+  expect(JSON.parse(init.body as string)).toEqual({ person_id: 1, name: "Hawaii", kind: "trip" });
+});
+
+test("deleteEvent DELETEs by id", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+  vi.stubGlobal("fetch", fetchMock);
+  await deleteEvent(5);
+  const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+  expect(url).toBe("/api/events/5");
+  expect(init.method).toBe("DELETE");
+});
+
+test("setEventTags PUTs transaction_ids", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+  vi.stubGlobal("fetch", fetchMock);
+  await setEventTags(5, [1, 2, 3]);
+  const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+  expect(url).toBe("/api/events/5/transactions");
+  expect(init.method).toBe("PUT");
+  expect(JSON.parse(init.body as string)).toEqual({ transaction_ids: [1, 2, 3] });
 });
 
 test("getTransferPairs builds /api/transactions/transfers with person_id", async () => {
