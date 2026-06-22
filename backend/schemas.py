@@ -80,6 +80,19 @@ class ImportCommit(BaseModel):
     rows: list[ImportRow]
 
 
+class FxRateUpsert(BaseModel):
+    rate_date: str
+    base: str = "USD"
+    quote: str = "ILS"
+    rate: float
+
+
+class FxRefresh(BaseModel):
+    dates: list[str]
+    base: str = "USD"
+    quote: str = "ILS"
+
+
 class EventCreate(BaseModel):
     person_id: Optional[int] = None
     name: str
