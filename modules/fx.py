@@ -8,9 +8,14 @@ Privacy: the ONLY outbound network call is `fetch_rate`, and it sends only a
 date and a currency pair (no amounts, no personal data). All conversion math is
 local. Lookups (`get_rate`) are DB-only and never touch the network.
 """
+import json
+import urllib.request
+
 from modules import database as db
 
 PIVOT = "USD"
+
+FRANKFURTER_BASE = "https://api.frankfurter.dev/v1"
 
 
 def upsert_rate(rate_date, base, quote, rate, source="manual"):
@@ -48,3 +53,37 @@ def get_rate(rate_date, base, quote):
     if inverse:
         return 1.0 / inverse
     return None
+
+
+def frankfurter_url(rate_date, base, quote):
+    """Build the rate-request URL. Carries ONLY the date and currency pair —
+    no amounts or personal data (the data-minimization invariant)."""
+    return f"{FRANKFURTER_BASE}/{rate_date}?base={base}&symbols={quote}"
+
+
+def _http_get_json(url):
+    """Single GET → parsed JSON. Isolated so tests can stub the network."""
+    req = urllib.request.Request(url, headers={"Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return json.loads(resp.read().decode())
+
+
+def fetch_rate(rate_date, base, quote):
+    """Fetch one rate from Frankfurter (ECB data), cache it, return it.
+
+    The only network path in the app. Sends only (date, base, quote). On any
+    failure returns None and never raises — the caller flags the row instead.
+    Frankfurter returns the nearest prior business day for weekends/holidays;
+    we store the rate under the REQUESTED date so repeat lookups hit the cache.
+    """
+    if base == quote:
+        return 1.0
+    try:
+        data = _http_get_json(frankfurter_url(rate_date, base, quote))
+        rate = data.get("rates", {}).get(quote)
+        if rate is None:
+            return None
+        upsert_rate(rate_date, base, quote, float(rate), source="frankfurter")
+        return float(rate)
+    except Exception:
+        return None
