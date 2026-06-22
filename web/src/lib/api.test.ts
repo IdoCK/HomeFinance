@@ -38,6 +38,13 @@ test("getTransactions omits person_id for Joint", async () => {
   expect(fetchMock.mock.calls[0][0]).toBe("/api/transactions");
 });
 
+test("getTransactions forwards display param", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+  vi.stubGlobal("fetch", fetchMock);
+  await getTransactions({ personId: 1, display: "ILS" });
+  expect(String(fetchMock.mock.calls[0][0])).toContain("display=ILS");
+});
+
 test("updateTransaction PATCHes category + included", async () => {
   const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ id: 5 }) });
   vi.stubGlobal("fetch", fetchMock);

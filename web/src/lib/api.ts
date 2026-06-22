@@ -1,3 +1,5 @@
+import type { Currency } from "@/lib/currency";
+
 const BASE = "/api";
 
 function qs(params: Record<string, string | number | undefined>): string {
@@ -60,8 +62,8 @@ export type Overview = {
 };
 
 export const getPeople = () => apiGet<Person[]>("/people");
-export const getOverview = (p: { personId?: number; month?: string }) =>
-  apiGet<Overview>("/overview", { person_id: p.personId, month: p.month });
+export const getOverview = (p: { personId?: number; month?: string; display?: Currency }) =>
+  apiGet<Overview>("/overview", { person_id: p.personId, month: p.month, display: p.display });
 
 export type Transaction = {
   id: number;
@@ -74,10 +76,14 @@ export type Transaction = {
   included: number; // 0 | 1
   balance: number | null;
   person: string;
+  original_amount: number;
+  original_currency: Currency;
+  amount_base: number;
+  rate_stale: boolean;
 };
 
-export const getTransactions = (p: { personId?: number }) =>
-  apiGet<Transaction[]>("/transactions", { person_id: p.personId });
+export const getTransactions = (p: { personId?: number; display?: Currency }) =>
+  apiGet<Transaction[]>("/transactions", { person_id: p.personId, display: p.display });
 
 export const updateTransaction = (id: number, body: { category?: string; included?: boolean }) =>
   apiSend<Transaction>("PATCH", `/transactions/${id}`, body);
@@ -113,8 +119,8 @@ export type Budget = {
   status: "on_track" | "ahead" | "over";
 };
 
-export const getBudgets = (p: { personId?: number }) =>
-  apiGet<Budget[]>("/budgets", { person_id: p.personId });
+export const getBudgets = (p: { personId?: number; display?: Currency }) =>
+  apiGet<Budget[]>("/budgets", { person_id: p.personId, display: p.display });
 
 export const setBudget = (b: { personId?: number; category: string; amount: number }) =>
   apiSend<{ ok: boolean }>("PUT", "/budgets", { person_id: b.personId, category: b.category, amount: b.amount });
@@ -157,8 +163,8 @@ export type RecurringData = {
   anomalies: RecurringAnomaly[];
 };
 
-export const getRecurring = (p: { personId?: number }) =>
-  apiGet<RecurringData>("/recurring", { person_id: p.personId });
+export const getRecurring = (p: { personId?: number; display?: Currency }) =>
+  apiGet<RecurringData>("/recurring", { person_id: p.personId, display: p.display });
 
 export type Goal = {
   id: number;
@@ -173,8 +179,8 @@ export type Goal = {
   monthly_needed: number | null;
 };
 
-export const getGoals = (p: { personId?: number }) =>
-  apiGet<Goal[]>("/goals", { person_id: p.personId });
+export const getGoals = (p: { personId?: number; display?: Currency }) =>
+  apiGet<Goal[]>("/goals", { person_id: p.personId, display: p.display });
 
 export const addGoal = (g: { personId?: number; name: string; targetAmount: number; targetDate?: string; horizon?: string }) =>
   apiSend<{ ok: boolean }>("POST", "/goals", {
@@ -196,6 +202,8 @@ export type Account = {
   is_asset: number;
   balance: number;
   updated_at: string;
+  original_balance?: number;
+  currency?: string;
 };
 
 export type NetWorthPoint = { date: string; assets: number; liabilities: number; net: number };
@@ -209,8 +217,8 @@ export type NetWorthData = {
   split: NetWorthSplit[] | null;
 };
 
-export const getNetWorth = (p: { personId?: number }) =>
-  apiGet<NetWorthData>("/networth", { person_id: p.personId });
+export const getNetWorth = (p: { personId?: number; display?: Currency }) =>
+  apiGet<NetWorthData>("/networth", { person_id: p.personId, display: p.display });
 
 export type Reconciliation =
   | { reconcilable: false }
@@ -307,6 +315,62 @@ export type FinanceEvent = {
   txn_count: number;
   total: number;
 };
+
+// ---- Analysis (deep-dive: Explore / Compare / People) ----
+
+/** Shared filter-bar state. Sparse: an absent field means "no constraint". */
+export type AnalysisFilters = {
+  dateFrom?: string;
+  dateTo?: string;
+  dayType?: "weekday" | "weekend";
+  dow?: number[];
+  months?: string[];
+  categories?: string[];
+  eventId?: number;
+};
+
+export type FilterOptions = {
+  months: string[];
+  categories: string[];
+  events: { id: number; name: string; kind: string }[];
+};
+
+export const getFilterOptions = (personId?: number) =>
+  apiGet<FilterOptions>("/analysis/filter-options", { person_id: personId });
+
+/** Build a full analysis query string: persona + filters (lists become repeated
+ *  keys, which FastAPI parses into list params) + any extra scalars. */
+export function analysisQuery(
+  personId: number | undefined,
+  filters: AnalysisFilters = {},
+  extra: Record<string, string | number | undefined> = {},
+): string {
+  const sp = new URLSearchParams();
+  const scalars: Record<string, string | number | undefined> = {
+    person_id: personId,
+    date_from: filters.dateFrom,
+    date_to: filters.dateTo,
+    day_type: filters.dayType,
+    event_id: filters.eventId,
+    ...extra,
+  };
+  for (const [k, v] of Object.entries(scalars)) {
+    if (v !== undefined && v !== "") sp.set(k, String(v));
+  }
+  for (const m of filters.months ?? []) sp.append("months", m);
+  for (const c of filters.categories ?? []) sp.append("categories", c);
+  for (const d of filters.dow ?? []) sp.append("dow", String(d));
+  const s = sp.toString();
+  return s ? `?${s}` : "";
+}
+
+export type CategoryTrend = {
+  months: string[];
+  series: { name: string; values: number[]; total: number }[];
+};
+
+export const getCategoryTrend = (p: { personId?: number; rollup?: boolean; filters?: AnalysisFilters }) =>
+  apiGet<CategoryTrend>(`/analysis/category-trend${analysisQuery(p.personId, p.filters, { rollup: p.rollup ? "true" : undefined })}`);
 
 export const getEvents = (personId?: number) =>
   apiGet<FinanceEvent[]>("/events", { person_id: personId });
