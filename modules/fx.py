@@ -10,6 +10,7 @@ local. Lookups (`get_rate`) are DB-only and never touch the network.
 """
 import json
 import urllib.request
+from datetime import date as _date
 
 from modules import database as db
 
@@ -87,3 +88,54 @@ def fetch_rate(rate_date, base, quote):
         return float(rate)
     except Exception:
         return None
+
+
+def _rate_or_fetch(on_date, base, quote):
+    """Cached rate, else one fetch, else None. Offline-safe."""
+    r = get_rate(on_date, base, quote)
+    if r is not None:
+        return r
+    return fetch_rate(on_date, base, quote)
+
+
+def to_base(amount, currency, on_date):
+    """Original amount in `currency` -> USD on `on_date`. USD passes through
+    untouched (no lookup, no network). None if no rate could be resolved."""
+    if amount is None:
+        return None
+    if currency == PIVOT:
+        return amount
+    rate = _rate_or_fetch(on_date, PIVOT, currency)  # USD->currency (quote per USD)
+    if not rate:
+        return None
+    return amount / rate
+
+
+def convert(amount_base_usd, display, on_date=None):
+    """USD base -> display currency at `on_date` (today if None). USD passes
+    through. None if the rate is unavailable."""
+    if amount_base_usd is None:
+        return None
+    if display == PIVOT:
+        return amount_base_usd
+    on = on_date or _date.today().isoformat()
+    rate = _rate_or_fetch(on, PIVOT, display)
+    if not rate:
+        return None
+    return amount_base_usd * rate
+
+
+def resolve_rows(rows):
+    """Fill `amount_base` (USD) for rows where it's None; set rate_stale=True
+    where conversion failed. Mutates and returns rows."""
+    for r in rows:
+        if r.get("amount_base") is not None:
+            continue
+        base = to_base(r.get("amount"), r.get("currency", PIVOT), r.get("date"))
+        if base is None:
+            r["amount_base"] = None
+            r["rate_stale"] = True
+        else:
+            r["amount_base"] = base
+            r["rate_stale"] = False
+    return rows
