@@ -34,7 +34,7 @@ afterEach(() => { getOllamaStatus.mockReset(); parseImport.mockReset(); commitIm
 test("Joint view gates importing to a single person", async () => {
   mockPersonId = undefined;
   render(<Import />);
-  expect(await screen.findByText(/switch to you or spouse/i)).toBeInTheDocument();
+  expect(await screen.findByText(/switch to ido or aviv/i)).toBeInTheDocument();
 });
 
 test("upload then parse advances to the review table", async () => {

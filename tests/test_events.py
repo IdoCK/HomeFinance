@@ -69,7 +69,7 @@ def fresh_db(tmp_path, monkeypatch):
 
 
 def test_create_and_list_event_scoping(fresh_db):
-    you, spouse = fresh_db["You"], fresh_db["Spouse"]
+    you, spouse = fresh_db["Ido"], fresh_db["Aviv"]
     db.create_event(you, "Trip", "window", "2026-05-01", "2026-05-07")
     db.create_event(None, "Paydays", "recurring", rule={"day_of_month": [1, 15]})
     db.create_event(spouse, "Sick days", "window", "2026-04-01", "2026-04-03")

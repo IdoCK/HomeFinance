@@ -19,8 +19,8 @@ def test_preview_joint_is_household(client):
     labels = [s["who"] for s in summaries]
     assert "Person A" in labels and "Person B" in labels
     assert any("Household" in lbl for lbl in labels)
-    # Anonymized: no real seeded names ("You"/"Spouse") leak into the payload.
-    assert "You" not in labels and "Spouse" not in labels
+    # Anonymized: no real seeded names ("Ido"/"Aviv") leak into the payload.
+    assert "Ido" not in labels and "Aviv" not in labels
 
 
 def test_generate_returns_text(client, people):

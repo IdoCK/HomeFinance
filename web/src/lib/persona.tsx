@@ -9,9 +9,25 @@ type PersonaCtx = {
   personId?: number;
   people: Person[];
   label: string;
+  /** Display name for each single-person persona (sidebar tabs, headers). */
+  names: { you: string; spouse: string };
 };
 
 const Ctx = createContext<PersonaCtx | null>(null);
+
+// Canonical household identity: Ido is the primary persona ("you" / blue),
+// Aviv the secondary ("spouse" / pink). We resolve each persona to its person
+// by NAME, not by row position: the live DB orders people by id as
+// [Aviv(id1), Ido(id2)], so positional mapping would wire Aviv (the only user
+// with data) to the blue "you" accent and Ido to pink — inverting the locked
+// design. A positional fallback keeps fresh/renamed DBs (and tests) working.
+const PRIMARY_NAME = "Ido";
+const SECONDARY_NAME = "Aviv";
+
+function resolvePerson(people: Person[], key: "you" | "spouse"): Person | undefined {
+  const name = key === "you" ? PRIMARY_NAME : SECONDARY_NAME;
+  return people.find((p) => p.name === name) ?? (key === "you" ? people[0] : people[1]);
+}
 
 export function PersonaProvider({ children }: { children: React.ReactNode }) {
   const [people, setPeople] = useState<Person[]>([]);
@@ -30,18 +46,27 @@ export function PersonaProvider({ children }: { children: React.ReactNode }) {
     );
   }, [persona]);
 
+  const youPerson = resolvePerson(people, "you");
+  const spousePerson = resolvePerson(people, "spouse");
+
   const personId =
-    persona === "you" ? people[0]?.id
-    : persona === "spouse" ? people[1]?.id
+    persona === "you" ? youPerson?.id
+    : persona === "spouse" ? spousePerson?.id
     : undefined;
 
-  const label =
-    persona === "joint" ? "Joint"
-    : (persona === "you" ? people[0]?.name : people[1]?.name) ?? (persona === "you" ? "You" : "Spouse");
+  const names = useMemo(
+    () => ({
+      you: youPerson?.name ?? PRIMARY_NAME,
+      spouse: spousePerson?.name ?? SECONDARY_NAME,
+    }),
+    [youPerson?.name, spousePerson?.name],
+  );
+
+  const label = persona === "joint" ? "Joint" : persona === "you" ? names.you : names.spouse;
 
   const value = useMemo(
-    () => ({ persona, setPersona, personId, people, label }),
-    [persona, personId, people, label],
+    () => ({ persona, setPersona, personId, people, label, names }),
+    [persona, personId, people, label, names],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

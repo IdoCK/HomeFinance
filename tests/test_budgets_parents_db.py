@@ -21,14 +21,14 @@ def fresh_db(tmp_path, monkeypatch):
 
 
 def test_set_and_get_budget_roundtrip(fresh_db):
-    pid = fresh_db["You"]
+    pid = fresh_db["Ido"]
     db.set_budget(pid, "Groceries", 400)
     got = {b["category"]: b["amount"] for b in db.get_budgets(pid)}
     assert got["Groceries"] == 400
 
 
 def test_set_budget_is_upsert(fresh_db):
-    pid = fresh_db["You"]
+    pid = fresh_db["Ido"]
     db.set_budget(pid, "Transit", 50)
     db.set_budget(pid, "Transit", 75)            # update, not duplicate
     rows = [b for b in db.get_budgets(pid) if b["category"] == "Transit"]
@@ -36,7 +36,7 @@ def test_set_budget_is_upsert(fresh_db):
 
 
 def test_household_budget_is_separate_from_person(fresh_db):
-    pid = fresh_db["You"]
+    pid = fresh_db["Ido"]
     db.set_budget(pid, "Food", 300)
     db.set_budget(None, "Food", 900)             # person_id NULL = household
     assert {b["amount"] for b in db.get_budgets(pid)} == {300}
@@ -44,7 +44,7 @@ def test_household_budget_is_separate_from_person(fresh_db):
 
 
 def test_parent_assignment_roundtrip(fresh_db):
-    pid = fresh_db["You"]
+    pid = fresh_db["Ido"]
     db.upsert_category(pid, "Groceries", "whole foods", parent="Food")
     db.upsert_category(pid, "Eating Out", "restaurant", parent="Food")
     parents = db.category_parents(pid)
@@ -53,7 +53,7 @@ def test_parent_assignment_roundtrip(fresh_db):
 
 
 def test_clearing_parent_unsets_it(fresh_db):
-    pid = fresh_db["You"]
+    pid = fresh_db["Ido"]
     db.upsert_category(pid, "Groceries", "whole foods", parent="Food")
     db.upsert_category(pid, "Groceries", "whole foods", parent="")   # clear
     assert db.category_parents(pid)["Groceries"] == ""
@@ -61,7 +61,7 @@ def test_clearing_parent_unsets_it(fresh_db):
 
 def test_view_budget_union_sums_per_category(fresh_db):
     # Mirrors app._view_budgets Household aggregation: sum per category across people.
-    you, spouse = fresh_db["You"], fresh_db["Spouse"]
+    you, spouse = fresh_db["Ido"], fresh_db["Aviv"]
     db.set_budget(you, "Food", 300)
     db.set_budget(spouse, "Food", 200)
     db.set_budget(spouse, "Transit", 40)

@@ -183,8 +183,16 @@ def init_db():
             );
             """
         )
+        # Migration: rename the legacy default member names (pre-2026-06 DBs
+        # seeded "You"/"Spouse") to the household's names. Idempotent and only
+        # touches rows still at the old defaults, so user-chosen names are never
+        # clobbered. Must run BEFORE the seed below so the INSERT OR IGNORE
+        # collides on the new (now-existing) names instead of adding two more
+        # people.
+        c.execute("UPDATE people SET name='Ido' WHERE name='You'")
+        c.execute("UPDATE people SET name='Aviv' WHERE name='Spouse'")
         # Seed the two members once.
-        for name in ("You", "Spouse"):
+        for name in ("Ido", "Aviv"):
             c.execute("INSERT OR IGNORE INTO people(name) VALUES (?)", (name,))
 
         # Seed a starter category taxonomy for any person who has none yet, so

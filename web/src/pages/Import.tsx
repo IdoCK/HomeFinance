@@ -66,7 +66,7 @@ export default function Import() {
       <div style={{ display: "grid", gap: 12, maxWidth: 560 }}>
         <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", margin: 0 }}>Import</h1>
         <div className="frosted-card" style={{ padding: 24, color: "var(--fl-muted)" }}>
-          Imports belong to one person. Switch to You or Spouse in the sidebar to import a file.
+          Imports belong to one person. Switch to Ido or Aviv in the sidebar to import a file.
         </div>
       </div>
     );

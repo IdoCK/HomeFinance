@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 type IncludeFilter = "all" | "in" | "out";
 type Person = { id: number; name: string };
 
-// ponytail: persona colors are keyed by people[0]/[1] (You/Spouse). Ceiling: only the
+// ponytail: persona colors are keyed by people[0]/[1] (Ido/Aviv). Ceiling: only the
 // first two people get a signature color; a third+ person falls back to the hairline.
 const personaColor = (personId: number, people: Person[]) =>
   personId === people[0]?.id ? "var(--persona-you)"

@@ -16,16 +16,16 @@ const NAV: { to: string; label: string }[] = [
 ];
 
 const PERSONAS: { key: PersonaKey; text: string }[] = [
-  { key: "you", text: "You" },
-  { key: "spouse", text: "Spouse" },
+  { key: "you", text: "Ido" },
+  { key: "spouse", text: "Aviv" },
   { key: "joint", text: "Joint" },
 ];
 
 export function AppSidebar() {
-  const { persona, setPersona, people } = usePersona();
+  const { persona, setPersona, names } = usePersona();
   const { theme, toggle } = useTheme();
   const text = (k: PersonaKey) =>
-    k === "you" ? people[0]?.name ?? "You" : k === "spouse" ? people[1]?.name ?? "Spouse" : "Joint";
+    k === "you" ? names.you : k === "spouse" ? names.spouse : "Joint";
 
   return (
     <aside data-persona-seam={persona} style={{ width: 232, padding: 16, borderRight: "1px solid var(--fl-line)" }}>

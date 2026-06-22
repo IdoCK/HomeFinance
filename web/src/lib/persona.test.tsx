@@ -35,3 +35,22 @@ test("maps personas to person_id and recolors via --persona", async () => {
   expect(screen.getByTestId("pid")).toHaveTextContent("none");
   expect(document.documentElement.dataset.persona).toBe("joint");
 });
+
+// Regression (Phase 0.1): the live DB orders people [Aviv(id1), Ido(id2)] —
+// reversed from the canonical "Ido first". Persona→person must resolve by name,
+// not row position, so Aviv (id1, owns all data) maps to "spouse"/pink and Ido
+// (id2, empty) to "you"/blue — matching the locked "Ido=blue, Aviv=pink".
+test("resolves persona by name regardless of DB id order", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+    ok: true, json: async () => [{ id: 1, name: "Aviv" }, { id: 2, name: "Ido" }],
+  }));
+  render(<PersonaProvider><Probe /></PersonaProvider>);
+
+  // Default persona "you" must be Ido (id 2), NOT people[0] (Aviv, id 1).
+  await waitFor(() => expect(screen.getByTestId("label")).toHaveTextContent("Ido"));
+  expect(screen.getByTestId("pid")).toHaveTextContent("2");
+
+  await userEvent.click(screen.getByText("spouse"));
+  expect(screen.getByTestId("label")).toHaveTextContent("Aviv");
+  expect(screen.getByTestId("pid")).toHaveTextContent("1");
+});

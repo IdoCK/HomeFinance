@@ -8,7 +8,7 @@ def client(tmp_path, monkeypatch):
     """A TestClient bound to a fresh temp SQLite DB with the two seeded people."""
     from modules import database
     monkeypatch.setattr(database, "DB_PATH", tmp_path / "test.db")
-    database.init_db()  # creates schema + seeds "You" / "Spouse" into the temp db
+    database.init_db()  # creates schema + seeds "Ido" / "Aviv" into the temp db
 
     from backend import main
     importlib.reload(main)  # rebuild app against the patched DB_PATH
