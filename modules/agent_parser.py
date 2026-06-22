@@ -163,6 +163,28 @@ def _call_ollama(model, sample, filename):
 
 # --------------------------------------------------------------- apply the spec
 
+# Currency signals read from the RAW cell BEFORE _clean_amount strips symbols.
+_SYMBOL_CCY = {"₪": "ILS", "$": "USD", "€": "EUR", "£": "GBP"}
+_CODE_CCY = {"ILS": "ILS", "NIS": "ILS", "SHEKEL": "ILS", "SHEKELS": "ILS",
+             "USD": "USD", "US$": "USD", "EUR": "EUR", "GBP": "GBP"}
+
+
+def _detect_currency(amount_cell, desc_cell, file_default):
+    """Return (iso_code, source). Precedence: cell symbol/ISO code, then the
+    per-file default, then the person default ('USD' for this household)."""
+    blob = f"{amount_cell or ''} {desc_cell or ''}"
+    up = blob.upper()
+    for code in _CODE_CCY:                      # ISO codes first (most explicit)
+        if code in up:
+            return _CODE_CCY[code], "cell_code"
+    for sym, code in _SYMBOL_CCY.items():
+        if sym in blob:
+            return code, "cell_symbol"
+    if file_default:
+        return file_default, "file_default"
+    return "USD", "person_default"
+
+
 def _clean_amount(raw):
     if raw is None:
         return None
@@ -207,8 +229,10 @@ def _column_has_negative(raw_df, col, start):
 
 
 def _apply_spec(raw_df, spec, source, categorize_fn, category_rules,
-                progress_cb=None):
+                progress_cb=None, file_default=None):
     start = int(spec.get("data_starts_row", (spec.get("header_row", 0) + 1)))
+    currency_col = spec.get("currency_col")
+    file_default = spec.get("file_default", file_default)
     date_col = spec.get("date_col")
     desc_col = spec.get("desc_col")
     amount_col = spec.get("amount_col")
@@ -309,6 +333,12 @@ def _apply_spec(raw_df, spec, source, categorize_fn, category_rules,
                                  or date > statement_balance["date"]):
             statement_balance = {"amount": bval, "date": date}
 
+        # Detect currency from the RAW amount cell (symbols survive here; they
+        # are stripped by _clean_amount for the numeric parse above).
+        raw_amount_cell = "" if amount_col is None else (
+            "" if pd.isna(r[amount_col]) else str(r[amount_col]))
+        ccy, ccy_source = _detect_currency(raw_amount_cell, desc_cell, file_default)
+
         desc = desc_cell
         rows.append({
             "date": date,
@@ -318,6 +348,8 @@ def _apply_spec(raw_df, spec, source, categorize_fn, category_rules,
             "source": source,
             "included": not is_excluded,
             "balance": bval,
+            "currency": ccy,
+            "currency_source": ccy_source,
         })
     if progress_cb:
         progress_cb(total_rows, total_rows)
