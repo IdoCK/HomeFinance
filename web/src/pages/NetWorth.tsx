@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
-import { getNetWorth, addAccount, updateAccountBalance, deleteAccount, getReconciliation, type Account, type NetWorthData, type NetWorthPoint, type Reconciliation } from "@/lib/api";
+import { getNetWorth, addAccount, updateAccountBalance, deleteAccount, getReconciliation, type Account, type NetWorthData, type Reconciliation } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { Money, formatMoney } from "@/components/money";
+import { AreaChart } from "@/components/charts/area-chart";
 
 const KINDS = ["checking", "savings", "investment", "property", "credit_card", "loan", "other"];
 const LIABILITY_KINDS = new Set(["credit_card", "loan"]);
@@ -15,23 +16,6 @@ const badge: CSSProperties = {
   border: "1px solid var(--fl-line)", borderRadius: 999, padding: "2px 10px",
   fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--fl-muted)",
 };
-
-function Sparkline({ points }: { points: NetWorthPoint[] }) {
-  const W = 520, H = 64, P = 4;
-  const nets = points.map((p) => p.net);
-  const min = Math.min(...nets), max = Math.max(...nets);
-  const span = max - min || 1;
-  const coords = points.map((p, i) => {
-    const x = P + (i / (points.length - 1)) * (W - 2 * P);
-    const y = H - P - ((p.net - min) / span) * (H - 2 * P);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  });
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} role="img" aria-label="Net worth trend" style={{ display: "block" }}>
-      <polyline fill="none" stroke="var(--persona)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" points={coords.join(" ")} />
-    </svg>
-  );
-}
 
 function AccountRow({ a, onSave, onRemove }: {
   a: Account; onSave: (a: Account, v: string) => void; onRemove: (a: Account) => void;
@@ -129,7 +113,7 @@ export default function NetWorth() {
           </div>
         </div>
         {trend.length >= 2
-          ? <Sparkline points={trend} />
+          ? <AreaChart points={trend.map((p) => ({ value: p.net }))} area={false} mode="linear" height={64} accent="var(--persona-solid)" ariaLabel="Net worth trend" />
           : <div style={{ color: "var(--fl-muted)", fontSize: 13 }}>Add a second snapshot to see a trend.</div>}
       </section>
 

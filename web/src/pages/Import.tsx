@@ -57,6 +57,7 @@ export default function Import() {
   const [alreadyImported, setAlreadyImported] = useState(false);
   const [busy, setBusy] = useState(false);
   const [importedCount, setImportedCount] = useState(0);
+  const [dragOver, setDragOver] = useState(false);
 
   useEffect(() => { getOllamaStatus().then(setStatus).catch(() => setStatus(null)); }, []);
 
@@ -123,11 +124,31 @@ export default function Import() {
           </div>
           <div style={{ display: "grid", gap: 8 }}>
             <label style={h2} htmlFor="import-file">Statement file</label>
-            <input
-              id="import-file" type="file" aria-label="Choose file"
-              accept=".csv,.tsv,.xlsx,.xls"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            />
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                const f = e.dataTransfer.files?.[0];
+                if (f) setFile(f);
+              }}
+              style={{
+                border: `2px dashed ${dragOver ? "var(--persona-solid)" : "var(--fl-line)"}`,
+                borderRadius: 14, padding: "20px 18px", textAlign: "center",
+                background: dragOver ? "color-mix(in srgb, var(--persona-solid) 6%, transparent)" : "var(--fl-frame)",
+                transition: "border-color 120ms, background 120ms",
+              }}
+            >
+              <div style={{ fontSize: 13, color: "var(--fl-muted)", marginBottom: 10 }}>
+                {file ? `Selected: ${file.name}` : "Drag a statement here, or choose a file"}
+              </div>
+              <input
+                id="import-file" type="file" aria-label="Choose file"
+                accept=".csv,.tsv,.xlsx,.xls"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <label style={h2} htmlFor="import-source">Source</label>

@@ -90,6 +90,27 @@ export default function Goals() {
         <span style={{ color: "var(--fl-muted)", fontSize: 13 }}>savings targets</span>
       </header>
 
+      {personId == null && goals.length > 0 && (() => {
+        const saved = goals.reduce((a, g) => a + g.saved_amount, 0);
+        const targ = goals.reduce((a, g) => a + g.target_amount, 0);
+        const pct = targ > 0 ? Math.min(100, (saved / targ) * 100) : 0;
+        return (
+          <section className="frosted-card" aria-label="Household progress" style={{ padding: 20, display: "grid", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+              <span style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--fl-muted)", fontWeight: 700 }}>
+                Household progress
+              </span>
+              <span style={{ marginLeft: "auto", fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>
+                <Money value={saved} /> <span style={{ color: "var(--fl-muted)", fontWeight: 400 }}>/ <Money value={targ} /></span>
+              </span>
+            </div>
+            <div style={{ height: 10, borderRadius: 999, background: "var(--fl-line)" }}>
+              <div style={{ height: 10, width: `${pct}%`, borderRadius: 999, background: "var(--persona)", transition: "width .4s ease" }} />
+            </div>
+          </section>
+        );
+      })()}
+
       {goals.length === 0 && !adding && (
         <section className="frosted-card" style={{ padding: 32, textAlign: "center", color: "var(--fl-muted)" }}>
           No goals yet. Add a savings target to track your progress.

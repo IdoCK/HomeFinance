@@ -104,7 +104,7 @@ export default function Overview() {
       )}
 
       {/* Row 1: cash flow (wide) + this month */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.7fr 1fr", gap: 14 }}>
+      <div className="fl-row-2">
         <section className="frosted-card" style={CARD}>
           <CardHeaderRow>Cash flow</CardHeaderRow>
           <div style={{ display: "flex", gap: 26, marginBottom: 8 }}>
@@ -136,7 +136,7 @@ export default function Overview() {
       </div>
 
       {/* Row 2: savings rate + who spent what + AI insights */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.15fr", gap: 14 }}>
+      <div className="fl-row-3">
         <section className="frosted-card" style={CARD}>
           <CardHeaderRow action={<span style={{ fontSize: 18, fontWeight: 800 }}>{rate == null ? "—" : `${Math.round(rate * 100)}%`}</span>}>
             Savings rate

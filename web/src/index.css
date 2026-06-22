@@ -218,6 +218,28 @@ body {
 [data-persona-seam="spouse"]::after { background: var(--persona-spouse); }
 [data-persona-seam="joint"]::after  { background: var(--persona-joint); }
 
+/* ---- Overview signature rows — collapse to one column on narrow viewports. ---- */
+.fl-row-2, .fl-row-3 { display: grid; gap: 14px; }
+.fl-row-2 { grid-template-columns: 1.7fr 1fr; }
+.fl-row-3 { grid-template-columns: 1fr 1fr 1.15fr; }
+@media (max-width: 760px) {
+  .fl-row-2, .fl-row-3 { grid-template-columns: 1fr; }
+}
+
+/* ---- Keyboard focus ring in the active persona color (a11y). ---- */
+:where(button, a, input, select, textarea, [role="tab"], [tabindex]):focus-visible {
+  outline: 2px solid var(--persona-solid);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ---- Page-enter transition (route change). Neutralized by reduced-motion below. ---- */
+@keyframes fl-fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.fl-page { animation: fl-fade-up 0.24s ease both; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

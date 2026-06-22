@@ -10,12 +10,17 @@ export function AreaChart({
   accent = "var(--persona-solid)",
   height = 120,
   mode = "smooth",
+  area = true,
+  ariaLabel = "Cash flow trend",
   className,
 }: {
   points: AreaPoint[];
   accent?: string;
   height?: number;
   mode?: "smooth" | "linear";
+  /** Render the gradient + hatch fill. Set false for a bare line (sparkline). */
+  area?: boolean;
+  ariaLabel?: string;
   className?: string;
 }) {
   const w = 600;
@@ -23,8 +28,8 @@ export function AreaChart({
   const pad = 6;
   const pts = layout(points.map((p) => p.value), w, h, pad);
   const line = toPath(pts, mode === "smooth");
-  const area =
-    pts.length > 1
+  const areaPath =
+    area && pts.length > 1
       ? `${line} L ${pts[pts.length - 1].x} ${h} L ${pts[0].x} ${h} Z`
       : "";
   const uid = useId().replace(/:/g, "");
@@ -38,7 +43,7 @@ export function AreaChart({
       preserveAspectRatio="none"
       style={{ display: "block", width: "100%", height }}
       role="img"
-      aria-label="Cash flow trend"
+      aria-label={ariaLabel}
     >
       <defs>
         <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
@@ -49,8 +54,8 @@ export function AreaChart({
           <line x1="0" y1="0" x2="0" y2="6" stroke={accent} strokeWidth="1" strokeOpacity="0.14" />
         </pattern>
       </defs>
-      {area && <path d={area} fill={`url(#${fillId})`} />}
-      {area && <path d={area} fill={`url(#${hatchId})`} />}
+      {areaPath && <path d={areaPath} fill={`url(#${fillId})`} />}
+      {areaPath && <path d={areaPath} fill={`url(#${hatchId})`} />}
       {line && (
         <path
           d={line}
