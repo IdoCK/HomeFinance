@@ -1,14 +1,20 @@
 import { render, screen } from "@testing-library/react";
 import { expect, test } from "vitest";
 import { Money, formatMoney } from "./money";
+import { CurrencyProvider } from "@/lib/currency";
 
-test("formatMoney formats USD with separators", () => {
+const wrap = (ui: React.ReactNode) => render(<CurrencyProvider>{ui}</CurrencyProvider>);
+
+test("formatMoney formats USD by default", () => {
   expect(formatMoney(1234.5)).toBe("$1,234.50");
   expect(formatMoney(-99)).toBe("-$99.00");
 });
 
-test("Money colors negatives", () => {
-  render(<Money value={-10} colored />);
-  const el = screen.getByText("-$10.00");
-  expect(el).toHaveStyle({ color: "var(--neg)" });
+test("formatMoney formats ILS when asked", () => {
+  expect(formatMoney(1234.5, "ILS")).toContain("₪");
+});
+
+test("Money colors negatives (USD default)", () => {
+  wrap(<Money value={-10} colored />);
+  expect(screen.getByText("-$10.00")).toHaveStyle({ color: "var(--neg)" });
 });
