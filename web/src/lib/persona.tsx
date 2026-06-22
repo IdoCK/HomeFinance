@@ -40,10 +40,18 @@ export function PersonaProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const el = document.documentElement;
     el.dataset.persona = persona;
-    el.style.setProperty(
-      "--persona",
-      persona === "spouse" ? "var(--persona-spouse)" : "var(--persona-you)",
-    );
+    // Three-way swap. --persona is a fill (may be the Joint gradient);
+    // --persona-solid is its always-a-color companion for text/border/SVG.
+    const fill =
+      persona === "spouse" ? "var(--persona-spouse)"
+      : persona === "joint" ? "var(--persona-joint)"
+      : "var(--persona-you)";
+    const solid =
+      persona === "spouse" ? "var(--persona-spouse)"
+      : persona === "joint" ? "var(--persona-joint-solid)"
+      : "var(--persona-you)";
+    el.style.setProperty("--persona", fill);
+    el.style.setProperty("--persona-solid", solid);
   }, [persona]);
 
   const youPerson = resolvePerson(people, "you");

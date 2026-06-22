@@ -2,73 +2,111 @@ import { NavLink } from "react-router-dom";
 import { usePersona, type PersonaKey } from "@/lib/persona";
 import { useTheme } from "@/lib/theme";
 
-const NAV: { to: string; label: string }[] = [
-  { to: "/", label: "Overview" },
-  { to: "/transactions", label: "Transactions" },
-  { to: "/budgets", label: "Budgets" },
-  { to: "/recurring", label: "Recurring" },
-  { to: "/goals", label: "Goals" },
-  { to: "/networth", label: "Net Worth" },
-  { to: "/events", label: "Events" },
-  { to: "/import", label: "＋ Import" },
-  { to: "/insights", label: "AI Insights" },
-  { to: "/settings", label: "Settings" },
+type NavItem = { to: string; label: string; icon: string; important?: boolean };
+
+// Two groups matching the reference: the "Money" surfaces, then "Utility".
+const MONEY: NavItem[] = [
+  { to: "/", label: "Overview", icon: "▦" },
+  { to: "/transactions", label: "Transactions", icon: "≣" },
+  { to: "/budgets", label: "Budgets", icon: "◔" },
+  { to: "/recurring", label: "Recurring", icon: "↻" },
+  { to: "/goals", label: "Goals", icon: "◎" },
+  { to: "/networth", label: "Net Worth", icon: "▲" },
+  { to: "/events", label: "Events", icon: "◆" },
+];
+const UTILITY: NavItem[] = [
+  { to: "/import", label: "Import", icon: "＋", important: true },
+  { to: "/insights", label: "AI Insights", icon: "✦" },
+  { to: "/settings", label: "Settings", icon: "⚙" },
 ];
 
-const PERSONAS: { key: PersonaKey; text: string }[] = [
-  { key: "you", text: "Ido" },
-  { key: "spouse", text: "Aviv" },
-  { key: "joint", text: "Joint" },
+const PERSONA_KEYS: { key: PersonaKey; dot: string }[] = [
+  { key: "you", dot: "var(--persona-you)" },
+  { key: "spouse", dot: "var(--persona-spouse)" },
+  { key: "joint", dot: "conic-gradient(from 220deg, var(--persona-you), var(--persona-spouse))" },
 ];
 
 export function AppSidebar() {
   const { persona, setPersona, names } = usePersona();
   const { theme, toggle } = useTheme();
-  const text = (k: PersonaKey) =>
-    k === "you" ? names.you : k === "spouse" ? names.spouse : "Joint";
+  const text = (k: PersonaKey) => (k === "you" ? names.you : k === "spouse" ? names.spouse : "Joint");
 
   return (
-    <aside data-persona-seam={persona} style={{ width: 232, padding: 16, borderRight: "1px solid var(--fl-line)" }}>
-      <div role="tablist" aria-label="Persona" style={{ display: "flex", gap: 6, marginBottom: 20 }}>
-        {PERSONAS.map((p) => (
-          <button
-            key={p.key}
-            role="tab"
-            aria-selected={persona === p.key}
-            onClick={() => setPersona(p.key)}
-            style={{
-              flex: 1, padding: "6px 8px", borderRadius: 999, fontSize: 13,
-              border: "1px solid var(--fl-line)",
-              background: persona === p.key ? "var(--persona)" : "transparent",
-              color: persona === p.key ? "#fff" : "var(--fl-ink)",
-            }}
-          >
-            {text(p.key)}
-          </button>
-        ))}
+    <aside
+      data-persona-seam={persona}
+      style={{ width: 224, padding: "18px 14px", display: "flex", flexDirection: "column", gap: 4, flex: "none" }}
+    >
+      {/* Brand */}
+      <div style={{ display: "flex", alignItems: "center", gap: 9, fontWeight: 800, fontSize: 16, letterSpacing: "-0.02em", padding: "2px 6px 14px" }}>
+        <span style={{ width: 24, height: 24, borderRadius: 8, background: "linear-gradient(135deg,#FBBF24,#EC4899 55%,#3B82F6)", boxShadow: "0 4px 10px -3px rgba(236,72,153,.53)" }} />
+        Household
       </div>
 
-      <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        {NAV.map((n) => (
+      {/* Persona segmented switch */}
+      <div role="tablist" aria-label="Persona" style={{ display: "flex", gap: 4, background: "#EEF0F3", borderRadius: 14, padding: 4, margin: "0 2px 16px" }}>
+        {PERSONA_KEYS.map((p) => {
+          const active = persona === p.key;
+          return (
+            <button
+              key={p.key}
+              role="tab"
+              aria-selected={active}
+              onClick={() => setPersona(p.key)}
+              style={{
+                flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                fontSize: 11.5, fontWeight: 600, padding: "7px 0", borderRadius: 10, border: "none", cursor: "pointer",
+                background: active ? "#fff" : "transparent",
+                color: active ? "var(--fl-ink)" : "var(--fl-muted)",
+                boxShadow: active ? "0 2px 8px -2px rgba(22,24,29,.18)" : "none",
+              }}
+            >
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.dot }} />
+              {text(p.key)}
+            </button>
+          );
+        })}
+      </div>
+
+      <NavGroup label="Money" items={MONEY} />
+      <div style={{ height: 1, background: "var(--fl-line)", margin: "10px 8px" }} />
+      <NavGroup label="Utility" items={UTILITY} />
+
+      <button
+        onClick={toggle}
+        style={{ marginTop: "auto", fontSize: 10.5, color: "var(--fl-muted)", background: "none", border: "none", cursor: "pointer", padding: 8, textAlign: "left", display: "flex", alignItems: "center", gap: 6 }}
+      >
+        🔒 Local only · {theme === "dark" ? "☀ Light mode" : "☾ Dark mode"}
+      </button>
+    </aside>
+  );
+}
+
+function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
+  return (
+    <>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#94A3B8", margin: "8px 8px 4px" }}>
+        {label}
+      </div>
+      <nav style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+        {items.map((n) => (
           <NavLink
             key={n.to}
             to={n.to}
             end={n.to === "/"}
             style={({ isActive }) => ({
-              padding: "8px 12px", borderRadius: 10, textDecoration: "none",
-              color: isActive ? "var(--persona)" : "var(--fl-ink)",
-              background: isActive ? "color-mix(in srgb, var(--persona) 10%, transparent)" : "transparent",
-              fontWeight: isActive ? 700 : 500,
+              display: "flex", alignItems: "center", gap: 11, fontSize: 13,
+              padding: "9px 11px", borderRadius: 11, textDecoration: "none",
+              fontWeight: isActive ? 600 : n.important ? 700 : 500,
+              background: isActive ? "var(--fl-ink)" : "transparent",
+              color: isActive ? "#fff" : n.important ? "var(--persona-you-deep)" : "#4B5059",
+              boxShadow: isActive ? "0 8px 18px -8px rgba(22,24,29,.6)" : "none",
             })}
           >
+            <span aria-hidden style={{ width: 16, textAlign: "center", fontSize: 14, opacity: 0.85 }}>{n.icon}</span>
             {n.label}
           </NavLink>
         ))}
       </nav>
-
-      <button onClick={toggle} style={{ marginTop: 24, fontSize: 13, color: "var(--fl-muted)", background: "none", border: "none", cursor: "pointer" }}>
-        {theme === "dark" ? "☀ Light" : "☾ Dark"}
-      </button>
-    </aside>
+    </>
   );
 }
