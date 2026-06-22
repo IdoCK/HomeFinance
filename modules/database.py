@@ -237,6 +237,41 @@ def init_db():
         if "balance" not in cols:
             c.execute("ALTER TABLE transactions ADD COLUMN balance REAL")
 
+        # Migration: multi-currency. `currency` = the ORIGINAL entry currency
+        # (ISO-4217); `currency_source` records which detection signal set it;
+        # `amount_base` is the value in the canonical pivot (USD), derived at
+        # write-time. Legacy rows are all USD (US-bank data), so base == amount.
+        cols = [r[1] for r in c.execute("PRAGMA table_info(transactions)")]
+        if "currency" not in cols:
+            c.execute("ALTER TABLE transactions ADD COLUMN currency TEXT NOT NULL DEFAULT 'USD'")
+        if "currency_source" not in cols:
+            c.execute("ALTER TABLE transactions ADD COLUMN currency_source TEXT NOT NULL DEFAULT 'legacy'")
+        if "amount_base" not in cols:
+            c.execute("ALTER TABLE transactions ADD COLUMN amount_base REAL")
+            # Backfill legacy rows: all USD, so base == amount. No rate lookups.
+            c.execute("UPDATE transactions SET currency='USD', currency_source='legacy', "
+                      "amount_base=amount WHERE amount_base IS NULL")
+
+        # Currency on the net-worth / planning tables so the display toggle is
+        # global. All existing data is USD.
+        for tbl in ("accounts", "balance_snapshots", "budgets", "goals"):
+            tcols = [r[1] for r in c.execute(f"PRAGMA table_info({tbl})")]
+            if "currency" not in tcols:
+                c.execute(f"ALTER TABLE {tbl} ADD COLUMN currency TEXT NOT NULL DEFAULT 'USD'")
+
+        # FX rates: one direction only (base='USD'); invert in code for reverse.
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS fx_rates (
+                   rate_date  TEXT NOT NULL,
+                   base       TEXT NOT NULL,
+                   quote      TEXT NOT NULL,
+                   rate       REAL NOT NULL,
+                   source     TEXT NOT NULL DEFAULT 'frankfurter',
+                   fetched_at TEXT,
+                   PRIMARY KEY (rate_date, base, quote)
+               )""")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_fx_lookup ON fx_rates(base, quote, rate_date)")
+
 
 # ---- people ---------------------------------------------------------------
 
