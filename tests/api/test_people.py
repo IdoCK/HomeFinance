@@ -3,7 +3,7 @@ def test_list_people_returns_two_seeded(client):
     assert r.status_code == 200
     data = r.json()
     assert len(data) == 2
-    assert {p["name"] for p in data} == {"You", "Spouse"}
+    assert {p["name"] for p in data} == {"Ido", "Aviv"}
     assert all(isinstance(p["id"], int) for p in data)
 
 
@@ -18,7 +18,7 @@ def test_rename_person(client, people):
 def test_rename_to_duplicate_name_returns_409(client, people):
     # Rename people[0] to people[1]'s current name (should fail with 409)
     pid_0 = people[0]["id"]
-    existing_name = people[1]["name"]  # "Spouse"
+    existing_name = people[1]["name"]  # "Aviv"
     r = client.patch(f"/api/people/{pid_0}", json={"name": existing_name})
     assert r.status_code == 409
     assert "name already in use" in r.json()["detail"].lower()

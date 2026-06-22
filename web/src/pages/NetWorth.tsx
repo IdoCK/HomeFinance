@@ -1,37 +1,19 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
-import { getNetWorth, addAccount, updateAccountBalance, deleteAccount, getReconciliation, type Account, type NetWorthData, type NetWorthPoint, type Reconciliation } from "@/lib/api";
+import { pillStyle as pill } from "@/lib/ui";
+import { getNetWorth, addAccount, updateAccountBalance, deleteAccount, getReconciliation, type Account, type NetWorthData, type Reconciliation } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { Money, formatMoney } from "@/components/money";
+import { AreaChart } from "@/components/charts/area-chart";
+import { Loading } from "@/components/loading";
 
 const KINDS = ["checking", "savings", "investment", "property", "credit_card", "loan", "other"];
 const LIABILITY_KINDS = new Set(["credit_card", "loan"]);
 const isAssetKind = (kind: string) => !LIABILITY_KINDS.has(kind);
 
-const pill: CSSProperties = {
-  border: "1px solid var(--fl-line)", borderRadius: 999, padding: "6px 12px",
-  fontSize: 13, background: "transparent", color: "var(--fl-ink)",
-};
 const badge: CSSProperties = {
   border: "1px solid var(--fl-line)", borderRadius: 999, padding: "2px 10px",
   fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--fl-muted)",
 };
-
-function Sparkline({ points }: { points: NetWorthPoint[] }) {
-  const W = 520, H = 64, P = 4;
-  const nets = points.map((p) => p.net);
-  const min = Math.min(...nets), max = Math.max(...nets);
-  const span = max - min || 1;
-  const coords = points.map((p, i) => {
-    const x = P + (i / (points.length - 1)) * (W - 2 * P);
-    const y = H - P - ((p.net - min) / span) * (H - 2 * P);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  });
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} role="img" aria-label="Net worth trend" style={{ display: "block" }}>
-      <polyline fill="none" stroke="var(--persona)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" points={coords.join(" ")} />
-    </svg>
-  );
-}
 
 function AccountRow({ a, onSave, onRemove }: {
   a: Account; onSave: (a: Account, v: string) => void; onRemove: (a: Account) => void;
@@ -99,15 +81,15 @@ export default function NetWorth() {
     }
   };
 
-  if (!data) return <div style={{ color: "var(--fl-muted)" }}>Loading…</div>;
+  if (!data) return <Loading />;
 
-  const { summary, delta, accounts, trend } = data;
+  const { summary, delta, accounts, trend, split } = data;
   const deltaColor = delta == null ? "var(--fl-muted)" : delta > 0 ? "var(--pos)" : delta < 0 ? "var(--neg)" : "var(--fl-muted)";
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <header style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", margin: 0 }}>Net Worth · {label}</h1>
+        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", fontSize: 24, margin: 0 }}>Net Worth · {label}</h1>
         <span style={{ color: "var(--fl-muted)", fontSize: 13 }}>assets minus liabilities</span>
       </header>
 
@@ -129,9 +111,27 @@ export default function NetWorth() {
           </div>
         </div>
         {trend.length >= 2
-          ? <Sparkline points={trend} />
+          ? <AreaChart points={trend.map((p) => ({ value: p.net }))} area={false} mode="linear" height={64} accent="var(--persona-solid)" ariaLabel="Net worth trend" />
           : <div style={{ color: "var(--fl-muted)", fontSize: 13 }}>Add a second snapshot to see a trend.</div>}
       </section>
+
+      {personId == null && split && split.length > 0 && (
+        <section className="frosted-card" aria-label="Household breakdown" style={{ padding: 20, display: "grid", gap: 10 }}>
+          <span style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--fl-muted)", fontWeight: 700 }}>
+            Household breakdown
+          </span>
+          {split.map((s) => {
+            const color = s.name === "Ido" ? "var(--persona-you)" : s.name === "Aviv" ? "var(--persona-spouse)" : "var(--fl-muted)";
+            return (
+              <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
+                <span style={{ width: 9, height: 9, borderRadius: "50%", background: color }} />
+                <span style={{ fontWeight: 600 }}>{s.name}</span>
+                <span style={{ marginLeft: "auto", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}><Money value={s.net} colored /></span>
+              </div>
+            );
+          })}
+        </section>
+      )}
 
       {recon && recon.reconcilable && (
         <section className="frosted-card" aria-label="Statement reconciliation" style={{ padding: 20, display: "grid", gap: 8 }}>
@@ -173,11 +173,11 @@ export default function NetWorth() {
           <span style={{ ...badge, color: isAssetKind(kind) ? "var(--pos)" : "var(--neg)", borderColor: "currentColor" }}>
             {isAssetKind(kind) ? "asset" : "liability"}
           </span>
-          <button onClick={submit} style={{ ...pill, fontWeight: 700, color: "var(--persona)" }}>Add account</button>
+          <button onClick={submit} style={{ ...pill, fontWeight: 700, color: "var(--persona-solid)" }}>Add account</button>
           <button onClick={() => setAdding(false)} style={{ ...pill, color: "var(--fl-muted)" }}>Cancel</button>
         </section>
       ) : (
-        <button onClick={() => setAdding(true)} style={{ ...pill, justifySelf: "start", color: "var(--persona)" }}>＋ Add an account</button>
+        <button onClick={() => setAdding(true)} style={{ ...pill, justifySelf: "start", color: "var(--persona-solid)" }}>＋ Add an account</button>
       )}
     </div>
   );

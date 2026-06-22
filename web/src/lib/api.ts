@@ -34,6 +34,15 @@ export type SpendingAlert = {
   direction: "up" | "down";
   new: boolean;
 };
+export type OverviewSeriesPoint = {
+  month: string;
+  income: number;
+  spend: number;
+  net: number;
+  savings_rate: number | null;
+  complete: boolean;
+};
+export type PersonSpend = { person_id: number; name: string; spend: number };
 export type Overview = {
   month: string | null;
   months: string[];
@@ -44,6 +53,10 @@ export type Overview = {
   complete: boolean;
   by_category: Record<string, number>;
   alerts: SpendingAlert[];
+  /** Per-month trend (months order) for the cash-flow area + savings-rate bars. */
+  series: OverviewSeriesPoint[];
+  /** Joint-only per-person spend for the selected month; null in single-persona view. */
+  split: PersonSpend[] | null;
 };
 
 export const getPeople = () => apiGet<Person[]>("/people");
@@ -186,12 +199,14 @@ export type Account = {
 };
 
 export type NetWorthPoint = { date: string; assets: number; liabilities: number; net: number };
+export type NetWorthSplit = { person_id: number | null; name: string; net: number; assets: number; liabilities: number };
 
 export type NetWorthData = {
   summary: { assets: number; liabilities: number; net: number };
   delta: number | null;
   accounts: Account[];
   trend: NetWorthPoint[];
+  split: NetWorthSplit[] | null;
 };
 
 export const getNetWorth = (p: { personId?: number }) =>

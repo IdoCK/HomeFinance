@@ -41,6 +41,38 @@ def test_overview_empty_data(client, people):
     assert d["alerts"] == []
 
 
+def test_overview_series_trend(client, seeded):
+    """The per-month trend powers the cash-flow area + savings-rate bars."""
+    d = client.get("/api/overview", params={"person_id": seeded, "month": "2026-05"}).json()
+    assert isinstance(d["series"], list) and len(d["series"]) == len(d["months"])
+    may = next(p for p in d["series"] if p["month"] == "2026-05")
+    assert may["income"] == 5000.0
+    assert may["spend"] == 2400.0
+    assert may["net"] == 2600.0
+    assert "savings_rate" in may and "complete" in may
+
+
+def test_overview_joint_split_per_person(client, people):
+    """Joint view (no person_id) returns a per-person spend split for the
+    dot-matrix; a single-persona view returns split=None."""
+    from modules import database as db
+    you, spouse = people[0]["id"], people[1]["id"]
+    db.add_transactions(you, [
+        {"date": "2026-05-01", "description": "Rent", "amount": -2000.0, "category": "Housing", "source": "bank"},
+    ])
+    db.add_transactions(spouse, [
+        {"date": "2026-05-02", "description": "Groceries", "amount": -500.0, "category": "Groceries", "source": "card"},
+    ])
+    d = client.get("/api/overview", params={"month": "2026-05"}).json()
+    assert d["split"] is not None
+    by_id = {s["person_id"]: s["spend"] for s in d["split"]}
+    assert by_id[you] == 2000.0
+    assert by_id[spouse] == 500.0
+    # Single-persona view → no split
+    d2 = client.get("/api/overview", params={"person_id": you, "month": "2026-05"}).json()
+    assert d2["split"] is None
+
+
 def test_overview_includes_spending_alerts(client, people):
     from modules import database as db
     you = people[0]["id"]

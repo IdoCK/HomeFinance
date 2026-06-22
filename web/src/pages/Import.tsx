@@ -1,14 +1,11 @@
 import { useEffect, useState, type CSSProperties } from "react";
+import { pillStyle as pill } from "@/lib/ui";
 import { getOllamaStatus, parseImport, commitImport, type ImportRow, type OllamaStatus } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 
 const POS = "#22C55E";
 const NEG = "#EF4444";
 
-const pill: CSSProperties = {
-  border: "1px solid var(--fl-line)", borderRadius: 999, padding: "6px 12px",
-  fontSize: 13, background: "transparent", color: "var(--fl-ink)",
-};
 const primaryBtn: CSSProperties = {
   border: "none", borderRadius: 999, padding: "9px 18px", fontWeight: 700,
   fontSize: 14, cursor: "pointer", background: "var(--persona)", color: "#fff",
@@ -31,7 +28,7 @@ function Stepper({ step }: { step: Step }) {
         <span key={key} style={{
           display: "flex", alignItems: "center", gap: 6, fontSize: 13,
           fontWeight: i === at ? 700 : 500,
-          color: i <= at ? "var(--persona)" : "var(--fl-muted)",
+          color: i <= at ? "var(--persona-solid)" : "var(--fl-muted)",
         }}>
           <span style={{
             width: 20, height: 20, borderRadius: 999, display: "grid", placeItems: "center",
@@ -57,6 +54,7 @@ export default function Import() {
   const [alreadyImported, setAlreadyImported] = useState(false);
   const [busy, setBusy] = useState(false);
   const [importedCount, setImportedCount] = useState(0);
+  const [dragOver, setDragOver] = useState(false);
 
   useEffect(() => { getOllamaStatus().then(setStatus).catch(() => setStatus(null)); }, []);
 
@@ -64,9 +62,9 @@ export default function Import() {
   if (personId == null) {
     return (
       <div style={{ display: "grid", gap: 12, maxWidth: 560 }}>
-        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", margin: 0 }}>Import</h1>
+        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", fontSize: 24, margin: 0 }}>Import</h1>
         <div className="frosted-card" style={{ padding: 24, color: "var(--fl-muted)" }}>
-          Imports belong to one person. Switch to You or Spouse in the sidebar to import a file.
+          Imports belong to one person. Switch to Ido or Aviv in the sidebar to import a file.
         </div>
       </div>
     );
@@ -109,7 +107,7 @@ export default function Import() {
   return (
     <div style={{ display: "grid", gap: 16, maxWidth: 960 }}>
       <header style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", margin: 0 }}>Import</h1>
+        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", fontSize: 24, margin: 0 }}>Import</h1>
         <span style={{ color: "var(--fl-muted)", fontSize: 13 }}>into {label}'s ledger</span>
       </header>
       <Stepper step={step} />
@@ -123,11 +121,31 @@ export default function Import() {
           </div>
           <div style={{ display: "grid", gap: 8 }}>
             <label style={h2} htmlFor="import-file">Statement file</label>
-            <input
-              id="import-file" type="file" aria-label="Choose file"
-              accept=".csv,.tsv,.xlsx,.xls"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            />
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                const f = e.dataTransfer.files?.[0];
+                if (f) setFile(f);
+              }}
+              style={{
+                border: `2px dashed ${dragOver ? "var(--persona-solid)" : "var(--fl-line)"}`,
+                borderRadius: 14, padding: "20px 18px", textAlign: "center",
+                background: dragOver ? "color-mix(in srgb, var(--persona-solid) 6%, transparent)" : "var(--fl-frame)",
+                transition: "border-color 120ms, background 120ms",
+              }}
+            >
+              <div style={{ fontSize: 13, color: "var(--fl-muted)", marginBottom: 10 }}>
+                {file ? `Selected: ${file.name}` : "Drag a statement here, or choose a file"}
+              </div>
+              <input
+                id="import-file" type="file" aria-label="Choose file"
+                accept=".csv,.tsv,.xlsx,.xls"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <label style={h2} htmlFor="import-source">Source</label>

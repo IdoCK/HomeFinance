@@ -18,14 +18,14 @@ def fresh_db(tmp_path, monkeypatch):
 
 
 def test_rename_changes_name(fresh_db):
-    you = fresh_db["You"]
+    you = fresh_db["Ido"]
     db.rename_person(you, "Alex")
     names = {p["id"]: p["name"] for p in db.list_people()}
     assert names[you] == "Alex"
 
 
 def test_rename_keeps_data_linked_by_id(fresh_db):
-    you = fresh_db["You"]
+    you = fresh_db["Ido"]
     db.add_transactions(you, [{"date": "2026-05-01", "description": "Rent",
                                "amount": -1500, "category": "Housing", "source": "bank"}])
     db.rename_person(you, "Sam")

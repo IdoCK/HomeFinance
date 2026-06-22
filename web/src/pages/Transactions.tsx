@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { pillStyle as pill } from "@/lib/ui";
 import {
   flexRender,
   getCoreRowModel,
@@ -16,17 +17,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 type IncludeFilter = "all" | "in" | "out";
 type Person = { id: number; name: string };
 
-// ponytail: persona colors are keyed by people[0]/[1] (You/Spouse). Ceiling: only the
+// ponytail: persona colors are keyed by people[0]/[1] (Ido/Aviv). Ceiling: only the
 // first two people get a signature color; a third+ person falls back to the hairline.
 const personaColor = (personId: number, people: Person[]) =>
   personId === people[0]?.id ? "var(--persona-you)"
   : personId === people[1]?.id ? "var(--persona-spouse)"
   : "var(--fl-line)";
 
-const pill: CSSProperties = {
-  border: "1px solid var(--fl-line)", borderRadius: 999, padding: "6px 12px",
-  fontSize: 13, background: "transparent", color: "var(--fl-ink)",
-};
 
 export default function Transactions() {
   const { personId, persona, people } = usePersona();
@@ -171,7 +168,7 @@ export default function Transactions() {
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <header style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", margin: 0 }}>Transactions</h1>
+        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", fontSize: 24, margin: 0 }}>Transactions</h1>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
           <input placeholder="Search…" value={search} onChange={(e) => setSearch(e.target.value)} style={pill} />
           <select value={category} onChange={(e) => setCategory(e.target.value)} style={pill}>
@@ -201,7 +198,7 @@ export default function Transactions() {
               <span style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}><Money value={p.amount} /></span>
               <span style={{ color: "var(--fl-muted)" }}>{p.out_desc} → {p.in_desc}</span>
               {p.cross_person && <span style={{ ...pill, padding: "2px 8px", fontSize: 11 }}>cross-person</span>}
-              <button onClick={() => excludePair(p)} style={{ ...pill, marginLeft: "auto", fontWeight: 700, color: "var(--persona)" }}>
+              <button onClick={() => excludePair(p)} style={{ ...pill, marginLeft: "auto", fontWeight: 700, color: "var(--persona-solid)" }}>
                 Exclude both
               </button>
             </div>
@@ -224,7 +221,7 @@ export default function Transactions() {
                       style={{
                         cursor: sortable ? "pointer" : "default",
                         textAlign: h.column.id === "amount" ? "right" : "left",
-                        color: dir ? "var(--persona)" : "var(--fl-muted)",
+                        color: dir ? "var(--persona-solid)" : "var(--fl-muted)",
                         userSelect: "none", textTransform: "uppercase", fontSize: 11, letterSpacing: "0.06em",
                       }}
                     >

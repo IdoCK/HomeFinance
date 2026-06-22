@@ -1,0 +1,471 @@
+<!doctype html><html lang=en><head><meta charset=utf-8>
+<meta name=viewport content='width=device-width,initial-scale=1'>
+<title>HomeFinance — Frosted Ledger Design</title>
+<style>
+:root{--canvas:#E5E6EA;--card:#fff;--line:#ECEDF0;--ink:#16181D;--muted:#8A8F98;
+--you:#3B82F6;--spouse:#EC4899;--showpiece:linear-gradient(120deg,#FDBA74,#F472B6,#A855F7,#3B82F6);}
+*{box-sizing:border-box}
+body{margin:0;background:var(--canvas);color:var(--ink);
+font-family:"Plus Jakarta Sans",system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.6;}
+.wrap{max-width:880px;margin:0 auto;padding:48px 24px 96px;}
+.masthead{background:var(--showpiece);color:#fff;border-radius:24px;padding:40px 32px;margin-bottom:32px;
+box-shadow:0 24px 70px -30px rgba(168,85,247,.6);}
+.masthead h1{margin:0 0 8px;font-size:38px;font-weight:800;letter-spacing:-.03em;}
+.masthead p{margin:0;opacity:.92;max-width:620px;}
+nav.toc{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px 24px;margin-bottom:32px;}
+nav.toc strong{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px;}
+nav.toc a{display:inline-block;margin:3px 14px 3px 0;color:var(--you);text-decoration:none;font-weight:600;font-size:14px;}
+section.doc{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:8px 32px 28px;margin-bottom:24px;}
+h1,h2,h3,h4{letter-spacing:-.02em;line-height:1.25;}
+h1{font-size:28px;border-bottom:2px solid var(--line);padding-bottom:8px;margin-top:28px;}
+h2{font-size:21px;margin-top:28px;}
+h3{font-size:17px;color:#33363d;}
+h4{font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);}
+code{background:#F2F3F5;padding:1px 6px;border-radius:6px;font-size:.88em;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
+pre{background:#16181D;color:#E8EAED;border-radius:14px;padding:16px 18px;overflow-x:auto;}
+pre code{background:none;color:inherit;padding:0;font-size:13px;line-height:1.5;}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+th,td{border:1px solid var(--line);padding:8px 11px;text-align:left;vertical-align:top;}
+th{background:#FAFBFC;font-weight:700;}
+blockquote{border-left:3px solid var(--you);margin:14px 0;padding:6px 16px;color:var(--muted);background:#FAFBFC;border-radius:0 10px 10px 0;}
+hr{border:none;border-top:1px solid var(--line);margin:24px 0;}
+strong{font-weight:700;}
+.persona-key{display:flex;gap:18px;margin-top:18px;font-size:13px;}
+.dot{display:inline-block;width:11px;height:11px;border-radius:999px;vertical-align:middle;margin-right:6px;}
+</style></head><body><div class=wrap>
+<div class=masthead><h1>Frosted Ledger</h1><p>The design book for the HomeFinance UI rewrite — the initial design that drove the build, plus every page-level addendum. A soft, airy, two-person household ledger: <strong>You</strong>, <strong>Spouse</strong>, and <strong>Joint</strong>.</p><div class=persona-key><span><span class=dot style='background:#3B82F6'></span>You</span><span><span class=dot style='background:#EC4899'></span>Spouse</span><span><span class=dot style='background:linear-gradient(90deg,#3B82F6,#EC4899)'></span>Joint</span></div></div>
+<nav class=toc><strong>Contents</strong>
+<a href='#d0'>The initial design</a>
+<a href='#d1'>Transactions page</a>
+<a href='#d2'>Budgets page</a>
+<a href='#d3'>Goals page</a>
+<a href='#d4'>Net Worth page</a>
+<a href='#d5'>Recurring page</a>
+<a href='#d6'>Settings page</a>
+<a href='#d7'>AI Insights page</a>
+<a href='#d8'>Import wizard</a>
+</nav>
+<section class=doc id='d0'>
+<h1>HomeFinance UI Rewrite — Design Spec</h1>
+<p><strong>Date:</strong> 2026-06-18 <strong>Status:</strong> Draft for review <strong>Branch context:</strong> created during <code>feature/recurring-detection</code>; the rewrite is a new milestone, not part of that branch.</p>
+<h2>1. Summary</h2>
+<p>Replace the Streamlit UI with a modern React + shadcn/ui single-page app, served by a thin FastAPI layer that <strong>reuses the existing Python engine (<code>modules/</code>) and SQLite database unchanged</strong>. The visual identity is <strong>&quot;Frosted Ledger&quot;</strong> — the soft, airy, monochrome-plus-vivid aesthetic of the zentra reference dashboard, fused with the app&#x27;s one truly distinctive trait: it is a <strong>two-person household ledger</strong> (You / Spouse / Joint), expressed as a &quot;two inks&quot; color system (You = blue, Spouse = pink, Joint = both).</p>
+<p>This is a <strong>ground-up rethink</strong> of the UX (information architecture, navigation, theming, dashboards, data flow, import flow), but it preserves every current capability and the local-first privacy guarantee.</p>
+<h3>Goals</h3>
+<ul><li>Modern, distinctive, non-templated UI grounded in the zentra reference and the</li></ul>
+<p>  two-person brief.</p>
+<ul><li>Left-sidebar navigation (locked decision).</li><li>Reuse the Python engine: pandas analytics, the local Ollama parsing/categorization</li></ul>
+<p>  agent, Anthropic insights, SQLite — all stay in Python behind FastAPI.</p>
+<ul><li>One-command local run, no Node runtime required in production.</li><li>Preserve the privacy model: raw data never leaves the machine; only anonymized</li></ul>
+<p>  aggregates are sent for AI insights, with a preview before sending.</p>
+<h3>Non-goals (YAGNI)</h3>
+<ul><li>No authentication / multi-tenant / cloud hosting. It stays a local, single-machine,</li></ul>
+<p>  two-person tool.</p>
+<ul><li>No real-time collaboration, no mobile-native app (responsive web is enough).</li><li>No rewrite of the Python engine logic. We wrap it, we don&#x27;t reimplement it.</li><li>No new persistence layer; keep <code>data/finance.db</code> and the existing schema.</li></ul>
+<h2>2. Architecture</h2>
+<pre><code>Browser  ──  React SPA (Vite + shadcn/ui + Tailwind)
+   │  fetch JSON  (dev: Vite proxy → :8000)
+   ▼
+FastAPI  (new, thin: app/api/*.py)
+   │  direct function calls
+   ▼
+modules/  (REUSED AS-IS: database, analytics, agent_parser, ai_insights, formats, keywords)
+   │
+   ▼
+data/finance.db  (SQLite, unchanged schema)</code></pre>
+<ul><li><strong>Dev:</strong> <code>vite dev</code> (5173) + <code>uvicorn</code> (8000); Vite proxies <code>/api/*</code> to FastAPI.</li><li><strong>Prod/local:</strong> <code>vite build</code> emits static assets; FastAPI serves the built SPA and the</li></ul>
+<p>  API from one <code>uvicorn</code> process on one port. Single command to run.</p>
+<ul><li>The FastAPI layer is intentionally thin — request validation (Pydantic) and a direct</li></ul>
+<p>  call into a <code>modules/</code> function. No business logic is added in the API layer; if logic   is missing it goes into <code>modules/</code>, keeping the engine the single source of truth and   keeping it unit-testable without HTTP.</p>
+<h3>Project structure (added)</h3>
+<pre><code>backend/                  # FastAPI backend (new)
+  main.py                 # app factory, static-file serving, CORS for dev
+  api/
+    people.py  transactions.py  imports.py  categories.py
+    budgets.py  goals.py  networth.py  analytics.py  insights.py  agent.py
+  schemas.py              # Pydantic request/response models
+web/                      # React SPA (new)
+  index.html  vite.config.ts  components.json  tailwind config
+  src/
+    main.tsx  App.tsx  router
+    lib/api.ts            # typed fetch client
+    lib/persona.tsx       # persona context (You/Spouse/Joint) → active ink
+    components/ui/*        # shadcn components (generated)
+    components/charts/*    # cash-flow (hatched), dot-matrix, savings bars
+    components/app-sidebar.tsx
+    pages/Overview Transactions Budgets Recurring Goals NetWorth Import Insights Settings
+modules/                  # UNCHANGED engine
+data/finance.db           # UNCHANGED
+app.py                    # legacy Streamlit app — retired after parity (see §11)</code></pre>
+<h2>3. Visual Identity — &quot;Frosted Ledger&quot;</h2>
+<h3>Color tokens (light)</h3>
+<table><thead><tr><th>Token</th><th>Hex</th><th>Use</th></tr></thead><tbody><tr><td>canvas</td><td><code>#E5E6EA</code></td><td>app background behind the frame</td></tr><tr><td>frame</td><td><code>#F6F7F9</code></td><td>the rounded app surface</td></tr><tr><td>card</td><td><code>#FFFFFF</code></td><td>cards</td></tr><tr><td>line</td><td><code>#ECEDF0</code></td><td>hairline borders</td></tr><tr><td>ink</td><td><code>#16181D</code></td><td>primary text &amp; big numbers</td></tr><tr><td>muted</td><td><code>#8A8F98</code></td><td>labels</td></tr><tr><td><strong>You</strong></td><td><code>#3B82F6</code> (deep <code>#2563EB</code>)</td><td>persona accent — You</td></tr><tr><td><strong>Spouse</strong></td><td><code>#EC4899</code></td><td>persona accent — Spouse</td></tr><tr><td><strong>Joint</strong></td><td>blue→pink gradient</td><td>persona accent — Joint</td></tr><tr><td>income/positive</td><td><code>#22C55E</code></td><td>gains, income, positive deltas</td></tr><tr><td>over/negative</td><td><code>#EF4444</code></td><td>over-budget / negative (used sparingly; distinct from Spouse pink)</td></tr><tr><td>accent-3</td><td><code>#A855F7</code></td><td>&quot;saved&quot; / tertiary series</td></tr><tr><td>showpiece gradient</td><td><code>#FDBA74 → #F472B6 → #A855F7 → #3B82F6</code></td><td>the one glassy hero (AI Insights)</td></tr></tbody></table>
+<p>Dark mode (&quot;after-dark&quot;): deep neutral canvas, brightened inks; defined as the same tokens under <code>.dark</code>. Theme toggle in the top bar. shadcn neutral base = <strong>slate</strong>; brand colors layered as CSS variables (<code>--primary</code>, <code>--chart-1..5</code>, <code>--persona-*</code>).</p>
+<h3>Typography</h3>
+<ul><li><strong>Plus Jakarta Sans</strong> for everything — geometric grotesque matching the reference&#x27;s</li></ul>
+<p>  big bold numerals. Weights 400–800.</p>
+<ul><li>Big numbers: 800 weight, tight tracking (<code>-0.03em</code>). Tabular numerals (`font-variant-</li></ul>
+<p>  numeric: tabular-nums`) in tables and money columns so figures align like a ledger.</p>
+<ul><li>(The earlier &quot;monospace ledger figures&quot; idea is dropped in favor of the reference&#x27;s</li></ul>
+<p>  bold sans.)</p>
+<h3>Signature elements (where the boldness is spent)</h3>
+<ol><li><strong>Two-ink persona system</strong> — the persona switch recolors the active accent across the</li></ol>
+<p>   whole view. The sidebar carries a &quot;ledger seam&quot;: solid blue in You, solid pink in    Spouse, blue→pink gradient in Joint.</p>
+<ol><li><strong>&quot;Who spent what&quot; dot-matrix</strong> — a blue/pink dot grid splitting Joint spend between</li></ol>
+<p>   the two people. The one module no single-user finance app has. (Fallback if it reads    poorly: a single blue/pink split bar — decided at build by eye.)</p>
+<ol><li><strong>Glassy gradient showpiece</strong> — reserved for <strong>AI Insights</strong> only; everything else</li></ol>
+<p>   stays quiet (soft cards, neutral chrome).</p>
+<p>Everything else is disciplined: soft rounded cards (radius ~18px), generous whitespace, pill controls, hatched/gradient charts, tiny uppercase labels.</p>
+<h2>4. Information Architecture</h2>
+<p>Left sidebar, persona switch pinned at top. Today&#x27;s 7 Streamlit tabs become:</p>
+<p><strong>Primary nav (Money):</strong></p>
+<ul><li><strong>Overview</strong> — the dashboard (see §5).</li><li><strong>Transactions</strong> — the full ledger: TanStack data table, inline category edit, include</li></ul>
+<p>  toggle, filter bar. (Merges old Dashboard table + Analysis filtering.)</p>
+<ul><li><strong>Budgets</strong> — surfaces the latent budgets schema as a first-class page.</li><li><strong>Recurring</strong> — subscription/recurring detection (the in-flight feature) as a page.</li><li><strong>Goals</strong> — savings goals.</li><li><strong>Net Worth</strong> — accounts + snapshots over time.</li></ul>
+<p><strong>Utility (below divider):</strong></p>
+<ul><li><strong>＋ Import</strong> — accented; the import wizard (see §6).</li><li><strong>AI Insights</strong> — anonymized-aggregate preview → Anthropic.</li><li><strong>Settings</strong> — absorbs Categories, vendor groups, rename people, privacy info.</li></ul>
+<p>Persona model: a React context (<code>lib/persona.tsx</code>) holds <code>You | Spouse | Joint</code>. Every data fetch passes the persona; <code>Joint</code> = all people merged (matches today&#x27;s <code>person_id=None</code>/<code>&quot;all&quot;</code> semantics in <code>database.py</code>).</p>
+<h2>5. Overview page (the dashboard)</h2>
+<p>Mirrors the validated mockup (<code>web</code> equivalent of <code>style-zentra.html</code>):</p>
+<ul><li><strong>Top bar:</strong> &quot;Overview · {persona}&quot;, month stepper pill, compare-to pill, granularity</li></ul>
+<p>  pill, theme toggle.</p>
+<ul><li><strong>Row 1:</strong> <strong>Cash flow</strong> card (hatched + gradient area chart, in/out/net KPIs, inline</li></ul>
+<p>  AI explore input) spanning 2/3; <strong>This month</strong> card (big net number + green delta +   Income/Spending/Saved rows with mini bars) 1/3.</p>
+<ul><li><strong>Row 2:</strong> <strong>Savings rate</strong> (pink bar history) · <strong>Who spent what</strong> (dot-matrix, Joint</li></ul>
+<p>  signature; in single-persona view this becomes that person&#x27;s category split) · <strong>AI   Insights</strong> glassy showpiece (latest insight teaser → links to Insights page).</p>
+<ul><li>Recurring &quot;new subscription detected&quot; surfaces as an alert chip when applicable.</li></ul>
+<h2>6. Import flow (redesigned)</h2>
+<p>Today: a dense single tab. New: a guided <strong>wizard</strong> (shadcn <code>tabs</code>/stepper + <code>dialog</code>), preserving the local-agent magic:</p>
+<ol><li><strong>Drop file</strong> — drag/drop or pick (Amazon / card / bank / auto). <code>dialog</code>/<code>drawer</code>,</li></ol>
+<p>   Ollama-ready 🟢/🔴 indicator.</p>
+<ol><li><strong>Auto-detect</strong> — the local agent parses columns/format; show detected mapping with a</li></ol>
+<p>   confidence note; allow &quot;learn a new format&quot; when unmatched.</p>
+<ol><li><strong>Review &amp; categorize</strong> — preview table, auto-categorize via local agent, inline fix,</li></ol>
+<p>   include/exclude rows; optional &quot;statement ending balance → refresh a Net Worth    account.&quot;</p>
+<ol><li><strong>Confirm</strong> — counts, then commit (<code>add_transactions</code> + <code>record_import</code>).</li></ol>
+<p>Progress is streamed from the backend (agent steps) via a simple polling or SSE endpoint.</p>
+<h2>7. Data flow &amp; API surface</h2>
+<p>Thin REST endpoints, each delegating to an existing <code>modules/</code> function. Representative map (not exhaustive):</p>
+<table><thead><tr><th>Method &amp; path</th><th>Backend call</th></tr></thead><tbody><tr><td><code>GET /api/people</code> / <code>PATCH /api/people/{id}</code></td><td><code>db.list_people</code> / <code>db.rename_person</code></td></tr><tr><td><code>GET /api/transactions?persona=</code></td><td><code>db.get_transactions</code></td></tr><tr><td><code>PATCH /api/transactions/{id}</code></td><td><code>db.set_transaction_category</code> / <code>set_transaction_included</code></td></tr><tr><td><code>GET /api/overview?persona=&amp;month=</code></td><td><code>analytics</code> KPIs/trends + cash-flow aggregates</td></tr><tr><td><code>GET /api/analytics/by-category?…</code></td><td><code>analytics.filter_transactions</code> + grouping</td></tr><tr><td><code>GET /api/recurring?persona=</code></td><td>recurring detection in <code>analytics</code></td></tr><tr><td><code>GET/POST/DELETE /api/categories</code> <code>…/vendors</code></td><td><code>db.get_categories</code>/<code>upsert_*</code>/<code>delete_*</code></td></tr><tr><td><code>GET/PUT/DELETE /api/budgets</code></td><td><code>db.get_budgets</code> / <code>set_budget</code> / <code>delete_budget</code></td></tr><tr><td><code>GET/POST/PATCH/DELETE /api/goals</code></td><td><code>db.get_goals</code> / <code>add_goal</code> / <code>update_goal_saved</code> / <code>delete_goal</code></td></tr><tr><td><code>GET/POST/PATCH/DELETE /api/accounts</code> + snapshots</td><td><code>db.list_accounts</code> / <code>add_account</code> / <code>update_account_balance</code> / <code>account_snapshots</code></td></tr><tr><td><code>POST /api/import/parse</code> (multipart)</td><td><code>agent_parser</code> (Ollama)</td></tr><tr><td><code>POST /api/import/categorize</code></td><td><code>keywords.classify_descriptions</code> + <code>agent_parser</code></td></tr><tr><td><code>POST /api/import/commit</code></td><td><code>db.add_transactions</code> + <code>db.record_import</code></td></tr><tr><td><code>GET /api/insights/preview</code> / <code>POST /api/insights/generate</code></td><td><code>ai_insights</code> (Anthropic)</td></tr><tr><td><code>GET /api/agent/status</code></td><td>Ollama health check</td></tr></tbody></table>
+<p>Privacy stays intact: <code>/api/insights/preview</code> returns the exact anonymized aggregate payload for the UI to display before <code>/generate</code> is allowed to call out. Ollama and Anthropic calls remain entirely in the Python backend; the browser never holds keys.</p>
+<h2>8. shadcn component map</h2>
+<p>Base: <code>npx shadcn@latest init</code> in <code>web/</code> (slate base), then add. Real registry items:</p>
+<ul><li><strong>Shell/nav:</strong> <code>@shadcn/sidebar</code> (+ block <code>@shadcn/sidebar-01</code> as starting point),</li></ul>
+<p>  <code>@shadcn/breadcrumb</code>, <code>@shadcn/separator</code>, <code>@shadcn/avatar</code>, <code>@shadcn/dropdown-menu</code>.</p>
+<ul><li><strong>Layout/data:</strong> <code>@shadcn/card</code>, <code>@shadcn/tabs</code>, <code>@shadcn/table</code> (compose TanStack per</li></ul>
+<p>  <code>data-table-demo</code>), <code>@shadcn/pagination</code>, <code>@shadcn/scroll-area</code>, <code>@shadcn/badge</code>,   <code>@shadcn/progress</code>, <code>@shadcn/skeleton</code>, <code>@shadcn/empty</code>.</p>
+<ul><li><strong>Charts:</strong> <code>@shadcn/chart</code> (Recharts wrapper) — reference blocks <code>chart-bar-interactive</code>,</li></ul>
+<p>  <code>chart-area-*</code>; cash-flow hatch + dot-matrix are custom on top of the chart primitives.</p>
+<ul><li><strong>Forms/controls:</strong> <code>@shadcn/button</code>, <code>@shadcn/button-group</code>, <code>@shadcn/input</code>,</li></ul>
+<p>  <code>@shadcn/input-group</code>, <code>@shadcn/select</code>, <code>@shadcn/combobox</code>, <code>@shadcn/switch</code>,   <code>@shadcn/checkbox</code>, <code>@shadcn/label</code>, <code>@shadcn/form</code>, <code>@shadcn/slider</code> (month range),   <code>@shadcn/popover</code>, <code>@shadcn/calendar</code> (goal target date).</p>
+<ul><li><strong>Overlays/feedback:</strong> <code>@shadcn/dialog</code>, <code>@shadcn/drawer</code>, <code>@shadcn/sheet</code>,</li></ul>
+<p>  <code>@shadcn/alert</code>, <code>@shadcn/alert-dialog</code>, <code>@shadcn/tooltip</code>, <code>@shadcn/sonner</code> (toasts),   <code>@shadcn/spinner</code>.</p>
+<ul><li>The shadcn MCP (<code>search_items_in_registries</code>, <code>get_item_examples_from_registries</code>,</li></ul>
+<p>  <code>get_add_command_for_items</code>) is used during implementation to pull exact add commands   and demo code per component.</p>
+<h2>9. Two-person / persona behavior (detail)</h2>
+<ul><li>Persona is a global UI state; switching it refetches the active page scoped to that</li></ul>
+<p>  persona and recolors the accent (<code>--persona</code> CSS var swap).</p>
+<ul><li><code>Joint</code> unlocks comparative modules (Who-spent-what, side-by-side goal progress,</li></ul>
+<p>  per-person net-worth contribution). Single-persona views hide comparison, show that   person&#x27;s own breakdowns.</p>
+<ul><li>People are renameable (Settings) — &quot;You&quot;/&quot;Spouse&quot; are seeded defaults, as today.</li></ul>
+<h2>10. Testing</h2>
+<ul><li><strong>Engine:</strong> existing <code>tests/</code> (analytics, keywords, networth, recurring, advanced)</li></ul>
+<p>  keep passing — the rewrite must not touch their behavior.</p>
+<ul><li><strong>API:</strong> FastAPI <code>TestClient</code> tests per router (happy path + validation), using a</li></ul>
+<p>  temp SQLite db fixture.</p>
+<ul><li><strong>Frontend:</strong> component tests (Vitest + Testing Library) for persona switching, the</li></ul>
+<p>  data table editing, and the import wizard state machine; a smoke e2e (Playwright) for   the import → overview flow is optional/stretch.</p>
+<ul><li>TDD per the project&#x27;s workflow: write the failing API/engine test before the endpoint.</li></ul>
+<h2>11. Migration / phasing</h2>
+<p>The implementation plan (writing-plans, next step) will sequence these waves:</p>
+<ol><li><strong>Backend scaffold</strong> — FastAPI app, static serving, persona param, people +</li></ol>
+<p>   transactions endpoints, API tests. Streamlit still runs in parallel.</p>
+<ol><li><strong>Frontend scaffold</strong> — Vite + shadcn init, design tokens, app shell (sidebar +</li></ol>
+<p>   persona context + theme), Overview wired to live data.</p>
+<ol><li><strong>Page-by-page</strong> — Transactions, Budgets, Recurring, Goals, Net Worth, Settings,</li></ol>
+<p>   each with its endpoints.</p>
+<ol><li><strong>Import wizard</strong> — the multi-step flow + agent endpoints + progress streaming.</li><li><strong>AI Insights</strong> — preview/generate + the showpiece card.</li><li><strong>Cutover</strong> — verify parity against the old app, update README run instructions,</li></ol>
+<p>   retire <code>app.py</code> (kept in git history). <code>data/finance.db</code> is reused throughout, so no    data migration is needed.</p>
+<h2>12. Decisions locked in this brainstorm</h2>
+<ul><li>React <strong>Vite SPA + FastAPI</strong> (not Next.js); FastAPI serves the built SPA.</li><li><strong>Ground-up</strong> UX rethink; engine + DB reused unchanged.</li><li><strong>Left sidebar</strong> navigation.</li><li><strong>&quot;Frosted Ledger&quot;</strong> identity from the zentra reference; **You=blue / Spouse=pink /</li></ul>
+<p>  Joint=both**; Plus Jakarta Sans; glassy gradient reserved for AI Insights.</p>
+<ul><li>IA: Overview · Transactions · Budgets · Recurring · Goals · Net Worth · Import ·</li></ul>
+<p>  AI Insights · Settings.</p>
+<h2>13. Open items (sensible defaults chosen; revisit if needed)</h2>
+<ul><li>Who-spent-what stays a dot-matrix; swap to split bar only if it reads poorly at build.</li><li>Import progress via SSE if simple, else short polling.</li><li>Dark mode delivered with the shell (token set defined up front), not deferred.</li></ul>
+</section>
+<section class=doc id='d1'>
+<h1>Plan 4 — Transactions Page Design</h1>
+<blockquote>Page-level addendum to the parent spec <code>2026-06-18-finance-ui-rewrite-design.md</code></blockquote>
+<blockquote>(§4 IA, §7 API surface, §8 component map). Covers only the <strong>Transactions</strong> page</blockquote>
+<blockquote>(Wave 3 &quot;page-by-page&quot;, first page). Locked decisions below.</blockquote>
+<h2>Goal</h2>
+<p>Replace the <code>/transactions</code> <code>PagePlaceholder</code> with the full ledger: a Frosted-Ledger data table of the active persona&#x27;s transactions, with inline category editing, a per-row include/exclude toggle, a filter bar, and column sort — all wired to the live backend that Wave 1 already shipped. No engine or backend changes.</p>
+<h2>Backend contract (already built — do not modify)</h2>
+<ul><li><code>GET /api/transactions?person_id=</code> → list of rows. <code>person_id</code> omitted ⇒ Joint (all</li></ul>
+<p>  people). Each row: <code>{ id, person_id, date &quot;YYYY-MM-DD&quot;, description, amount (− = spend,   + = income), category, source, included (0|1), balance (number|null), person (name) }</code>.</p>
+<ul><li><code>PATCH /api/transactions/{id}</code> body <code>{ category?: string, included?: boolean }</code> → the</li></ul>
+<p>  updated row. 404 if the id is unknown.</p>
+<ul><li>The query param is <code>person_id</code> (consistent with <code>getOverview</code>), <strong>not</strong> <code>persona</code>;</li></ul>
+<p>  the spec §7 table&#x27;s <code>?persona=</code> is loose shorthand.</p>
+<h2>Locked decisions</h2>
+<ol><li><strong>Table = shadcn <code>table</code> + <code>@tanstack/react-table</code></strong> composed per the spec&#x27;s</li></ol>
+<p>   data-table pattern (user choice, overriding a leaner plain-table option). Adds two    deps: <code>@tanstack/react-table</code> (npm) and the shadcn <code>table</code> primitive (CLI <code>--yes</code>,    non-interactive). Columns: Date · Description · Person *(Joint view only)* · Category    *(inline edit)* · Amount *(<code>&lt;Money colored&gt;</code>)* · Included *(toggle)*. TanStack owns    sorting (Date, Amount) and filtering.</p>
+<ol><li><strong>Category editor = inline <code>&lt;datalist&gt;</code>-backed text input</strong>, options seeded from the</li></ol>
+<p>   distinct categories present in the loaded rows. No <code>/api/categories</code> endpoint is built    here (the parent spec defers Categories to the Settings plan); free-text is allowed    since <code>PATCH</code> accepts any string, so new category names still work.</p>
+<ol><li><strong>Filter bar (lean):</strong> description search (case-insensitive substring, TanStack global</li></ol>
+<p>   filter) · category select (All / each present category) · include-state (All /    Included / Excluded). Sort via header click on Date &amp; Amount.</p>
+<ol><li><strong>Writes:</strong> call <code>PATCH</code>, then replace the local row with the response (no full</li></ol>
+<p>   refetch). Include toggle uses a <code>switch</code>; excluded rows render muted.</p>
+<ol><li><strong>Persona scope:</strong> fetch with <code>usePersona().personId</code>; switching persona refetches.</li></ol>
+<p>   Joint shows the Person column; single-persona hides it.</p>
+<h2>Out of scope (later plans / Plan 10 parity)</h2>
+<p>Add/delete transactions (Import owns adds), bulk edit, source &amp; month-range filters, pagination/virtualization, the old Analysis charts.</p>
+<h2>Data flow / files</h2>
+<ul><li><code>web/src/lib/api.ts</code> — add <code>type Transaction</code>, <code>getTransactions({ personId })</code>,</li></ul>
+<p>  <code>updateTransaction(id, { category?, included? })</code> (reuse <code>apiGet</code> / <code>apiSend</code>).</p>
+<ul><li><code>web/src/components/ui/table.tsx</code> — shadcn table primitive (added via CLI).</li><li><code>web/src/pages/Transactions.tsx</code> — fetch + filter/sort state + the data table.</li><li><code>web/src/routes.tsx</code> — replace the <code>/transactions</code> placeholder with <code>&lt;Transactions/&gt;</code>.</li></ul>
+<h2>Visual (Frosted Ledger — frontend-design skill applied at build)</h2>
+<p>Frosted-card container; tabular-nums amounts via <code>&lt;Money colored&gt;</code> (income <code>--pos</code> green, spend <code>--neg</code> red); persona accent (<code>--persona</code>) on the active sort header and focus rings; muted styling for <code>included=0</code> rows; soft 18px card, generous row height.</p>
+<h2>Testing (TDD, Vitest + Testing Library)</h2>
+<ul><li><code>lib/api.test.ts</code> — <code>getTransactions</code> builds <code>/api/transactions?person_id=1</code> and omits</li></ul>
+<p>  the param for Joint; <code>updateTransaction</code> issues the <code>PATCH</code> with the right body.</p>
+<ul><li><code>pages/Transactions.test.tsx</code> — renders rows from a mocked <code>getTransactions</code>; the</li></ul>
+<p>  search box narrows visible rows; editing a category calls <code>updateTransaction</code>; toggling   Included calls it with <code>{ included: false }</code>.</p>
+<ul><li>Existing backend API tests already cover the endpoints; no engine changes.</li></ul>
+<h2>Commits (≈3)</h2>
+<ol><li><code>feat(web): transactions API client (list + update)</code></li><li><code>feat(web): Transactions data table (TanStack) with inline edit + filters</code></li><li><code>feat(web): wire /transactions route to the ledger page</code></li></ol>
+</section>
+<section class=doc id='d2'>
+<h1>Plan 5 — Budgets Page Design</h1>
+<blockquote>Page-level addendum to <code>2026-06-18-finance-ui-rewrite-design.md</code> (§4 IA, §7 API).</blockquote>
+<blockquote>Covers the <strong>Budgets</strong> page + its backend router. Locked decisions below.</blockquote>
+<h2>Goal</h2>
+<p>Surface the latent budgets schema as a first-class page: per-category <strong>budget vs actual for the current month</strong>, pace-aware, persona-scoped, with inline cap editing, add, and delete. Reuses the engine&#x27;s <code>analytics.budget_status</code>; adds a thin FastAPI router.</p>
+<h2>Backend contract (new — <code>backend/api/budgets.py</code>)</h2>
+<p>All three delegate to existing engine functions; no engine changes.</p>
+<ul><li><code>GET /api/budgets?person_id=</code> → `analytics.budget_status(db.get_transactions(pid),</li></ul>
+<p>  db.get_budgets(pid), parents)<code> where </code>parents = db.category_parents(pid)<code> for a real   person and </code>{}<code> for Joint. Each row:   </code>{ id, person_id, category, amount, budget, spent, expected_to_date, projected_eom,   pct, status }<code>, </code>status ∈ {on_track, ahead, over}`, computed for the current calendar   month (pro-rated to today). A budget on a parent name rolls up its children.</p>
+<ul><li><code>PUT /api/budgets</code> body <code>{ person_id?: int|null, category: str, amount: float }</code> →</li></ul>
+<p>  <code>db.set_budget</code>; returns <code>{ ok: true }</code>. Upsert (one cap per person+category).</p>
+<ul><li><code>DELETE /api/budgets/{id}</code> → <code>db.delete_budget</code>; returns <code>{ ok: true }</code>.</li><li>Registered in <code>backend/main.py</code>; request body via <code>BudgetUpsert</code> in <code>backend/schemas.py</code>.</li></ul>
+<h2>Persona model (LOCKED — differs from Transactions)</h2>
+<p>Budgets are stored <strong>per-person OR household</strong> (<code>person_id IS NULL</code>), so:</p>
+<ul><li>You → <code>person_id = people[0].id</code> (that person&#x27;s budgets, their txns, their parents).</li><li>Spouse → <code>person_id = people[1].id</code>.</li><li><strong>Joint → <code>person_id = None</code></strong>: the <strong>household budget set</strong> (<code>get_budgets(None)</code>)</li></ul>
+<p>  compared against everyone&#x27;s merged spend (<code>get_transactions(None)</code>). No parent rollup   in Joint (categories are per-person → <code>parents = {}</code>). This is the chosen semantic.</p>
+<h2>Frontend (<code>pages/Budgets.tsx</code>)</h2>
+<p><code>lib/api.ts</code> gains <code>type Budget</code> + <code>getBudgets({personId})</code> / <code>setBudget({personId, category, amount})</code> / <code>deleteBudget(id)</code>. The page lists one row per budgeted category.</p>
+<h3>Visual (Frosted Ledger — frontend-design at build)</h3>
+<p>Signature = the <strong>pace meter</strong>: each row is a horizontal track; fill width = <code>spent/cap</code>, and a thin vertical tick sits at <code>expected_to_date/cap</code> (where you *should* be today). <code>status</code> drives color — <code>on_track</code> persona/neutral, <code>ahead</code> amber <code>#F59E0B</code>, <code>over</code> red <code>--neg</code>. Big tabular cap &amp; spent numbers via <code>&lt;Money/&gt;</code>. Inline-editable cap (number input committing on blur → <code>setBudget</code>), an &quot;add budget&quot; row (free-text category + amount), a delete affordance per row, and an empty state inviting the first budget.</p>
+<h2>Out of scope (later plans)</h2>
+<p>Per-month historical budgets, a parent-budget creation UI, category management (Settings plan owns categories — &quot;add budget&quot; takes a free-text category name), and bulk editing.</p>
+<h2>Files</h2>
+<ul><li><code>backend/api/budgets.py</code> (create), <code>backend/schemas.py</code> (+<code>BudgetUpsert</code>),</li></ul>
+<p>  <code>backend/main.py</code> (register router).</p>
+<ul><li><code>tests/api/test_budgets.py</code> (create).</li><li><code>web/src/lib/api.ts</code> (+<code>Budget</code>, 3 fns), <code>web/src/lib/api.test.ts</code> (+tests).</li><li><code>web/src/pages/Budgets.tsx</code> (create) + <code>web/src/pages/Budgets.test.tsx</code> (create).</li><li><code>web/src/routes.tsx</code> (swap <code>/budgets</code> placeholder).</li></ul>
+<h2>Testing (TDD)</h2>
+<ul><li><strong>Backend</strong> (<code>tests/api/test_budgets.py</code>, temp-DB <code>client</code>/<code>people</code> fixtures): GET</li></ul>
+<p>  returns a row with <code>budget</code>/<code>spent</code>/<code>status</code> for a Groceries cap with a current-month   txn (dated via <code>date.today()</code> so it&#x27;s deterministic); PUT upserts a cap that then   appears in GET; DELETE removes it.</p>
+<ul><li><strong>Frontend</strong> (Vitest): renders rows from mocked <code>getBudgets</code>; editing a cap calls</li></ul>
+<p>  <code>setBudget</code> with the new amount; clicking delete calls <code>deleteBudget(id)</code>.</p>
+<ul><li>Existing engine tests for <code>budget_status</code> keep passing (untouched).</li></ul>
+<h2>Commits (≈4)</h2>
+<ol><li><code>feat(api): budgets router (status + upsert + delete)</code></li><li><code>feat(web): budgets API client</code></li><li><code>feat(web): Budgets page with pace meters + inline edit</code></li><li><code>feat(web): wire /budgets route</code></li></ol>
+</section>
+<section class=doc id='d3'>
+<h1>Plan 7 — Goals Page Design</h1>
+<blockquote>Page-level addendum to <code>2026-06-18-finance-ui-rewrite-design.md</code> (§4 IA, §7 API).</blockquote>
+<blockquote>Covers the <strong>Goals</strong> page + its backend router. Locked decisions below.</blockquote>
+<h2>Goal</h2>
+<p>Surface the existing goals schema as a first-class page: per-goal <strong>savings progress</strong> (saved vs target), a pace hint (monthly amount needed to hit the target date), persona-scoped, with inline &quot;saved&quot; editing, add, and delete. Reuses the engine&#x27;s <code>analytics.goal_progress</code>; adds a thin FastAPI router. No engine changes.</p>
+<h2>Backend contract (new — <code>backend/api/goals.py</code>)</h2>
+<p>All delegate to existing engine functions.</p>
+<ul><li><code>GET /api/goals?person_id=</code> → <code>analytics.goal_progress(db.get_goals(pid_or_all))</code>.</li></ul>
+<p>  Each row: <code>{ id, person_id, name, target_amount, saved_amount, target_date, horizon,   notes, percent, monthly_needed }</code>. <code>percent</code> = saved/target×100 (0 when target is 0);   <code>monthly_needed</code> = remaining ÷ whole months until <code>target_date</code> (null when no date).</p>
+<ul><li><code>POST /api/goals</code> body `{ person_id?: int|null, name: str, target_amount: float,</li></ul>
+<p>  saved_amount?: float=0, target_date?: str|null, horizon?: str=&quot;short&quot;, notes?: str=&quot;&quot; }<code>   → </code>db.add_goal(...)<code>; returns </code>{ ok: true }`.</p>
+<ul><li><code>PATCH /api/goals/{goal_id}</code> body <code>{ saved_amount: float }</code> → <code>db.update_goal_saved</code>;</li></ul>
+<p>  returns <code>{ ok: true }</code>.</p>
+<ul><li><code>DELETE /api/goals/{goal_id}</code> → <code>db.delete_goal</code>; returns <code>{ ok: true }</code>.</li></ul>
+<h2>Persona mapping (locked)</h2>
+<p><code>db.get_goals</code> takes <code>int</code> (one person), <code>None</code> (shared/household goals only), or <code>&quot;all&quot;</code>. The persona switch sends <code>person_id</code> (int) or omits it (Joint):</p>
+<ul><li><strong>You / Spouse</strong> → <code>person_id</code> int → that person&#x27;s goals.</li><li><strong>Joint</strong> → <code>person_id</code> omitted → router maps to <code>&quot;all&quot;</code> (everyone&#x27;s + shared goals).</li><li>A goal <strong>added from Joint</strong> (<code>person_id</code> omitted/null) is a shared/household goal;</li></ul>
+<p>  added from You/Spouse it belongs to that person. (matches <code>goals.person_id IS NULL</code>.)</p>
+<h2>Frontend (<code>web/src/pages/Goals.tsx</code>, mutating like Budgets)</h2>
+<ul><li>Goal cards: name, optional <code>by {target_date}</code>, an inline numeric <strong>saved</strong> input</li></ul>
+<p>  (commit on blur → <code>updateGoalSaved</code>) over <code>/ {target}</code>, a progress bar   (<code>--persona</code>, → <code>--pos</code> green when ≥100%), and a footer line: percent + pace hint   (<code>{monthly_needed}/mo to stay on track</code>) or &quot;reached 🎉&quot;.</p>
+<ul><li>Add form (toggle): name, target amount, optional target date, horizon (short/long).</li><li>Delete via a ✕ button (<code>aria-label=&quot;Remove {name} goal&quot;</code>).</li><li>After every mutation, refetch (<code>load()</code>), same as Budgets.</li><li>Frosted Ledger: <code>--persona</code> accent; <code>--pos</code> for completed; tabular numerals; 18px cards.</li></ul>
+<h2>Out of scope</h2>
+<p>Goal editing beyond the saved amount (rename/retarget), per-person split views in Joint, contributions ledger, linking goals to Net Worth accounts. (Future plans.)</p>
+</section>
+<section class=doc id='d4'>
+<h1>Plan 8 — Net Worth Page Design</h1>
+<blockquote>Page-level addendum to <code>2026-06-18-finance-ui-rewrite-design.md</code> (§4 IA, §7 API)</blockquote>
+<blockquote>and the engine design <code>2026-06-17-net-worth-design.md</code> (tables + analytics, already</blockquote>
+<blockquote>implemented). Covers the <strong>Net Worth</strong> React page + its backend router. No engine changes.</blockquote>
+<h2>Goal</h2>
+<p>Answer &quot;are we building wealth?&quot; — show household <strong>net worth</strong> (assets − liabilities) with a trend, a per-account ledger with inline balance editing, add, and delete. Reuses the engine&#x27;s <code>analytics.net_worth</code> / <code>net_worth_trend</code> and the <code>accounts</code>/<code>balance_snapshots</code> CRUD.</p>
+<h2>Backend contract (new — <code>backend/api/networth.py</code>, prefix <code>/networth</code>)</h2>
+<p>All delegate to existing engine functions.</p>
+<ul><li><code>GET /api/networth?person_id=</code> → one bundle:</li></ul>
+<p>  <code>{ summary: {assets, liabilities, net}, delta: number|null, accounts: Account[], trend: Point[] }</code></p>
+<ul><li><code>accounts</code> = <code>db.list_accounts(pid_or_all)</code>; each <code>{ id, person_id, name, kind, is_asset(0|1), balance, updated_at }</code>.</li><li><code>summary</code> = <code>analytics.net_worth(accounts)</code>.</li><li><code>trend</code> = <code>analytics.net_worth_trend(db.get_snapshots(pid_or_all))</code> → records</li></ul>
+<p>    <code>{date, assets, liabilities, net}</code> (empty list when no snapshots).</p>
+<ul><li><code>delta</code> = <code>summary.net − trend[-2].net</code> when <code>len(trend) ≥ 2</code>, else <code>null</code> (change since the</li></ul>
+<p>    prior snapshot date, per the engine design&#x27;s delta convention).</p>
+<ul><li><code>POST /api/networth/accounts</code> body <code>{ person_id?: int|null, name, kind, is_asset: bool, balance?: float=0 }</code></li></ul>
+<p>  → <code>db.add_account(...)</code> (writes a snapshot dated today); returns <code>{ ok: true, id }</code>.</p>
+<ul><li><code>PATCH /api/networth/accounts/{id}</code> body <code>{ balance: float }</code> → <code>db.update_account_balance</code></li></ul>
+<p>  (updates + today snapshot); returns <code>{ ok: true }</code>.</p>
+<ul><li><code>DELETE /api/networth/accounts/{id}</code> → <code>db.delete_account</code> (cascades snapshots); <code>{ ok: true }</code>.</li></ul>
+<h2>Persona mapping (locked, same as Goals)</h2>
+<p><code>db.list_accounts</code>/<code>get_snapshots</code> take <code>int | None | &quot;all&quot;</code>. The persona sends <code>person_id</code> (int) or omits it (Joint):</p>
+<ul><li><strong>You / Spouse</strong> → <code>person_id</code> int → that person&#x27;s accounts.</li><li><strong>Joint</strong> → omitted → router maps to <code>&quot;all&quot;</code> (household: both people + shared).</li><li>An account <strong>added from Joint</strong> → <code>person_id</code> null (shared); from You/Spouse → that person.</li></ul>
+<h2>Frontend (<code>web/src/pages/NetWorth.tsx</code>)</h2>
+<ul><li><strong>Hero</strong>: big net number (<code>--testid networth-total</code>), the <code>delta</code> above it (green <code>--pos</code> when</li></ul>
+<p>  &gt; 0, red <code>--neg</code> when &lt; 0, hidden when null), plus Assets and Liabilities sub-metrics.</p>
+<ul><li><strong>Trend</strong>: a minimal inline-SVG sparkline of <code>trend[].net</code> when <code>trend.length ≥ 2</code>; otherwise a</li></ul>
+<p>  muted caption (&quot;Add a second snapshot to see a trend&quot;). No chart dependency.</p>
+<ul><li><strong>Accounts ledger</strong>: assets-first (engine already orders <code>is_asset DESC, name</code>). One card per</li></ul>
+<p>  account: name, kind badge, asset/liability tag, an inline numeric <strong>balance</strong> input (commit on   blur → <code>updateAccountBalance</code>), and a ✕ delete (<code>aria-label=&quot;Remove {name} account&quot;</code>).</p>
+<ul><li><strong>Add form</strong> (toggle): name, kind (select), balance; <code>is_asset</code> is <strong>derived from kind</strong></li></ul>
+<p>  (<code>credit_card</code>/<code>loan</code> → liability, else asset); owner = the active persona (You/Spouse → that   person, Joint → shared). Refetch after every mutation (same as Budgets/Goals).</p>
+<ul><li>Frosted Ledger: <code>--persona</code> accent, <code>--pos</code>/<code>--neg</code> for asset/liability and delta, tabular</li></ul>
+<p>  numerals, 18px cards.</p>
+<h2>Out of scope</h2>
+<p>Per-account snapshot history charts, statement auto-refresh (import wizard — Plan for Import), editing snapshot history, explicit <code>is_asset</code> override in the add form (derived from kind only), linking accounts to transactions. (Future.)</p>
+</section>
+<section class=doc id='d5'>
+<h1>Plan 6 — Recurring Page Design</h1>
+<blockquote>Page-level addendum to <code>2026-06-18-finance-ui-rewrite-design.md</code> (§4 IA, §7 API).</blockquote>
+<blockquote>Covers the <strong>Recurring</strong> page + its backend router. Net Worth is a separate later</blockquote>
+<blockquote>plan (Plan 7). Locked decisions below.</blockquote>
+<h2>Goal</h2>
+<p>Surface detected subscriptions &amp; regular bills: the committed monthly spend, each recurring charge with its cadence / cost / next date, and anomaly flags (price changes, new, possibly-canceled). <strong>Read-only</strong> — recurring is derived by the engine, not stored.</p>
+<h2>Backend contract (new — <code>backend/api/recurring.py</code>)</h2>
+<p>Thin; delegates to the engine; no engine changes.</p>
+<ul><li><code>GET /api/recurring?person_id=</code> →</li></ul>
+<p>  <code>{ charges: RecurringCharge[], committed: {fixed, variable, total}, anomalies: Anomaly[] }</code>   via <code>analytics.recurring_charges(txns, vendor_rules)</code> + <code>committed_monthly</code> +   <code>recurring_anomalies</code>.</p>
+<ul><li><strong>Vendor rules (LOCKED — user chose to use them):</strong> for a real person, fetch</li></ul>
+<p>  <code>db.get_vendors(person_id)</code> and transform each <code>{name, keywords}</code> (comma-separated   string) into <code>(name, [kw, …])</code> tuples — the shape <code>analytics.vendor_of</code> expects — so   merchant variants (Amazon.com / AMZN MKTP → &quot;Amazon&quot;) collapse and detect as one. For   Joint (<code>person_id=None</code>) pass <code>None</code> (vendors are per-person).</p>
+<ul><li><strong>Persona = natural model:</strong> You→people[0], Spouse→people[1], <strong>Joint→merge everyone</strong></li></ul>
+<p>  (<code>get_transactions(None)</code>), like Transactions. No household special case (unlike Budgets).</p>
+<ul><li><code>RecurringCharge</code> keys (from <code>recurring_charges</code>): `vendor, category, cadence</li></ul>
+<p>  (weekly|monthly|quarterly|yearly), kind (fixed|variable), typical_amount, prior_typical,   prior_stable, first_date, last_date, last_amount, next_expected, count, monthly_cost,   annual_cost, confidence<code>. </code>Anomaly<code>: </code>{vendor, type (price_change|possibly_canceled|new),   detail, pct?/overdue_days?/age_days?}`.</p>
+<ul><li>Register in <code>backend/main.py</code>. No request-body schema (GET-only).</li></ul>
+<h2>Frontend (<code>pages/Recurring.tsx</code>)</h2>
+<p><code>lib/api.ts</code> gains <code>RecurringCharge</code> / <code>RecurringAnomaly</code> / <code>Committed</code> / <code>RecurringData</code> types + <code>getRecurring({personId})</code>. The page is read-only (no mutations).</p>
+<h3>Visual (Frosted Ledger — frontend-design at build)</h3>
+<p>Signature = the <strong>committed-monthly hero with its annual shadow</strong>: a big bold &quot;$X/mo&quot; with a muted &quot;· $Y/yr&quot; beneath — the annual figure is the real shock of subscriptions. Below: anomaly chips (price-change amber <code>#F59E0B</code>, possibly-canceled muted, new persona-accent), then one card per charge — vendor, a cadence badge, a fixed/variable tag, monthly cost prominent with annual muted, next-charge date + count, and a faint confidence bar in the persona accent. Empty state explains the ≥3-charge threshold. Distinct from Plan 4&#x27;s ownership braid and Plan 5&#x27;s pace tick.</p>
+<h2>Out of scope (later plans)</h2>
+<p>Managing/snoozing subscriptions, vendor-rule editing (Settings plan), per-vendor cost history charts, Net Worth (Plan 7).</p>
+<h2>Files</h2>
+<ul><li><code>backend/api/recurring.py</code> (create), <code>backend/main.py</code> (register).</li><li><code>tests/api/test_recurring.py</code> (create).</li><li><code>web/src/lib/api.ts</code> (+types &amp; <code>getRecurring</code>), <code>web/src/lib/api.test.ts</code> (+test).</li><li><code>web/src/pages/Recurring.tsx</code> (create) + <code>web/src/pages/Recurring.test.tsx</code> (create).</li><li><code>web/src/routes.tsx</code> (swap <code>/recurring</code> placeholder).</li></ul>
+<h2>Testing (TDD)</h2>
+<ul><li><strong>Backend</strong> (<code>tests/api/test_recurring.py</code>, temp-DB fixtures, dates off <code>date.today()</code></li></ul>
+<p>  for determinism):</p>
+<ol><li>seed 4 monthly &quot;NETFLIX.COM&quot; charges → a monthly/fixed charge is detected and</li></ol>
+<p>     <code>committed.total &gt; 0</code>.</p>
+<ol><li>add a vendor rule <code>Amazon: amazon,amzn</code>, seed 4 monthly charges across two Amazon</li></ol>
+<p>     description variants → they collapse to a single <code>vendor == &quot;Amazon&quot;</code> with <code>count == 4</code>      (proves the vendor-rule transform).</p>
+<ul><li><strong>Frontend</strong> (Vitest): renders detected vendors; shows the committed total; surfaces a</li></ul>
+<p>  price-change anomaly chip.</p>
+<ul><li>Existing engine tests for the recurring functions stay untouched.</li></ul>
+<h2>Commits (≈4)</h2>
+<ol><li><code>feat(api): recurring router (charges + committed + anomalies)</code></li><li><code>feat(web): recurring API client</code></li><li><code>feat(web): Recurring page (committed hero + charge list + anomalies)</code></li><li><code>feat(web): wire /recurring route</code></li></ol>
+</section>
+<section class=doc id='d6'>
+<h1>Plan 9 — Settings Page Design</h1>
+<blockquote>Page-level addendum to <code>2026-06-18-finance-ui-rewrite-design.md</code> (§4 IA, §7 API).</blockquote>
+<blockquote>Covers the <strong>Settings</strong> page + its backend routers. Locked decisions below.</blockquote>
+<h2>Goal</h2>
+<p>A single place to manage the per-person rule data that drives categorization and drill-down: <strong>category keyword rules</strong>, <strong>vendor groups</strong>, and <strong>renaming people</strong>. Reuses the engine&#x27;s category/vendor CRUD and the existing people rename endpoint. No engine changes.</p>
+<h2>Key constraint — categories &amp; vendors are per-person</h2>
+<p>Both tables have <code>person_id NOT NULL</code> (FK to people); there is <strong>no shared/Joint scope</strong> for them. So the Settings page manages them for <strong>one selected person at a time</strong> via a person selector (defaulting to the active persona, or the first person when the persona is Joint). People rename is global (not persona-scoped).</p>
+<h2>Backend contract</h2>
+<p>Two new thin routers; people rename already exists (<code>PATCH /api/people/{id}</code>).</p>
+<p><code>backend/api/categories.py</code> (prefix <code>/categories</code>):</p>
+<ul><li><code>GET /api/categories?person_id=&lt;int&gt;</code> (required) → <code>db.get_categories(person_id)</code>; rows</li></ul>
+<p>  <code>{ id, person_id, name, keywords, parent }</code>.</p>
+<ul><li><code>PUT /api/categories</code> body <code>{ person_id: int, name: str, keywords?: str=&quot;&quot;, parent?: str|null }</code></li></ul>
+<p>  → <code>db.upsert_category</code> (upsert on <code>(person_id, name)</code>); <code>{ ok: true }</code>.</p>
+<ul><li><code>DELETE /api/categories/{id}</code> → <code>db.delete_category</code>; <code>{ ok: true }</code>.</li></ul>
+<p><code>backend/api/vendors.py</code> (prefix <code>/vendors</code>): same shape, no <code>parent</code>:</p>
+<ul><li><code>GET /api/vendors?person_id=&lt;int&gt;</code> → <code>db.get_vendors</code>.</li><li><code>PUT /api/vendors</code> body <code>{ person_id, name, keywords? }</code> → <code>db.upsert_vendor</code>.</li><li><code>DELETE /api/vendors/{id}</code> → <code>db.delete_vendor</code>.</li></ul>
+<h2>Frontend (<code>web/src/pages/Settings.tsx</code>)</h2>
+<ul><li><strong>People</strong> section: each person as an inline editable name (commit on blur → <code>renamePerson</code>,</li></ul>
+<p>  reusing <code>PATCH /people/{id}</code>); refetch after.</p>
+<ul><li><strong>Person selector</strong>: pill buttons (from <code>getPeople</code>) choosing whose categories/vendors to edit;</li></ul>
+<p>  defaults to the active persona&#x27;s person (or first person for Joint).</p>
+<ul><li><strong>Categories</strong> + <strong>Vendors</strong> sections (identical UI, a shared <code>RuleSection</code>): list each rule&#x27;s</li></ul>
+<p>  name + an inline editable <strong>keywords</strong> field (comma-separated; commit on blur → upsert), a ✕   delete, and an always-visible add row (name + keywords + add button). <code>parent</code> is not edited   here (drill-down rollups are out of scope).</p>
+<ul><li>Refetch the relevant list after each mutation. Frosted Ledger styling; tabular numerals N/A.</li></ul>
+<h2>Out of scope</h2>
+<p>Category <code>parent</code>/rollup editing, deleting/adding people (seeded pair stays), bulk recategorization, the privacy-info blurb (can be a later static addition). (Future.)</p>
+</section>
+<section class=doc id='d7'>
+<h1>Plan 10 — AI Insights Page Design</h1>
+<blockquote>Page-level addendum to <code>2026-06-18-finance-ui-rewrite-design.md</code> (§3 showpiece, §7 API, §5 teaser).</blockquote>
+<blockquote>Covers the <strong>AI Insights</strong> page + its backend router. Locked decisions below.</blockquote>
+<h2>Goal</h2>
+<p>The one place in the app that spends its boldness: a glassy gradient <strong>showpiece</strong> that turns the household&#x27;s anonymized aggregates into coaching text from Anthropic. Reuses <code>modules/ai_insights.py</code> unchanged. Privacy is the headline feature, not a footnote.</p>
+<h2>Signature (where the boldness is spent — spec §3.3)</h2>
+<p>The <strong>glassy gradient hero</strong> — the only surface in the whole app allowed the showpiece gradient <code>#FDBA74 → #F472B6 → #A855F7 → #3B82F6</code>. Everything else on the page stays quiet (soft cards, neutral chrome). The hero carries the page title + the privacy promise + the Generate action.</p>
+<h2>Privacy model (carried verbatim from the engine)</h2>
+<p>Only anonymized <strong>aggregates</strong> ever leave the machine — category totals, monthly savings, month-over-month %, goal progress %. Never raw transactions, merchants, names, or notes. The two people are sent as &quot;Person A&quot; / &quot;Person B&quot; / &quot;Household&quot;. The page must show <strong>exactly</strong> what would be sent (<code>ai_insights.preview_payload</code>) before any call goes out, in a disclosure.</p>
+<h2>Persona model</h2>
+<ul><li><strong>Joint</strong> (<code>person_id</code> omitted): household — one summary per person (&quot;Person A&quot;, &quot;Person B&quot;)</li></ul>
+<p>  plus a &quot;Household (shared goals)&quot; summary over all transactions + shared goals. (Mirrors   <code>app.py</code> household branch.)</p>
+<ul><li><strong>You / Spouse</strong> (<code>person_id</code> set): a single &quot;Person A&quot; summary for that person.</li></ul>
+<h2>Backend contract — <code>backend/api/insights.py</code> (prefix <code>/insights</code>)</h2>
+<ul><li><code>GET /api/insights/preview?person_id=&lt;int?&gt;</code> → <code>{ payload: str, has_key: bool }</code> where</li></ul>
+<p>  <code>payload</code> is <code>ai_insights.preview_payload(summaries)</code> (the exact JSON to be sent) and   <code>has_key</code> reflects <code>ANTHROPIC_API_KEY</code> presence (drives the button&#x27;s enabled state).</p>
+<ul><li><code>POST /api/insights/generate</code> body <code>{ person_id?: int }</code> → <code>{ text: str }</code> from</li></ul>
+<p>  <code>ai_insights.get_insights(summaries)</code>. Without a key the engine returns a preview-mode   message (graceful) — still a valid <code>text</code>, so the endpoint never errors on a missing key.</p>
+<p>Summaries are built with <code>ai_insights.build_anonymized_summary(label, txns, goals, analytics)</code>.</p>
+<h2>Frontend (<code>web/src/pages/Insights.tsx</code>)</h2>
+<ul><li><strong>Glassy hero</strong>: gradient showpiece card — title &quot;What the numbers say&quot;, the privacy line,</li></ul>
+<p>  and the <strong>Generate insights</strong> button (label stays &quot;Generate insights&quot; → result; disabled with   an inline note when <code>has_key</code> is false: &quot;Set ANTHROPIC_API_KEY to enable live insights&quot;).</p>
+<ul><li><strong>&quot;See exactly what&#x27;s sent&quot;</strong> disclosure (<code>&lt;details&gt;</code>): the <code>payload</code> JSON, monospace.</li><li><strong>Result</strong>: the returned coaching text in a quiet frosted card. Rendered as pre-wrapped text</li></ul>
+<p>  (v1 — see deferrals). Loading + empty states.</p>
+<h2>Out of scope / deferred (ponytail)</h2>
+<ul><li>Rich markdown rendering of the result (v1 = <code>white-space: pre-wrap</code>; no markdown dep).</li><li>Persisting/caching insights (engine returns fresh text; no store — matches <code>app.py</code>).</li><li>The Overview &quot;latest insight teaser&quot; (§5) — Overview already shipped; wire later if wanted.</li></ul>
+</section>
+<section class=doc id='d8'>
+<h1>Plan 11 — Import Wizard Design</h1>
+<blockquote>Page-level addendum to <code>2026-06-18-finance-ui-rewrite-design.md</code> (§6 import flow, §7 API).</blockquote>
+<blockquote>Covers the <strong>Import</strong> page + its backend router. Locked decisions below.</blockquote>
+<h2>Goal</h2>
+<p>Replace the dense single-tab import with a guided <strong>wizard</strong> that preserves the local-agent magic: drop a bank/card/Amazon export, the on-machine LLM (Ollama) figures out its layout, you review + fix the parsed rows, then commit. Reuses <code>modules/agent_parser.py</code>, <code>modules/parsing.py</code>, and <code>modules/database.py</code> unchanged. Nothing leaves the machine.</p>
+<h2>Signature</h2>
+<p>The <strong>local-agent indicator</strong> + a quiet 3-step stepper. The &quot;magic&quot; is that a local model parses arbitrary formats with no cloud call — so the page foregrounds an Ollama-ready chip (🟢 ready / 🔴 offline with the fix) and a calm step progression. No showpiece gradient here (that is reserved for AI Insights); this page is disciplined and utilitarian.</p>
+<h2>Per-person import (persona gate)</h2>
+<p>Transactions belong to one person. <strong>Joint</strong> has no single owner, so importing requires a concrete person — in Joint view the wizard shows a gentle gate (&quot;Switch to You or Spouse to import&quot;). You / Spouse import straight away with that <code>person_id</code>.</p>
+<h2>Steps</h2>
+<ol><li><strong>Drop file</strong> — file picker + a source select (auto · amazon · card · bank) + the Ollama</li></ol>
+<p>   chip. &quot;Parse file&quot; runs the agent (await + spinner; see deferrals re: streaming).</p>
+<ol><li><strong>Review</strong> — a preview table: date · description · amount · editable category · include</li></ol>
+<p>   toggle. Any parser warnings show in a banner. &quot;Import N transactions&quot; commits.</p>
+<ol><li><strong>Done</strong> — imported count + &quot;Import another file&quot; reset.</li></ol>
+<p>A file already imported for this person (matched by content hash) is caught at parse and shown as an &quot;already imported&quot; notice instead of a duplicate review.</p>
+<h2>Backend contract — <code>backend/api/imports.py</code> (prefix <code>/import</code>)</h2>
+<ul><li><code>GET /api/import/status</code> → <code>agent_parser.check_ollama()</code> → <code>{ ok: bool, message: str }</code></li></ul>
+<p>  (always 200 — offline is a normal state the UI renders, not an error).</p>
+<ul><li><code>POST /api/import/parse</code> (multipart: <code>file</code>, <code>source</code> form, <code>person_id</code> form) → reads bytes,</li></ul>
+<p>  <code>file_hash = sha256</code>. If already imported → <code>{ already_imported: true, file_hash, filename }</code>.   Else <code>agent_parser.parse_file_with_agent(bytes, filename, source, parsing.categorize,   category_rules)</code> → <code>{ already_imported: false, file_hash, filename, source, rows, warnings }</code>.   <code>rows</code> = <code>[{date, description, amount, category, source, included, balance}]</code>.</p>
+<ul><li><code>POST /api/import/commit</code> body <code>{ person_id, filename, file_hash, source, rows[] }</code> →</li></ul>
+<p>  <code>db.add_transactions(person_id, rows, file_hash)</code> + <code>db.record_import(...)</code> → <code>{ imported: n }</code>.</p>
+<h2>Frontend (<code>web/src/pages/Import.tsx</code>)</h2>
+<p>A small state machine (<code>step: &quot;upload&quot; | &quot;review&quot; | &quot;done&quot;</code>). Reuses the Frosted Ledger card + pill styling and <code>--persona</code> accent. The review table reuses the same inline-edit feel as the Transactions page (category text input, include checkbox) — kept simple, no TanStack here.</p>
+<h2>Out of scope / deferred (ponytail — documented for the debt ledger)</h2>
+<ul><li><strong>Progress streaming (SSE/polling)</strong> — v1 awaits the parse with a spinner. (Spec §13 lists</li></ul>
+<p>  this as optional; revisit if large files feel unresponsive.)</p>
+<ul><li><strong>&quot;Learn a new format&quot;</strong> UI (<code>agent_parser.propose_format</code>) — unknown files still parse via</li></ul>
+<p>  the agent; saving a reusable registry format is a later enhancement.</p>
+<ul><li><strong>Keyword-rule learning on commit</strong> (app.py <code>_learn_keyword</code>) — deferred; categorize still</li></ul>
+<p>  works, it just won&#x27;t auto-teach merchants yet.</p>
+<ul><li><strong>Statement-balance → Net Worth account refresh</strong> (spec §6 step 3, marked optional) —</li></ul>
+<p>  <code>parse_file_with_agent</code> already discards the running balance; wire later via a dedicated path.</p>
+<ul><li><strong>Drag-and-drop</strong> polish — a plain file picker is enough for v1.</li></ul>
+</section>
+</div></body></html>

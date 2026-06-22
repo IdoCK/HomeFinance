@@ -2,11 +2,12 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { getRecurring, type RecurringAnomaly, type RecurringCharge, type RecurringData } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { formatMoney } from "@/components/money";
+import { Loading } from "@/components/loading";
 
 const ANOMALY: Record<RecurringAnomaly["type"], { label: string; color: string }> = {
   price_change: { label: "price change", color: "#F59E0B" },
   possibly_canceled: { label: "maybe canceled", color: "var(--fl-muted)" },
-  new: { label: "new", color: "var(--persona)" },
+  new: { label: "new", color: "var(--persona-solid)" },
 };
 
 const badge: CSSProperties = {
@@ -49,14 +50,14 @@ export default function Recurring() {
     return () => { alive = false; };
   }, [personId]);
 
-  if (!data) return <div style={{ color: "var(--fl-muted)" }}>Loading…</div>;
+  if (!data) return <Loading />;
 
   const { charges, committed, anomalies } = data;
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <header style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", margin: 0 }}>Recurring · {label}</h1>
+        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", fontSize: 24, margin: 0 }}>Recurring · {label}</h1>
         <span style={{ color: "var(--fl-muted)", fontSize: 13 }}>subscriptions & regular bills</span>
       </header>
 

@@ -97,7 +97,7 @@ class AccountsDB(unittest.TestCase):
         self.tmp = tempfile.mkdtemp()
         self._orig = db.DB_PATH
         db.DB_PATH = Path(self.tmp) / "test.db"
-        db.init_db()  # seeds people You=1, Spouse=2
+        db.init_db()  # seeds people Ido=1, Aviv=2
 
     def tearDown(self):
         db.DB_PATH = self._orig

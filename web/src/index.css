@@ -4,26 +4,82 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* ---- shadcn base (neutral) ---- */
+/* ---- Frosted Ledger brand tokens (spec §3). Defined FIRST so the shadcn
+   bridge and @theme below can resolve them at build time (Tailwind's @theme
+   inline resolver does a forward pass — referencing a var declared later
+   yields "Invalid custom property, expected a value"). Light mode. ---- */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
+  /* surfaces */
+  --fl-canvas: #E5E6EA;
+  --fl-frame:  #F6F7F9;
+  --fl-card:   #FFFFFF;
+  --fl-line:   #ECEDF0;
+  --fl-ink:    #16181D;
+  --fl-muted:  #8A8F98;
+
+  /* persona inks */
+  --persona-you:        #3B82F6;
+  --persona-you-deep:   #2563EB;
+  --persona-spouse:     #EC4899;
+  /* Joint = blue→pink gradient */
+  --persona-joint: linear-gradient(90deg, var(--persona-you), var(--persona-spouse));
+
+  /* money semantics */
+  --pos: #22C55E; /* income / positive */
+  --neg: #EF4444; /* over-budget / negative */
+  --saved: #A855F7; /* tertiary / "saved" series */
+
+  /* AI Insights showpiece gradient (used only on that one card) */
+  --showpiece: linear-gradient(120deg, #FDBA74, #F472B6, #A855F7, #3B82F6);
+
+  /* Active persona accent — swapped at runtime by the persona context.
+     --persona may be a GRADIENT (Joint), so it can only be used as a fill
+     (background). For anything needing a real color value (text, border,
+     SVG stroke/fill) use --persona-solid, a solid companion that tracks the
+     active persona. Both default to "you" (blue) here; persona.tsx overrides
+     them per persona — you→blue, spouse→pink, joint→gradient/violet. */
+  --persona: var(--persona-you);
+  --persona-solid: var(--persona-you);
+  /* Solid stand-in for the Joint gradient (mid blue→pink). */
+  --persona-joint-solid: #7C6FF0;
+
+  --radius-card: 18px;
+}
+
+/* ---- After-dark token set (spec §13). Brand surfaces flip; persona inks,
+   money semantics, showpiece and --persona inherit from :root. ---- */
+.dark {
+  --fl-canvas: #0B0C0F;
+  --fl-frame:  #16181D;
+  --fl-card:   #1C1F26;
+  --fl-line:   #2A2E37;
+  --fl-ink:    #F6F7F9;
+  --fl-muted:  #8A8F98;
+}
+
+/* ---- shadcn base, BRIDGED onto the brand tokens (--fl-*). One palette, not
+   two: shadcn primitives (Card, Button, Table, Badge) render in brand colors
+   automatically. .dark below only carries shadcn-specific tokens, since the
+   bridged vars point at --fl-*/--persona-solid/--neg which flip above. ---- */
+:root {
+  --background: var(--fl-frame);
+  --foreground: var(--fl-ink);
+  --card: var(--fl-card);
+  --card-foreground: var(--fl-ink);
+  --popover: var(--fl-card);
+  --popover-foreground: var(--fl-ink);
+  --primary: var(--persona-solid);
+  --primary-foreground: #fff;
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted-foreground: var(--fl-muted);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --destructive: var(--neg);
+  --border: var(--fl-line);
+  --input: var(--fl-line);
+  --ring: var(--persona-solid);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -38,6 +94,27 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
 }
 
 body {
@@ -78,6 +155,18 @@ body {
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
+  /* ---- Frosted Ledger brand utilities (text-persona, bg-pos, border-fl-line, …) ---- */
+  --color-persona: var(--persona);
+  --color-persona-solid: var(--persona-solid);
+  --color-pos: var(--pos);
+  --color-neg: var(--neg);
+  --color-saved: var(--saved);
+  --color-fl-canvas: var(--fl-canvas);
+  --color-fl-frame: var(--fl-frame);
+  --color-fl-card: var(--fl-card);
+  --color-fl-line: var(--fl-line);
+  --color-fl-ink: var(--fl-ink);
+  --color-fl-muted: var(--fl-muted);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -85,40 +174,6 @@ body {
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
-}
-
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
 }
 
 @layer base {
@@ -133,48 +188,6 @@ body {
   }
 }
 
-/* ---- Frosted Ledger brand tokens (spec §3). Light. ---- */
-:root {
-  /* surfaces */
-  --fl-canvas: #E5E6EA;
-  --fl-frame:  #F6F7F9;
-  --fl-card:   #FFFFFF;
-  --fl-line:   #ECEDF0;
-  --fl-ink:    #16181D;
-  --fl-muted:  #8A8F98;
-
-  /* persona inks */
-  --persona-you:        #3B82F6;
-  --persona-you-deep:   #2563EB;
-  --persona-spouse:     #EC4899;
-  /* Joint = blue→pink gradient */
-  --persona-joint: linear-gradient(90deg, var(--persona-you), var(--persona-spouse));
-
-  /* money semantics */
-  --pos: #22C55E; /* income / positive */
-  --neg: #EF4444; /* over-budget / negative */
-  --saved: #A855F7; /* tertiary / "saved" series */
-
-  /* AI Insights showpiece gradient (used only on that one card) */
-  --showpiece: linear-gradient(120deg, #FDBA74, #F472B6, #A855F7, #3B82F6);
-
-  /* active persona accent — swapped at runtime by the persona context in Plan 3 */
-  --persona: var(--persona-you);
-
-  --radius-card: 18px;
-}
-
-/* ---- After-dark token set, defined up front (spec §13). Toggle wired in Plan 3. ---- */
-.dark {
-  --fl-canvas: #0B0C0F;
-  --fl-frame:  #16181D;
-  --fl-card:   #1C1F26;
-  --fl-line:   #2A2E37;
-  --fl-ink:    #F6F7F9;
-  --fl-muted:  #8A8F98;
-  /* persona inks, money semantics, showpiece and --persona inherit from :root */
-}
-
 body {
   font-family: var(--font-sans);
   font-variant-numeric: tabular-nums; /* ledger-aligned figures */
@@ -185,4 +198,52 @@ body {
   border: 1px solid var(--fl-line);
   border-radius: var(--radius-card);
   box-shadow: 0 10px 30px -22px rgba(22, 24, 29, .35);
+}
+
+/* ---- Ledger seam: the signature left-edge accent on the sidebar.
+   you = solid blue · spouse = solid pink · joint = blue→pink gradient.
+   Driven by [data-persona-seam] set in app-sidebar.tsx. ---- */
+[data-persona-seam] {
+  position: relative;
+}
+[data-persona-seam]::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 2px;
+  background: var(--persona-you);
+}
+[data-persona-seam="spouse"]::after { background: var(--persona-spouse); }
+[data-persona-seam="joint"]::after  { background: var(--persona-joint); }
+
+/* ---- Overview signature rows — collapse to one column on narrow viewports. ---- */
+.fl-row-2, .fl-row-3 { display: grid; gap: 14px; }
+.fl-row-2 { grid-template-columns: 1.7fr 1fr; }
+.fl-row-3 { grid-template-columns: 1fr 1fr 1.15fr; }
+@media (max-width: 760px) {
+  .fl-row-2, .fl-row-3 { grid-template-columns: 1fr; }
+}
+
+/* ---- Keyboard focus ring in the active persona color (a11y). ---- */
+:where(button, a, input, select, textarea, [role="tab"], [tabindex]):focus-visible {
+  outline: 2px solid var(--persona-solid);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ---- Page-enter transition (route change). Neutralized by reduced-motion below. ---- */
+@keyframes fl-fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.fl-page { animation: fl-fade-up 0.24s ease both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

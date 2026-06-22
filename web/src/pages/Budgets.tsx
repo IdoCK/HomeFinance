@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { pillStyle as pill } from "@/lib/ui";
 import { getBudgets, setBudget, deleteBudget, type Budget } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { Money } from "@/components/money";
@@ -14,10 +15,6 @@ const STATUS_LABEL: Record<Budget["status"], string> = {
   over: "over budget",
 };
 
-const pill: CSSProperties = {
-  border: "1px solid var(--fl-line)", borderRadius: 999, padding: "6px 12px",
-  fontSize: 13, background: "transparent", color: "var(--fl-ink)",
-};
 
 function PaceMeter({ b }: { b: Budget }) {
   const fillPct = Math.min(b.budget > 0 ? (b.spent / b.budget) * 100 : 0, 100);
@@ -65,7 +62,7 @@ export default function Budgets() {
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <header style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", margin: 0 }}>Budgets · {label}</h1>
+        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", fontSize: 24, margin: 0 }}>Budgets · {label}</h1>
         <span style={{ color: "var(--fl-muted)", fontSize: 13 }}>this month, paced to today</span>
       </header>
 
@@ -113,11 +110,11 @@ export default function Budgets() {
         <section className="frosted-card" style={{ padding: 20, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <input placeholder="Category" value={newCat} onChange={(e) => setNewCat(e.target.value)} style={pill} />
           <input type="number" placeholder="Monthly cap" value={newAmt} onChange={(e) => setNewAmt(e.target.value)} style={{ ...pill, width: 130 }} />
-          <button onClick={addBudget} style={{ ...pill, fontWeight: 700, color: "var(--persona)" }}>Add budget</button>
+          <button onClick={addBudget} style={{ ...pill, fontWeight: 700, color: "var(--persona-solid)" }}>Add budget</button>
           <button onClick={() => setAdding(false)} style={{ ...pill, color: "var(--fl-muted)" }}>Cancel</button>
         </section>
       ) : (
-        <button onClick={() => setAdding(true)} style={{ ...pill, justifySelf: "start", color: "var(--persona)" }}>＋ Add a budget</button>
+        <button onClick={() => setAdding(true)} style={{ ...pill, justifySelf: "start", color: "var(--persona-solid)" }}>＋ Add a budget</button>
       )}
     </div>
   );

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import { pillStyle as pill } from "@/lib/ui";
 import {
   getPeople, renamePerson,
   getCategories, upsertCategory, deleteCategory,
@@ -7,10 +8,6 @@ import {
 } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 
-const pill: CSSProperties = {
-  border: "1px solid var(--fl-line)", borderRadius: 999, padding: "6px 12px",
-  fontSize: 13, background: "transparent", color: "var(--fl-ink)",
-};
 const h2: CSSProperties = { fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--fl-muted)", margin: 0 };
 
 type Rule = { id: number; name: string; keywords: string; parent?: string | null };
@@ -64,7 +61,7 @@ function RuleSection({ kind, items, onSave, onAdd, onRemove, onSaveParent }: {
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", borderTop: "1px solid var(--fl-line)", paddingTop: 10 }}>
         <input placeholder={namePh} value={name} onChange={(e) => setName(e.target.value)} style={{ ...pill, width: 160 }} />
         <input placeholder={kwPh} value={keywords} onChange={(e) => setKeywords(e.target.value)} style={{ ...pill, flex: 1, minWidth: 160 }} />
-        <button onClick={add} style={{ ...pill, fontWeight: 700, color: "var(--persona)" }}>{addLabel}</button>
+        <button onClick={add} style={{ ...pill, fontWeight: 700, color: "var(--persona-solid)" }}>{addLabel}</button>
       </div>
     </section>
   );
@@ -100,7 +97,7 @@ export default function Settings() {
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <header style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", margin: 0 }}>Settings</h1>
+        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", fontSize: 24, margin: 0 }}>Settings</h1>
         <span style={{ color: "var(--fl-muted)", fontSize: 13 }}>people, categories & vendor groups</span>
       </header>
 

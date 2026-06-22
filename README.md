@@ -78,13 +78,13 @@ the pull. The **Import** page shows a 🟢/🔴 indicator for whether the agent 
 ### Importing
 - **Amazon**: amazon.com/gp/b2b/reports → "Items" report → download CSV
 - **Credit card / bank**: export transactions as CSV from your provider
-- Open the **Import** page in a person's view (You or Spouse), pick the source,
+- Open the **Import** page in a person's view (Ido or Aviv), pick the source,
   upload, review the parsed rows, and commit.
 
 ## Two people
-Use the sidebar persona switch (You / Spouse / **Joint**). Joint merges both for
-shared spending, savings, and goals. Rename "You" / "Spouse" anytime on the
-**Settings** page — they're just seeded defaults.
+Use the sidebar persona switch (Ido / Aviv / **Joint**). Joint merges both for
+shared spending, savings, and goals. Rename the two members anytime on the
+**Settings** page — "Ido" / "Aviv" are just seeded defaults.
 
 ## Categories & vendor groups
 On **Settings**, define per-person categories with comma-separated keywords (e.g.

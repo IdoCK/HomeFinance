@@ -1,4 +1,4 @@
-import { createBrowserRouter, Outlet } from "react-router-dom";
+import { createBrowserRouter, Outlet, useLocation } from "react-router-dom";
 import { AppSidebar } from "@/components/app-sidebar";
 import Overview from "@/pages/Overview";
 import Transactions from "@/pages/Transactions";
@@ -12,10 +12,27 @@ import Import from "@/pages/Import";
 import Events from "@/pages/Events";
 
 function AppLayout() {
+  const loc = useLocation();
   return (
-    <div className="frosted-canvas" style={{ display: "flex", minHeight: "100vh" }}>
-      <AppSidebar />
-      <main style={{ flex: 1, padding: 24 }}><Outlet /></main>
+    <div className="frosted-canvas" style={{ minHeight: "100vh", padding: 16 }}>
+      {/* Rounded floating frame on the canvas (reference .frame). */}
+      <div
+        style={{
+          display: "flex",
+          minHeight: "calc(100vh - 32px)",
+          background: "var(--fl-frame)",
+          borderRadius: 22,
+          overflow: "hidden",
+          boxShadow: "0 24px 60px -34px rgba(22,24,29,.33)",
+        }}
+      >
+        <AppSidebar />
+        <main style={{ flex: 1, minWidth: 0, padding: "18px 24px 28px" }}>
+          <div className="fl-page" key={loc.pathname}>
+            <Outlet />
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

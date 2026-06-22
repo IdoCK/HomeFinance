@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import { pillStyle as pill } from "@/lib/ui";
 import {
   getEvents, createEvent, deleteEvent, getEventTransactions, setEventTags,
   getTransactions, type FinanceEvent, type Transaction,
@@ -8,10 +9,6 @@ import { Money, formatMoney } from "@/components/money";
 
 const KINDS = ["trip", "project", "event", "celebration", "other"];
 
-const pill: CSSProperties = {
-  border: "1px solid var(--fl-line)", borderRadius: 999, padding: "6px 12px",
-  fontSize: 13, background: "transparent", color: "var(--fl-ink)",
-};
 const badge: CSSProperties = {
   border: "1px solid var(--fl-line)", borderRadius: 999, padding: "2px 10px",
   fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--fl-muted)",
@@ -52,7 +49,7 @@ export default function Events() {
   return (
     <div style={{ display: "grid", gap: 16, maxWidth: 820 }}>
       <header style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", margin: 0 }}>Events · {label}</h1>
+        <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", fontSize: 24, margin: 0 }}>Events · {label}</h1>
         <span style={{ color: "var(--fl-muted)", fontSize: 13 }}>tag spending to trips, projects & occasions</span>
       </header>
 
@@ -61,7 +58,7 @@ export default function Events() {
         <select aria-label="Event kind" value={kind} onChange={(e) => setKind(e.target.value)} style={pill}>
           {KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
         </select>
-        <button onClick={add} style={{ ...pill, fontWeight: 700, color: "var(--persona)" }}>Add event</button>
+        <button onClick={add} style={{ ...pill, fontWeight: 700, color: "var(--persona-solid)" }}>Add event</button>
       </section>
 
       {events.length === 0 && (
@@ -81,7 +78,7 @@ export default function Events() {
               </span>
               <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
                 <button onClick={() => openEditor(e.id)} aria-label={`Tag transactions for ${e.name}`}
-                  style={{ ...pill, fontWeight: 700, color: "var(--persona)" }}>
+                  style={{ ...pill, fontWeight: 700, color: "var(--persona-solid)" }}>
                   Tag transactions
                 </button>
                 <button onClick={() => remove(e.id)} aria-label={`Delete ${e.name}`}
@@ -103,7 +100,7 @@ export default function Events() {
                   ))}
                 </div>
                 <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-                  <button onClick={saveMembers} style={{ ...pill, fontWeight: 700, color: "var(--persona)" }}>Save members</button>
+                  <button onClick={saveMembers} style={{ ...pill, fontWeight: 700, color: "var(--persona-solid)" }}>Save members</button>
                   <button onClick={() => setEditing(null)} style={{ ...pill, color: "var(--fl-muted)" }}>Cancel</button>
                 </div>
               </div>

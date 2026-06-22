@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test, vi } from "vitest";
 
@@ -19,9 +19,12 @@ const getNetWorth = vi.fn().mockResolvedValue({
   ],
 });
 
+let mockPersonId: number | undefined = 1;
 vi.mock("@/lib/persona", () => ({
   usePersona: () => ({
-    persona: "you", personId: 1, label: "Ada",
+    persona: mockPersonId == null ? "joint" : "you",
+    personId: mockPersonId,
+    label: mockPersonId == null ? "Joint" : "Ada",
     people: [{ id: 1, name: "Ada" }, { id: 2, name: "Mara" }], setPersona: () => {},
   }),
 }));
@@ -35,7 +38,7 @@ vi.mock("@/lib/api", () => ({
 
 import NetWorth from "./NetWorth";
 
-afterEach(() => { addAccount.mockClear(); updateAccountBalance.mockClear(); deleteAccount.mockClear(); getReconciliation.mockClear(); });
+afterEach(() => { addAccount.mockClear(); updateAccountBalance.mockClear(); deleteAccount.mockClear(); getReconciliation.mockClear(); mockPersonId = 1; });
 
 test("renders the net worth total and accounts", async () => {
   render(<NetWorth />);
@@ -70,4 +73,19 @@ test("removing an account calls deleteAccount", async () => {
   const remove = screen.getAllByRole("button", { name: /remove/i });
   await userEvent.click(remove[0]);
   expect(deleteAccount).toHaveBeenCalledWith(1);
+});
+
+test("shows household breakdown rows in Joint view", async () => {
+  mockPersonId = undefined;
+  getNetWorth.mockResolvedValueOnce({
+    summary: { assets: 5000, liabilities: 0, net: 5000 }, delta: null, accounts: [], trend: [],
+    split: [
+      { person_id: 2, name: "Ido", net: 1000, assets: 1000, liabilities: 0 },
+      { person_id: 1, name: "Aviv", net: 4000, assets: 4000, liabilities: 0 },
+    ],
+  });
+  render(<NetWorth />);
+  const panel = await screen.findByLabelText("Household breakdown");
+  expect(within(panel).getByText("Ido")).toBeInTheDocument();
+  expect(within(panel).getByText("Aviv")).toBeInTheDocument();
 });
