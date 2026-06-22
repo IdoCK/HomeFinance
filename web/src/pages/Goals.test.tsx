@@ -10,6 +10,9 @@ const getGoals = vi.fn().mockResolvedValue([
   { id: 2, person_id: 1, name: "Vacation", target_amount: 5000, saved_amount: 5000, target_date: null, horizon: "short", notes: "", percent: 100, monthly_needed: null },
 ]);
 
+vi.mock("@/lib/currency", () => ({
+  useCurrency: () => ({ currency: "USD", setCurrency: () => {}, symbol: "$", format: (n: number) => `$${n}` }),
+}));
 vi.mock("@/lib/persona", () => ({
   usePersona: () => ({
     persona: "you", personId: 1, label: "Ada",

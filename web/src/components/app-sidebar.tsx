@@ -1,10 +1,11 @@
 import { NavLink } from "react-router-dom";
 import {
-  LayoutGrid, List, PieChart, RefreshCw, Target, TrendingUp, Tag,
+  LayoutGrid, List, BarChart3, PieChart, RefreshCw, Target, TrendingUp, Tag,
   Plus, Sparkles, Settings as SettingsIcon, type LucideIcon,
 } from "lucide-react";
 import { usePersona, type PersonaKey } from "@/lib/persona";
 import { useTheme } from "@/lib/theme";
+import { useCurrency, type Currency } from "@/lib/currency";
 
 type NavItem = { to: string; label: string; Icon: LucideIcon; important?: boolean };
 
@@ -12,6 +13,7 @@ type NavItem = { to: string; label: string; Icon: LucideIcon; important?: boolea
 const MONEY: NavItem[] = [
   { to: "/", label: "Overview", Icon: LayoutGrid },
   { to: "/transactions", label: "Transactions", Icon: List },
+  { to: "/analysis", label: "Analysis", Icon: BarChart3 },
   { to: "/budgets", label: "Budgets", Icon: PieChart },
   { to: "/recurring", label: "Recurring", Icon: RefreshCw },
   { to: "/goals", label: "Goals", Icon: Target },
@@ -33,6 +35,11 @@ const PERSONA_KEYS: { key: PersonaKey; dot: string }[] = [
 export function AppSidebar() {
   const { persona, setPersona, names } = usePersona();
   const { theme, toggle } = useTheme();
+  const { currency, setCurrency } = useCurrency();
+  const CURRENCIES: { key: Currency; label: string }[] = [
+    { key: "USD", label: "$ USD" },
+    { key: "ILS", label: "₪ ILS" },
+  ];
   const text = (k: PersonaKey) => (k === "you" ? names.you : k === "spouse" ? names.spouse : "Joint");
 
   return (
@@ -66,6 +73,27 @@ export function AppSidebar() {
             >
               <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.dot }} />
               {text(p.key)}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Display-currency segmented switch (sibling of the persona switch) */}
+      <div role="tablist" aria-label="Display currency" style={{ display: "flex", gap: 4, background: "#EEF0F3", borderRadius: 14, padding: 4, margin: "0 2px 16px" }}>
+        {CURRENCIES.map((c) => {
+          const active = currency === c.key;
+          return (
+            <button
+              key={c.key} role="tab" aria-selected={active} onClick={() => setCurrency(c.key)}
+              style={{
+                flex: 1, fontSize: 11.5, fontWeight: 600, padding: "7px 0", borderRadius: 10,
+                border: "none", cursor: "pointer",
+                background: active ? "#fff" : "transparent",
+                color: active ? "var(--fl-ink)" : "var(--fl-muted)",
+                boxShadow: active ? "0 2px 8px -2px rgba(22,24,29,.18)" : "none",
+              }}
+            >
+              {c.label}
             </button>
           );
         })}

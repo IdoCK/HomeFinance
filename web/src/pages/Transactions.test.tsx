@@ -12,6 +12,9 @@ const ROWS = [
   { id: 3, person_id: 1, date: "2026-05-05", description: "Netflix", amount: -15.99, category: "Subscriptions", source: "card", included: 1, balance: null, person: "Ada" },
 ];
 
+vi.mock("@/lib/currency", () => ({
+  useCurrency: () => ({ currency: "USD", setCurrency: () => {}, symbol: "$", format: (n: number) => `$${n}` }),
+}));
 vi.mock("@/lib/persona", () => ({
   usePersona: () => ({
     persona: "you", personId: 1, label: "Ada",
