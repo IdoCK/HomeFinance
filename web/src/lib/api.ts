@@ -395,8 +395,8 @@ export type CategoryTrend = {
   series: { name: string; values: number[]; total: number }[];
 };
 
-export const getCategoryTrend = (p: { personId?: number; rollup?: boolean; filters?: AnalysisFilters }) =>
-  apiGet<CategoryTrend>(`/analysis/category-trend${analysisQuery(p.personId, p.filters, { rollup: p.rollup ? "true" : undefined })}`);
+export const getCategoryTrend = (p: { personId?: number; rollup?: boolean; filters?: AnalysisFilters; display?: Currency }) =>
+  apiGet<CategoryTrend>(`/analysis/category-trend${analysisQuery(p.personId, p.filters, { rollup: p.rollup ? "true" : undefined, display: p.display })}`);
 
 export type DrillItem = { name: string; value: number };
 export type DrillRow = { date: string; description: string; amount: number; category: string };
@@ -408,9 +408,10 @@ export const getDrill = (p: {
   cat?: string;
   vendor?: string;
   filters?: AnalysisFilters;
+  display?: Currency;
 }) =>
   apiGet<DrillResult>(
-    `/analysis/drill${analysisQuery(p.personId, p.filters, { level: p.level, cat: p.cat, vendor: p.vendor })}`,
+    `/analysis/drill${analysisQuery(p.personId, p.filters, { level: p.level, cat: p.cat, vendor: p.vendor, display: p.display })}`,
   );
 
 export type ComparePreset = "weekdays_weekends" | "month_vs_month";
@@ -429,9 +430,10 @@ export const getCompare = (p: {
   preset: ComparePreset;
   metric: CompareMetric;
   filters?: AnalysisFilters;
+  display?: Currency;
 }) =>
   apiGet<CompareResult>(
-    `/analysis/compare${analysisQuery(p.personId, p.filters, { preset: p.preset, metric: p.metric })}`,
+    `/analysis/compare${analysisQuery(p.personId, p.filters, { preset: p.preset, metric: p.metric, display: p.display })}`,
   );
 
 export type OverlapPerson = { id: number; name: string; spend: number; categories: number };
@@ -444,8 +446,8 @@ export type OverlapResult = {
   rows: OverlapRow[];
 };
 
-export const getOverlap = (p: { filters?: AnalysisFilters } = {}) =>
-  apiGet<OverlapResult>(`/analysis/overlap${analysisQuery(undefined, p.filters)}`);
+export const getOverlap = (p: { filters?: AnalysisFilters; display?: Currency } = {}) =>
+  apiGet<OverlapResult>(`/analysis/overlap${analysisQuery(undefined, p.filters, { display: p.display })}`);
 
 export const getEvents = (personId?: number) =>
   apiGet<FinanceEvent[]>("/events", { person_id: personId });

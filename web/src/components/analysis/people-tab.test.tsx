@@ -3,6 +3,9 @@ import { afterEach, expect, test, vi } from "vitest";
 
 const getOverlap = vi.fn();
 vi.mock("@/lib/api", () => ({ getOverlap: (...a: unknown[]) => getOverlap(...a) }));
+vi.mock("@/lib/currency", () => ({
+  useCurrency: () => ({ currency: "USD", setCurrency: () => {}, symbol: "$", format: (n: number) => `$${n}` }),
+}));
 
 import { PeopleTab } from "./people-tab";
 

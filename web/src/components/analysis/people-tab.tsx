@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getOverlap, type AnalysisFilters, type OverlapResult } from "@/lib/api";
 import { Kpi } from "@/components/kpi";
 import { formatMoney } from "@/components/money";
+import { useCurrency } from "@/lib/currency";
 import { DivergingBarChart } from "@/components/charts/diverging-bar-chart";
 import { Loading } from "@/components/loading";
 
@@ -9,16 +10,17 @@ import { Loading } from "@/components/loading";
  *  tornado, plus per-person totals and the count of mutually-spent categories.
  *  Wraps the engine's user_overlap; gated to the Joint view by the parent. */
 export function PeopleTab({ filters }: { filters: AnalysisFilters }) {
+  const { currency } = useCurrency();
   const [data, setData] = useState<OverlapResult | null>(null);
 
   useEffect(() => {
     let alive = true;
     setData(null);
-    getOverlap({ filters })
+    getOverlap({ filters, display: currency })
       .then((d) => alive && setData(d))
       .catch(() => alive && setData(null));
     return () => { alive = false; };
-  }, [filters]);
+  }, [filters, currency]);
 
   if (data == null) {
     return (

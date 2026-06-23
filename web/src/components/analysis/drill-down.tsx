@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { getDrill, type AnalysisFilters, type DrillResult } from "@/lib/api";
 import { Money, formatMoney } from "@/components/money";
+import { useCurrency } from "@/lib/currency";
 import { Loading } from "@/components/loading";
 
 /** Category → vendor → rows drill-down (the old Explore drill). Holds a small
  *  path: [] = categories, [cat] = vendors in that category, [cat, vendor] = the
  *  underlying rows. Clicking a ranked bar drills in; the breadcrumb climbs back. */
 export function DrillDown({ personId, filters }: { personId?: number; filters: AnalysisFilters }) {
+  const { currency } = useCurrency();
   const [path, setPath] = useState<string[]>([]);
   const [data, setData] = useState<DrillResult | null>(null);
 
@@ -19,11 +21,11 @@ export function DrillDown({ personId, filters }: { personId?: number; filters: A
     let alive = true;
     setData(null);
     const level = path.length === 0 ? "category" : path.length === 1 ? "vendor" : "rows";
-    getDrill({ personId, level, cat: path[0], vendor: path[1], filters })
+    getDrill({ personId, level, cat: path[0], vendor: path[1], filters, display: currency })
       .then((d) => alive && setData(d))
       .catch(() => alive && setData({ level, items: [], rows: [] }));
     return () => { alive = false; };
-  }, [personId, filters, path]);
+  }, [personId, filters, path, currency]);
 
   const crumbs = ["All categories", ...path];
   const max = Math.max(1, ...(data?.items ?? []).map((i) => i.value));
