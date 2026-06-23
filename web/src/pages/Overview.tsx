@@ -132,6 +132,22 @@ export default function Overview() {
         </Banner>
       )}
 
+      {data.safe_to_spend != null && (
+        <section className="frosted-card" aria-label="Safe to spend" style={{ padding: 18, display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "6px 20px" }}>
+          <div style={{ display: "grid", gap: 2 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fl-muted)" }}>
+              Safe to spend{!data.complete ? " (so far)" : ""}
+            </span>
+            <span data-testid="safe-to-spend" style={{ fontSize: 44, fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1 }}>
+              <Money value={data.safe_to_spend} colored />
+            </span>
+          </div>
+          <span style={{ fontSize: 12.5, color: "var(--fl-muted)", marginLeft: "auto" }}>
+            <Money value={data.income} /> in − <Money value={data.committed} /> committed − <Money value={data.discretionary_spent} /> spent
+          </span>
+        </section>
+      )}
+
       {data.alerts.length > 0 && (
         <section aria-label="Spending alerts" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {data.alerts.map((a) => {

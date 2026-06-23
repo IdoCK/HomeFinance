@@ -17,6 +17,8 @@ const base = {
   income: 5000, spend: 2400, net: 2600, savings_rate: 0.52, complete: true,
   by_category: { Housing: 2000, Groceries: 300, "Eating out": 100 },
   alerts: [],
+  uncategorized: { count: 0, amount: 0 },
+  safe_to_spend: 4685, committed: 15, committed_spent: 15, discretionary_spent: 300,
 };
 
 afterEach(() => vi.restoreAllMocks());
@@ -29,6 +31,8 @@ test("renders headline numbers and category breakdown", async () => {
   expect(screen.getByTestId("spend")).toHaveTextContent("$2,400.00");
   expect(screen.getByText("52%")).toBeInTheDocument();
   expect(screen.getByText("Housing")).toBeInTheDocument();
+  // Safe-to-spend hero leads the page with the present-month answer.
+  expect(screen.getByTestId("safe-to-spend")).toHaveTextContent("$4,685.00");
 });
 
 test("partial month: shows an in-progress banner and guards the MoM delta", async () => {

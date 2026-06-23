@@ -61,6 +61,14 @@ export type Overview = {
   split: PersonSpend[] | null;
   /** Expense rows whose category is Uncategorized for the selected month. */
   uncategorized: { count: number; amount: number };
+  /** Income − expected committed obligations − discretionary already spent. */
+  safe_to_spend: number;
+  /** Expected monthly committed (recurring) obligations. */
+  committed: number;
+  /** This month's spend on recurring vendors (committed portion). */
+  committed_spent: number;
+  /** This month's spend that is not on recurring vendors. */
+  discretionary_spent: number;
 };
 
 export type FxRatesInfo = {

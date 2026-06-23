@@ -14,7 +14,9 @@ def _empty():
     return {"month": None, "months": [], "income": 0.0, "spend": 0.0, "net": 0.0,
             "savings_rate": None, "complete": False, "by_category": {},
             "alerts": [], "series": [], "split": None,
-            "uncategorized": {"count": 0, "amount": 0.0}}
+            "uncategorized": {"count": 0, "amount": 0.0},
+            "safe_to_spend": 0.0, "committed": 0.0,
+            "committed_spent": 0.0, "discretionary_spent": 0.0}
 
 
 def _scale(v, f):
@@ -65,6 +67,22 @@ def overview(person_id: Optional[int] = None, month: Optional[str] = None,
 
     by_category = {k: _scale(v, f) for k, v in analytics.category_totals(month_txns).items()}
 
+    # "Safe to spend" — the present-month answer to "are we okay?". Reserve ALL of
+    # this month's expected committed obligations (recurring bills, paid or not),
+    # then subtract discretionary already spent. The committed/discretionary split
+    # of this month's spend also powers the Overview spend bar (committed = spend on
+    # vendors detected as recurring). Computed in USD base, scaled to display.
+    recurring = analytics.recurring_charges(txns)
+    committed = analytics.committed_monthly(recurring)  # {fixed, variable, total}
+    recurring_vendors = {r["vendor"] for r in recurring}
+    committed_spent_base = sum(
+        -(t.get("amount") or 0) for t in month_txns
+        if (t.get("amount") or 0) < 0
+        and analytics.vendor_of(t.get("description", "")) in recurring_vendors
+    )
+    discretionary_spent_base = max(0.0, sel["spend"] - committed_spent_base)
+    safe_to_spend_base = sel["income"] - committed["total"] - discretionary_spent_base
+
     # Uncategorized count: expense rows (amount < 0) whose category is Uncategorized/empty/None
     _unc_cats = {"Uncategorized", "", None}
     unc_count = sum(
@@ -94,4 +112,8 @@ def overview(person_id: Optional[int] = None, month: Optional[str] = None,
         "series": series,
         "split": split,
         "uncategorized": {"count": unc_count, "amount": unc_amount},
+        "safe_to_spend": _scale(safe_to_spend_base, f),
+        "committed": _scale(committed["total"], f),
+        "committed_spent": _scale(committed_spent_base, f),
+        "discretionary_spent": _scale(discretionary_spent_base, f),
     }
