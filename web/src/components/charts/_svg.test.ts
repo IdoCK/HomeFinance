@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { allocateDots, categoryColor, layout, layoutShared, scale, toPath } from "./_svg";
+import { allocateDots, barPct, categoryColor, divergingWidths, layout, layoutShared, scale, toPath } from "./_svg";
 
 test("scale maps value within range onto pixel size", () => {
   expect(scale(0, 0, 10, 100)).toBe(0);
@@ -60,4 +60,17 @@ test("allocateDots apportions proportionally and sums to total", () => {
 test("allocateDots handles all-zero / negative input without NaN", () => {
   expect(allocateDots([0, 0], 21)).toEqual([0, 0]);
   expect(allocateDots([-5, 0], 10)).toEqual([0, 0]);
+});
+
+test("barPct scales magnitude against a shared max and clamps", () => {
+  expect(barPct(50, 100)).toBe(50);
+  expect(barPct(-50, 100)).toBe(50); // magnitude
+  expect(barPct(200, 100)).toBe(100); // clamped
+  expect(barPct(5, 0)).toBe(0); // degenerate max
+});
+
+test("divergingWidths grows the correct half around the center axis", () => {
+  expect(divergingWidths(40, 100)).toEqual({ left: 0, right: 40 });
+  expect(divergingWidths(-40, 100)).toEqual({ left: 40, right: 0 });
+  expect(divergingWidths(0, 100)).toEqual({ left: 0, right: 0 });
 });

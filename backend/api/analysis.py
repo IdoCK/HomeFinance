@@ -162,3 +162,67 @@ def drill(
 
     items = [{"name": str(k), "value": float(v)} for k, v in data.items()]
     return {"level": level, "items": items, "rows": []}
+
+
+@router.get("/compare")
+def compare(
+    person_id: Optional[int] = None,
+    preset: str = "weekdays_weekends",
+    metric: str = "spend",
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    day_type: Optional[str] = None,
+    dow: Optional[list[int]] = Query(None),
+    months: Optional[list[str]] = Query(None),
+    categories: Optional[list[str]] = Query(None),
+    event_id: Optional[int] = None,
+):
+    """Two-bucket spend comparison (the old Compare tab). `preset` picks the split:
+    'weekdays_weekends' or 'month_vs_month' (the two most recent months in range).
+    `metric` selects the surfaced value — 'spend' (bucket totals) or 'per_day'
+    (totals over the bucket's matching calendar-day count, making unequal windows
+    comparable). The shared filter bar narrows the universe first; the preset then
+    splits that into bucket A vs B. Returns grouped-bar-ready data:
+    {buckets:[{label,total,per_day,n_days}×2], labels:{a,b}, categories:[{name,a,b}]}."""
+    txns = db.get_transactions(person_id)
+    kw = _filters(date_from=date_from, date_to=date_to, day_type=day_type, dow=dow,
+                  months=months, categories=categories,
+                  event=_event(person_id, event_id))
+    if kw:
+        txns = analytics.filter_transactions(txns, **kw)
+
+    if preset == "month_vs_month":
+        present = sorted({(t.get("date") or "")[:7] for t in txns if t.get("date")})
+        latest = present[-1] if present else None
+        prev = present[-2] if len(present) >= 2 else None
+        group_a = {"label": latest or "—", "months": [latest] if latest else ["—"]}
+        group_b = {"label": prev or "—", "months": [prev] if prev else ["—"]}
+    else:
+        preset = "weekdays_weekends"
+        group_a = {"label": "Weekdays", "day_types": ["weekday"]}
+        group_b = {"label": "Weekends", "day_types": ["weekend"]}
+
+    df = analytics.compare(txns, group_a, group_b, metric="spend")
+    records = [] if df.empty else df.to_dict("records")
+    val_key = "per_day" if metric == "per_day" else "total"
+
+    buckets = []
+    for g in (group_a, group_b):
+        rows = [r for r in records if r["bucket"] == g["label"]]
+        total = float(sum(r["total"] for r in rows))
+        n_days = int(rows[0]["n_days"]) if rows else 0
+        buckets.append({"label": g["label"], "total": round(total, 2),
+                        "per_day": round(total / n_days, 2) if n_days else 0.0,
+                        "n_days": n_days})
+
+    cats: dict = {}
+    for r in records:
+        c = cats.setdefault(r["category"], {"name": r["category"], "a": 0.0, "b": 0.0, "combined": 0.0})
+        c["a" if r["bucket"] == group_a["label"] else "b"] = float(r[val_key])
+        c["combined"] += float(r["total"])
+    ranked = sorted(cats.values(), key=lambda c: c["combined"], reverse=True)
+    categories = [{"name": c["name"], "a": round(c["a"], 2), "b": round(c["b"], 2)} for c in ranked]
+
+    return {"preset": preset, "metric": metric, "buckets": buckets,
+            "labels": {"a": group_a["label"], "b": group_b["label"]},
+            "categories": categories}

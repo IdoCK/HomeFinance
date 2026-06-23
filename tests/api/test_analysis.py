@@ -89,3 +89,46 @@ def test_drill_rows_leaf(client, seeded):
     assert {r["amount"] for r in d["rows"]} == {-300.0, -250.0}
     # newest first
     assert d["rows"][0]["date"] >= d["rows"][1]["date"]
+
+
+def test_compare_month_vs_month(client, seeded):
+    # Seeded spans 2026-04 and 2026-05. Bucket A = most recent month, B = previous.
+    d = client.get("/api/analysis/compare",
+                   params={"person_id": seeded, "preset": "month_vs_month", "metric": "spend"}).json()
+    assert d["preset"] == "month_vs_month"
+    assert [b["label"] for b in d["buckets"]] == ["2026-05", "2026-04"]
+    totals = {b["label"]: b["total"] for b in d["buckets"]}
+    assert totals["2026-05"] == 2250.0   # Housing 2000 + Groceries 250
+    assert totals["2026-04"] == 2300.0   # Housing 2000 + Groceries 300
+    cats = {c["name"]: c for c in d["categories"]}
+    assert cats["Housing"]["a"] == 2000.0 and cats["Housing"]["b"] == 2000.0
+    assert cats["Groceries"]["a"] == 250.0 and cats["Groceries"]["b"] == 300.0
+    assert d["categories"][0]["name"] == "Housing"  # biggest combined first
+
+
+def test_compare_weekdays_weekends(client, seeded):
+    # Apr 5 (Sun) + Apr 12 (Sun) are weekends; May 5 (Tue) + May 18 (Mon) weekdays.
+    d = client.get("/api/analysis/compare",
+                   params={"person_id": seeded, "preset": "weekdays_weekends", "metric": "spend"}).json()
+    assert d["labels"] == {"a": "Weekdays", "b": "Weekends"}
+    totals = {b["label"]: b["total"] for b in d["buckets"]}
+    assert totals["Weekdays"] == 2250.0   # May rows
+    assert totals["Weekends"] == 2300.0   # April rows
+    cats = {c["name"]: c for c in d["categories"]}
+    assert cats["Groceries"]["a"] == 250.0  # weekday Groceries (May 18)
+    assert cats["Groceries"]["b"] == 300.0  # weekend Groceries (Apr 12)
+
+
+def test_compare_per_day_metric(client, seeded):
+    d = client.get("/api/analysis/compare",
+                   params={"person_id": seeded, "preset": "weekdays_weekends", "metric": "per_day"}).json()
+    assert d["metric"] == "per_day"
+    for b in d["buckets"]:
+        assert b["n_days"] > 0
+        assert b["per_day"] == pytest.approx(b["total"] / b["n_days"], abs=0.01)
+
+
+def test_compare_empty(client, people):
+    d = client.get("/api/analysis/compare", params={"person_id": people[0]["id"]}).json()
+    assert d["categories"] == []
+    assert all(b["total"] == 0 for b in d["buckets"])

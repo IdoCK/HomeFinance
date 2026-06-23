@@ -379,6 +379,27 @@ export const getDrill = (p: {
     `/analysis/drill${analysisQuery(p.personId, p.filters, { level: p.level, cat: p.cat, vendor: p.vendor })}`,
   );
 
+export type ComparePreset = "weekdays_weekends" | "month_vs_month";
+export type CompareMetric = "spend" | "per_day";
+export type CompareBucket = { label: string; total: number; per_day: number; n_days: number };
+export type CompareResult = {
+  preset: ComparePreset;
+  metric: CompareMetric;
+  buckets: CompareBucket[];
+  labels: { a: string; b: string };
+  categories: { name: string; a: number; b: number }[];
+};
+
+export const getCompare = (p: {
+  personId?: number;
+  preset: ComparePreset;
+  metric: CompareMetric;
+  filters?: AnalysisFilters;
+}) =>
+  apiGet<CompareResult>(
+    `/analysis/compare${analysisQuery(p.personId, p.filters, { preset: p.preset, metric: p.metric })}`,
+  );
+
 export const getEvents = (personId?: number) =>
   apiGet<FinanceEvent[]>("/events", { person_id: personId });
 export const createEvent = (e: { personId?: number; name: string; kind: string }) =>

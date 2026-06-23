@@ -70,6 +70,21 @@ export function categoryColor(i: number): string {
   return CATEGORY_COLORS[i % CATEGORY_COLORS.length];
 }
 
+/** Percentage width [0,100] of `value` against a shared `max` — for the div-based
+ *  grouped/diverging bars. Negative values use their magnitude; clamps to the track. */
+export function barPct(value: number, max: number): number {
+  if (max <= 0) return 0;
+  return round(Math.max(0, Math.min(1, Math.abs(value) / max)) * 100);
+}
+
+/** Split a signed value into the two halves of a diverging (tornado) bar around a
+ *  center axis: negative grows the left half, positive the right, each [0,100] of
+ *  its half-track. Used by the People per-category breakdown. */
+export function divergingWidths(value: number, max: number): { left: number; right: number } {
+  const pct = barPct(value, max);
+  return value < 0 ? { left: pct, right: 0 } : { left: 0, right: pct };
+}
+
 /** SVG path through points. `smooth` uses Catmull-Rom→cubic-bezier for a gentle
  *  curve; otherwise straight segments. */
 export function toPath(points: Pt[], smooth = false): string {

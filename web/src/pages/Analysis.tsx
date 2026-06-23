@@ -10,6 +10,7 @@ import { CardHeaderRow } from "@/components/ui/card";
 import { FilterBar } from "@/components/filter-bar";
 import { LineChart } from "@/components/charts/line-chart";
 import { DrillDown } from "@/components/analysis/drill-down";
+import { CompareTab } from "@/components/analysis/compare-tab";
 import { Loading } from "@/components/loading";
 
 const CARD: React.CSSProperties = { padding: 16 };
@@ -109,7 +110,7 @@ export default function Analysis() {
               <ExploreTab personId={personId} filters={filters} />
             </TabsContent>
             <TabsContent value="compare" style={{ marginTop: 12 }}>
-              <ComingSoon what="Compare weekdays vs weekends, or month vs month — coming next." />
+              <CompareTab personId={personId} filters={filters} />
             </TabsContent>
             <TabsContent value="people" style={{ marginTop: 12 }}>
               {persona === "joint"
