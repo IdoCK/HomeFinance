@@ -95,9 +95,13 @@ def reconcile(person_id: Optional[int] = None):
         if fh is None:
             continue  # skip transactions with no associated import file
         # Derive the statement currency from the first row that has one.
+        # If no row carries a currency the statement cannot be labeled — skip it
+        # rather than silently mislabeling it as USD.
         currency = next(
-            (r.get("currency") for r in rows if r.get("currency")), "USD"
+            (r.get("currency") for r in rows if r.get("currency")), None
         )
+        if currency is None:
+            continue
         result = analytics.reconcile(rows, currency=currency)
         if result is None:
             continue  # no running-balance data — not reconcilable

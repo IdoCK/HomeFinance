@@ -237,7 +237,7 @@ export default function NetWorth() {
               fontWeight: 700, fontSize: 13,
               color: stmt.ok ? "#22C55E" : "#EF4444",
             }}>
-              {stmt.ok ? "✓ Ties out" : `⚠ Off by ${formatMoney(Math.abs(stmt.discrepancy), stmt.currency)}`}
+              {stmt.ok ? "✓ Ties out" : <><span>⚠ Off by </span><Money value={Math.abs(stmt.discrepancy)} currency={stmt.currency} /></>}
             </span>
           </div>
           <div style={{ color: "var(--fl-muted)", fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
