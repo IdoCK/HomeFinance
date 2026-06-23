@@ -59,6 +59,8 @@ export type Overview = {
   series: OverviewSeriesPoint[];
   /** Joint-only per-person spend for the selected month; null in single-persona view. */
   split: PersonSpend[] | null;
+  /** Expense rows whose category is Uncategorized for the selected month. */
+  uncategorized: { count: number; amount: number };
 };
 
 export type FxRatesInfo = {

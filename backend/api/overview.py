@@ -13,7 +13,8 @@ router = APIRouter(prefix="/overview", tags=["overview"])
 def _empty():
     return {"month": None, "months": [], "income": 0.0, "spend": 0.0, "net": 0.0,
             "savings_rate": None, "complete": False, "by_category": {},
-            "alerts": [], "series": [], "split": None}
+            "alerts": [], "series": [], "split": None,
+            "uncategorized": {"count": 0, "amount": 0.0}}
 
 
 def _scale(v, f):
@@ -63,6 +64,17 @@ def overview(person_id: Optional[int] = None, month: Optional[str] = None,
             split.append({"person_id": p["id"], "name": p["name"], "spend": float(spend)})
 
     by_category = {k: _scale(v, f) for k, v in analytics.category_totals(month_txns).items()}
+
+    # Uncategorized count: expense rows (amount < 0) whose category is Uncategorized/empty/None
+    _unc_cats = {"Uncategorized", "", None}
+    unc_count = sum(
+        1 for t in month_txns
+        if t.get("category") in _unc_cats and (t.get("amount") or 0) < 0
+    )
+    # Uncategorized amount: use category_totals so it is identical to by_category["Uncategorized"]
+    unc_amount_base = analytics.category_totals(month_txns).get("Uncategorized", 0.0)
+    unc_amount = _scale(unc_amount_base, f)
+
     series = [{**p, "income": _scale(p["income"], f), "spend": _scale(p["spend"], f),
                "net": _scale(p["net"], f)} for p in series]
     if split is not None:
@@ -81,4 +93,5 @@ def overview(person_id: Optional[int] = None, month: Optional[str] = None,
         "alerts": alerts,
         "series": series,
         "split": split,
+        "uncategorized": {"count": unc_count, "amount": unc_amount},
     }
