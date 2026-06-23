@@ -34,10 +34,20 @@ vi.mock("@/lib/api", () => ({
 }));
 
 import Settings from "./Settings";
+import { getAssumedReturn } from "@/lib/prefs";
 
 afterEach(() => {
   renamePerson.mockClear(); upsertCategory.mockClear(); deleteCategory.mockClear();
   upsertVendor.mockClear(); deleteVendor.mockClear();
+});
+
+test("editing the assumed annual return persists it for projections", async () => {
+  render(<Settings />);
+  const input = await screen.findByLabelText("Assumed annual return percent");
+  await userEvent.clear(input);
+  await userEvent.type(input, "9");
+  await userEvent.tab();
+  expect(getAssumedReturn()).toBeCloseTo(0.09, 5);
 });
 
 test("renders a Money section with a currency control", async () => {

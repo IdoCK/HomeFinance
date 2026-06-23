@@ -258,6 +258,18 @@ export type NetWorthData = {
 export const getNetWorth = (p: { personId?: number; display?: Currency }) =>
   apiGet<NetWorthData>("/networth", { person_id: p.personId, display: p.display });
 
+export type ProjectionPoint = { month: number; linear: number; compounding: number };
+export type NetWorthProjection = {
+  annual_return: number;
+  monthly_savings: number;
+  current_net: number;
+  points: ProjectionPoint[];
+};
+export const getNetWorthProjection = (p: { personId?: number; display?: Currency; annualReturn?: number; years?: number }) =>
+  apiGet<NetWorthProjection>("/networth/projection", {
+    person_id: p.personId, display: p.display, annual_return: p.annualReturn, years: p.years,
+  });
+
 export type StatementReconciliation = {
   filename: string;
   currency: Currency;

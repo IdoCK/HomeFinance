@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { pillStyle as pill } from "@/lib/ui";
-import { getNetWorth, addAccount, updateAccountBalance, deleteAccount, getReconciliation, getAccountHistory, getAccountImports, recordAccountSnapshot, populateFromStatements, type Account, type AccountSnapshot, type StatementImport, type NetWorthData, type ReconciliationResult, type StatementReconciliation } from "@/lib/api";
+import { getNetWorth, getNetWorthProjection, addAccount, updateAccountBalance, deleteAccount, getReconciliation, getAccountHistory, getAccountImports, recordAccountSnapshot, populateFromStatements, type Account, type AccountSnapshot, type StatementImport, type NetWorthData, type NetWorthProjection, type ReconciliationResult, type StatementReconciliation } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { useCurrency } from "@/lib/currency";
+import { getAssumedReturn } from "@/lib/prefs";
 import { Money, formatMoney } from "@/components/money";
 import { Sparkline } from "@/components/charts/sparkline";
 import { AreaChart } from "@/components/charts/area-chart";
+import { LineChart } from "@/components/charts/line-chart";
 import { Loading } from "@/components/loading";
 
 const NET_WORTH_MILESTONES = [100_000, 250_000, 500_000, 1_000_000];
@@ -13,6 +15,48 @@ const monthLabel = (iso: string) => {
   const [y, m] = iso.split("-").map(Number);
   return new Date(y, (m || 1) - 1, 1).toLocaleDateString(undefined, { month: "short" });
 };
+const kfmt = (n: number) => (Math.abs(n) >= 1000 ? `$${Math.round(n / 1000)}k` : `$${Math.round(n)}`);
+
+/** "Where you're headed": today's net worth + average monthly savings projected
+ *  forward, with returns (compounding) vs contributions only (linear). Yearly
+ *  resolution so the x-axis stays legible; milestone reference lines for context. */
+function ProjectionCard({ p }: { p: NetWorthProjection }) {
+  const yearly = p.points.filter((pt) => pt.month % 12 === 0);
+  if (yearly.length === 0) return null;
+  const labels = ["now", ...yearly.map((pt) => `${pt.month / 12}y`)];
+  const comp = [p.current_net, ...yearly.map((pt) => pt.compounding)];
+  const lin = [p.current_net, ...yearly.map((pt) => pt.linear)];
+  const finalComp = comp[comp.length - 1];
+  const years = yearly[yearly.length - 1].month / 12;
+  const ratePct = Math.round(p.annual_return * 100);
+  return (
+    <section className="frosted-card" aria-label="Net worth projection" style={{ padding: 20, display: "grid", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fl-muted)" }}>Projection</span>
+        <span data-testid="projection-headline" style={{ fontSize: 13, color: "var(--fl-ink)" }}>
+          ~<Money value={finalComp} /> in {years} years
+        </span>
+        <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--fl-muted)" }}>
+          {formatMoney(p.monthly_savings)}/mo · {ratePct}% assumed return
+        </span>
+      </div>
+      <LineChart
+        labels={labels}
+        series={[
+          { name: `with ~${ratePct}% returns`, values: comp, color: "var(--persona-solid)" },
+          { name: "contributions only", values: lin, color: "var(--fl-muted)" },
+        ]}
+        refLines={NET_WORTH_MILESTONES.map((m) => ({ value: m, label: kfmt(m), color: "var(--saved)" }))}
+        valueFormat={kfmt}
+        height={150}
+        ariaLabel="Projected net worth — with returns vs contributions only"
+      />
+      <span style={{ fontSize: 11.5, color: "var(--fl-muted)" }}>
+        Assumes a {ratePct}% annual return on today's balance and your average monthly savings — an estimate, editable in Settings.
+      </span>
+    </section>
+  );
+}
 
 const KINDS = ["checking", "savings", "investment", "property", "credit_card", "loan", "other"];
 const LIABILITY_KINDS = new Set(["credit_card", "loan"]);
@@ -150,6 +194,7 @@ export default function NetWorth() {
   const { personId, label } = usePersona();
   const { currency } = useCurrency();
   const [data, setData] = useState<NetWorthData | null>(null);
+  const [proj, setProj] = useState<NetWorthProjection | null>(null);
   const [recon, setRecon] = useState<ReconciliationResult | null>(null);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
@@ -164,6 +209,10 @@ export default function NetWorth() {
   useEffect(() => {
     getReconciliation(personId).then(setRecon).catch(() => setRecon(null));
   }, [personId]);
+  useEffect(() => {
+    getNetWorthProjection({ personId, display: currency, annualReturn: getAssumedReturn() })
+      .then(setProj).catch(() => setProj(null));
+  }, [personId, currency]);
 
   const commitBalance = (a: Account, value: string) => {
     const next = Number(value);
@@ -223,6 +272,8 @@ export default function NetWorth() {
           <div style={{ color: "var(--fl-muted)", fontSize: 13 }}>Add a second snapshot to see a trend.</div>
         )}
       </section>
+
+      {proj && proj.points.length > 0 && <ProjectionCard p={proj} />}
 
       {personId == null && split && split.length > 0 && (
         <section className="frosted-card" aria-label="Household breakdown" style={{ padding: 20, display: "grid", gap: 10 }}>

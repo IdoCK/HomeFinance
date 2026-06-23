@@ -9,6 +9,7 @@ import {
 } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { useCurrency, type Currency } from "@/lib/currency";
+import { getAssumedReturn, setAssumedReturn } from "@/lib/prefs";
 
 const h2: CSSProperties = { fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--fl-muted)", margin: 0 };
 
@@ -138,6 +139,20 @@ export default function Settings() {
           {fx && fx.count > 0
             ? `Rates: ${fx.source ?? "—"}, last fetched ${fx.last_fetched ?? "never"} · ${fx.count} cached`
             : "No exchange rates cached yet. Importing a non-USD statement fetches the rate it needs."}
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", borderTop: "1px solid var(--fl-line)", paddingTop: 12 }}>
+          <span style={{ fontSize: 13, color: "var(--fl-muted)" }}>Assumed annual return (net-worth projection)</span>
+          <input
+            type="number"
+            aria-label="Assumed annual return percent"
+            defaultValue={Math.round(getAssumedReturn() * 100)}
+            onBlur={(e) => {
+              const pct = Number(e.target.value);
+              if (Number.isFinite(pct) && pct >= 0) setAssumedReturn(pct / 100);
+            }}
+            style={{ ...pill, width: 80, textAlign: "right" }}
+          />
+          <span style={{ fontSize: 13, color: "var(--fl-muted)" }}>% · an estimate, not a guarantee</span>
         </div>
       </section>
 

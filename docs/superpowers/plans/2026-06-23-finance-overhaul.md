@@ -336,5 +336,5 @@ Surface Task 1.7 untracked count (with the existing clear action) on Settings/Im
 - Top-categories dot-matrix duplication (Med) → **5.6**
 
 ## Open decisions (resolve at execution)
-1. **Historical FX at snapshot** (Task 4.7): store the as-of rate on each balance snapshot vs reprice the whole trend at today's rate. Repricing distorts the ₪ partner's trajectory; storing as-of is correct but a schema add. Default recommendation: store as-of rate going forward, leave existing snapshots repriced with a caveat.
-2. **Assumed return rate default** (Task 4.4): 7% nominal as a user-editable assumption; surfaced in Settings.
+1. **Historical FX at snapshot** (Task 4.7): store the as-of rate on each balance snapshot vs reprice the whole trend at today's rate. **RESOLVED 2026-06-23: store the as-of rate** — add an FX-rate column on `balance_snapshots`, captured at write time; existing rows fall back to today's rate with a caveat.
+2. **Assumed return rate default** (Task 4.4): 7% nominal as a user-editable assumption; surfaced in Settings. **RESOLVED 2026-06-23: persist in localStorage** (frontend-only, per-device) — Settings writes it, NetWorth reads it and passes it to `/networth/projection`. No engine schema change.

@@ -10,6 +10,7 @@ const getAccountHistory = vi.fn().mockResolvedValue({ snapshots: [] });
 const getAccountImports = vi.fn().mockResolvedValue({ imports: [] });
 const recordAccountSnapshot = vi.fn().mockResolvedValue({ ok: true });
 const populateFromStatements = vi.fn().mockResolvedValue({ ok: true, recorded: 2 });
+const getNetWorthProjection = vi.fn().mockResolvedValue({ annual_return: 0.07, monthly_savings: 0, current_net: 25000, points: [] });
 const getNetWorth = vi.fn().mockResolvedValue({
   summary: { assets: 30000, liabilities: 5000, net: 25000 },
   delta: 2000,
@@ -37,6 +38,7 @@ vi.mock("@/lib/persona", () => ({
 }));
 vi.mock("@/lib/api", () => ({
   getNetWorth: (...a: unknown[]) => getNetWorth(...a),
+  getNetWorthProjection: (...a: unknown[]) => getNetWorthProjection(...a),
   addAccount: (...a: unknown[]) => addAccount(...a),
   updateAccountBalance: (...a: unknown[]) => updateAccountBalance(...a),
   deleteAccount: (...a: unknown[]) => deleteAccount(...a),
@@ -49,7 +51,7 @@ vi.mock("@/lib/api", () => ({
 
 import NetWorth from "./NetWorth";
 
-afterEach(() => { addAccount.mockClear(); updateAccountBalance.mockClear(); deleteAccount.mockClear(); getReconciliation.mockClear(); getAccountHistory.mockReset(); getAccountHistory.mockResolvedValue({ snapshots: [] }); getAccountImports.mockClear(); recordAccountSnapshot.mockClear(); populateFromStatements.mockClear(); mockPersonId = 1; });
+afterEach(() => { addAccount.mockClear(); updateAccountBalance.mockClear(); deleteAccount.mockClear(); getReconciliation.mockClear(); getAccountHistory.mockReset(); getAccountHistory.mockResolvedValue({ snapshots: [] }); getAccountImports.mockClear(); recordAccountSnapshot.mockClear(); populateFromStatements.mockClear(); getNetWorthProjection.mockClear(); getNetWorthProjection.mockResolvedValue({ annual_return: 0.07, monthly_savings: 0, current_net: 25000, points: [] }); mockPersonId = 1; });
 
 test("renders the net worth total and accounts", async () => {
   render(<NetWorth />);
@@ -73,6 +75,17 @@ test("net-worth trend shows dated axis labels and milestone markers", async () =
   expect(container.querySelectorAll("[data-milestone]").length).toBeGreaterThanOrEqual(2);
   expect(screen.getByText("Jan")).toBeInTheDocument();
   expect(screen.getByText("Jun")).toBeInTheDocument();
+});
+
+test("renders a net-worth projection card (with vs without returns)", async () => {
+  getNetWorthProjection.mockResolvedValueOnce({
+    annual_return: 0.07, monthly_savings: 2000, current_net: 25000,
+    points: Array.from({ length: 120 }, (_, i) => ({ month: i + 1, linear: 25000 + 2000 * (i + 1), compounding: 25000 + 2200 * (i + 1) })),
+  });
+  render(<NetWorth />);
+  await waitFor(() => expect(screen.getByLabelText("Net worth projection")).toBeInTheDocument());
+  expect(screen.getByTestId("projection-headline")).toHaveTextContent("in 10 years");
+  expect(screen.getByText(/7% assumed return/i)).toBeInTheDocument();
 });
 
 test("renders a per-account balance sparkline when history has 2+ snapshots", async () => {

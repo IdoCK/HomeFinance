@@ -68,6 +68,42 @@ def get_networth(person_id: Optional[int] = None, display: str = "USD"):
             "trend": trend, "split": split}
 
 
+@router.get("/projection")
+def projection(person_id: Optional[int] = None, display: str = "USD",
+               annual_return: float = 0.07, years: int = 10):
+    """Project net worth forward at an assumed annual return. `linear` ignores
+    returns (principal + average monthly savings); `compounding` grows at the
+    assumed rate. Average monthly savings is taken over complete months. Returns
+    no points when there's nothing to project (no net worth and no savings)."""
+    scope = _scope(person_id)
+    accounts = _accounts_to_base(db.list_accounts(scope))   # USD base
+    current_net = analytics.net_worth(accounts)["net"]
+
+    sav = analytics.monthly_savings(fx.base_txns(db.get_transactions(person_id)))
+    if sav.empty:
+        avg = 0.0
+    else:
+        complete = sav[sav["complete"]]
+        base = complete if not complete.empty else sav
+        avg = float(base["savings"].mean())
+
+    f = fx.display_factor(display) or 1.0
+    if current_net == 0 and avg <= 0:
+        points = []
+    else:
+        points = [
+            {"month": p["month"], "linear": round(p["linear"] * f, 2),
+             "compounding": round(p["compounding"] * f, 2)}
+            for p in analytics.net_worth_projection(current_net, avg, annual_return, months=years * 12)
+        ]
+    return {
+        "annual_return": annual_return,
+        "monthly_savings": round(avg * f, 2),
+        "current_net": round(current_net * f, 2),
+        "points": points,
+    }
+
+
 @router.get("/reconcile")
 def reconcile(person_id: Optional[int] = None):
     """Tie each bank statement out against its own running-balance column.

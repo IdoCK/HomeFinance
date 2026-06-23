@@ -481,6 +481,22 @@ def reconcile(rows, currency=None):
     return result
 
 
+def net_worth_projection(current_net, monthly_savings, annual_return, months=120):
+    """Project net worth forward `months`, contributing `monthly_savings` each
+    month. Returns [{month, linear, compounding}] (month = 1-based offset):
+    `linear` ignores investment returns (principal + contributions); `compounding`
+    grows the balance at a monthly rate derived from the nominal `annual_return`
+    and adds each month's contribution at month end."""
+    r = (1 + annual_return) ** (1 / 12) - 1
+    out = []
+    comp = float(current_net)
+    for m in range(1, months + 1):
+        comp = comp * (1 + r) + monthly_savings
+        linear = current_net + monthly_savings * m
+        out.append({"month": m, "linear": round(linear, 2), "compounding": round(comp, 2)})
+    return out
+
+
 def net_worth_trend(snapshots):
     """Step-series DataFrame[date, assets, liabilities, net] over every date that
     has a snapshot. Each account contributes its most-recent snapshot on or
