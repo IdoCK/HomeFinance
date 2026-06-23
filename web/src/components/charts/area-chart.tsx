@@ -1,5 +1,5 @@
 import { useId, useRef, useState, useEffect } from "react";
-import { axisTicks, layout, scale, toPath } from "./_svg";
+import { axisTicks, layout, scale, splitPartialPath, toPath } from "./_svg";
 import { formatMoney } from "@/components/money";
 
 export type AreaPoint = { label?: string; value: number };
@@ -24,6 +24,7 @@ export function AreaChart({
   className,
   showAxis = area,
   valueFormat = formatMoney,
+  partial,
 }: {
   points: AreaPoint[];
   accent?: string;
@@ -38,6 +39,9 @@ export function AreaChart({
   showAxis?: boolean;
   /** Format a numeric tick/value label. Defaults to formatMoney. */
   valueFormat?: (n: number) => string;
+  /** Per-point in-progress flag. The trailing run of `true` points renders as a
+   *  dashed segment ("this month isn't settled yet"). Defaults to all-complete. */
+  partial?: boolean[];
 }) {
   const containerRef = useRef<SVGSVGElement>(null);
   const [measuredW, setMeasuredW] = useState<number>(600);
@@ -61,7 +65,13 @@ export function AreaChart({
   const max = Math.max(0, ...values);
 
   const pts = layout(values, w, h, pad);
-  const line = toPath(pts, mode === "smooth");
+  const smooth = mode === "smooth";
+  const line = toPath(pts, smooth);
+  // Split the stroked line so the in-progress tail draws dashed.
+  const { solid: solidPts, partial: partialPts } = splitPartialPath(pts, partial);
+  const solidLine = toPath(solidPts, smooth);
+  const partialLine = toPath(partialPts, smooth);
+  const lastIsPartial = (partial?.[values.length - 1] ?? false) && values.length > 0;
   const areaPath =
     area && pts.length > 1
       ? `${line} L ${pts[pts.length - 1].x} ${h} L ${pts[0].x} ${h} Z`
@@ -141,12 +151,26 @@ export function AreaChart({
 
       {areaPath && <path d={areaPath} fill={`url(#${fillId})`} />}
       {areaPath && <path d={areaPath} fill={`url(#${hatchId})`} />}
-      {line && (
+      {solidLine && (
         <path
-          d={line}
+          d={solidLine}
           fill="none"
           stroke={accent}
           strokeWidth="2"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      )}
+      {/* In-progress tail: dashed so the month-not-yet-settled reads at a glance */}
+      {partialLine && (
+        <path
+          d={partialLine}
+          fill="none"
+          stroke={accent}
+          strokeWidth="2"
+          strokeDasharray="5 4"
+          strokeOpacity={0.85}
           strokeLinejoin="round"
           strokeLinecap="round"
           vectorEffect="non-scaling-stroke"
@@ -164,7 +188,7 @@ export function AreaChart({
           fontWeight="600"
           fontFamily="inherit"
         >
-          {valueFormat(lastVal)}
+          {valueFormat(lastVal)}{lastIsPartial ? " (so far)" : ""}
         </text>
       )}
     </svg>

@@ -72,6 +72,36 @@ test("path count stays equal to series count even with showAxis=true", () => {
   expect(container.querySelectorAll("path")).toHaveLength(2);
 });
 
+// ── Partial (in-progress month) marker ─────────────────────────────────────
+
+test("renders dashed partial segments when the last point is partial", () => {
+  const { container } = render(
+    <LineChart series={series} labels={["2026-04", "2026-05"]} partial={[false, true]} />
+  );
+  const dashed = Array.from(container.querySelectorAll("path")).filter((p) =>
+    p.getAttribute("stroke-dasharray")
+  );
+  expect(dashed.length).toBeGreaterThan(0);
+});
+
+test("partial column label surfaces a (so far) affordance", () => {
+  render(
+    <LineChart series={series} labels={["2026-04", "2026-05"]} partial={[false, true]} />
+  );
+  expect(screen.getByText(/so far/i)).toBeInTheDocument();
+});
+
+test("no dashed partial paths when partial omitted (path count = series count)", () => {
+  const { container } = render(
+    <LineChart series={series} labels={["2026-04", "2026-05"]} />
+  );
+  const dashed = Array.from(container.querySelectorAll("path")).filter((p) =>
+    p.getAttribute("stroke-dasharray")
+  );
+  expect(dashed).toHaveLength(0);
+  expect(container.querySelectorAll("path")).toHaveLength(2);
+});
+
 test("does not render gridlines or tick labels when showAxis=false", () => {
   const { container } = render(
     <LineChart series={series} labels={["2026-04", "2026-05"]} showAxis={false} />

@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { allocateDots, axisTicks, barPct, categoryColor, divergingWidths, layout, layoutShared, scale, toPath } from "./_svg";
+import { allocateDots, axisTicks, barPct, categoryColor, divergingWidths, layout, layoutShared, scale, splitPartialPath, toPath } from "./_svg";
 
 test("scale maps value within range onto pixel size", () => {
   expect(scale(0, 0, 10, 100)).toBe(0);
@@ -109,4 +109,35 @@ test("axisTicks all-negative domain returns sorted values including 0 as max bou
   expect(ticks).toContain(0);
   // Sorted ascending, no duplicates
   expect(ticks).toEqual([-300, 0]);
+});
+
+// splitPartialPath tests
+test("splitPartialPath returns all-solid when no partial flags given", () => {
+  const pts = [{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 2 }];
+  const { solid, partial } = splitPartialPath(pts);
+  expect(solid).toEqual(pts);
+  expect(partial).toEqual([]);
+});
+
+test("splitPartialPath splits at the first partial point, overlapping one to connect", () => {
+  const pts = [{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 2 }];
+  const { solid, partial } = splitPartialPath(pts, [false, false, true]);
+  // solid runs up to the last complete point …
+  expect(solid).toEqual([{ x: 0, y: 0 }, { x: 1, y: 1 }]);
+  // … and the partial suffix starts one point earlier so the dashed segment connects
+  expect(partial).toEqual([{ x: 1, y: 1 }, { x: 2, y: 2 }]);
+});
+
+test("splitPartialPath all-partial returns an empty solid prefix", () => {
+  const pts = [{ x: 0, y: 0 }, { x: 1, y: 1 }];
+  const { solid, partial } = splitPartialPath(pts, [true, true]);
+  expect(solid).toEqual([]);
+  expect(partial).toEqual(pts);
+});
+
+test("splitPartialPath with no partial=true flags is all-solid", () => {
+  const pts = [{ x: 0, y: 0 }, { x: 1, y: 1 }];
+  const { solid, partial } = splitPartialPath(pts, [false, false]);
+  expect(solid).toEqual(pts);
+  expect(partial).toEqual([]);
 });

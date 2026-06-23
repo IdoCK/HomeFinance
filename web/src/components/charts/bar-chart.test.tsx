@@ -77,3 +77,42 @@ test("zero-value bar renders as pos (not neg)", () => {
   const bar = container.querySelector("[data-sign]");
   expect(bar?.getAttribute("data-sign")).toBe("pos");
 });
+
+// ─── Partial (in-progress month) marker ───────────────────────────────────────
+
+test("partial bar renders a hatched fill and is flagged data-partial", () => {
+  const { container } = render(
+    <BarChart
+      series={[{ label: "May", value: 80 }, { label: "Jun", value: 40 }]}
+      partial={[false, true]}
+    />,
+  );
+
+  const partialBar = container.querySelector("[data-partial='true']") as HTMLElement;
+  expect(partialBar).toBeTruthy();
+  // Hatched = a repeating-linear-gradient overlay (the Frosted Ledger "provisional" cue)
+  expect(partialBar.style.backgroundImage).toContain("repeating-linear-gradient");
+
+  // The complete bar carries no partial flag.
+  const allBars = Array.from(container.querySelectorAll("[data-sign]"));
+  const nonPartial = allBars.filter((b) => b.getAttribute("data-partial") !== "true");
+  expect(nonPartial).toHaveLength(1);
+});
+
+test("partial bar surfaces a (so far) affordance", () => {
+  const { getByText } = render(
+    <BarChart
+      series={[{ label: "May", value: 80 }, { label: "Jun", value: 40 }]}
+      partial={[false, true]}
+    />,
+  );
+  expect(getByText(/so far/i)).toBeTruthy();
+});
+
+test("no partial markers when partial prop omitted (backward compatible)", () => {
+  const { container, queryByText } = render(
+    <BarChart series={[{ label: "May", value: 80 }, { label: "Jun", value: 40 }]} />,
+  );
+  expect(container.querySelector("[data-partial='true']")).toBeNull();
+  expect(queryByText(/so far/i)).toBeNull();
+});

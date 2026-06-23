@@ -117,6 +117,22 @@ export function axisTicks(min: number, max: number): number[] {
   return Array.from(set).sort((a, b) => a - b);
 }
 
+/** Split a points path into the settled (complete) prefix and the in-progress
+ *  (partial) suffix, for the dashed "month still in progress" treatment. A point
+ *  flagged partial marks the segment ARRIVING at it as in-progress; the suffix
+ *  therefore starts one point earlier so the dashed segment connects to the solid
+ *  line with no gap. With no flags (or none true) everything is solid. */
+export function splitPartialPath(
+  pts: Pt[],
+  partial?: boolean[],
+): { solid: Pt[]; partial: Pt[] } {
+  if (!partial || pts.length === 0) return { solid: pts, partial: [] };
+  const first = partial.findIndex(Boolean);
+  if (first === -1) return { solid: pts, partial: [] };
+  if (first === 0) return { solid: [], partial: pts };
+  return { solid: pts.slice(0, first), partial: pts.slice(first - 1) };
+}
+
 /** Largest-remainder apportionment: split `dots` across `values` proportionally,
  *  guaranteeing the result sums to `dots` exactly (when the total is positive). */
 export function allocateDots(values: number[], dots: number): number[] {

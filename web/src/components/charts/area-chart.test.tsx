@@ -86,6 +86,34 @@ test("accepts custom valueFormat prop", () => {
 // This test uses the all-zero series to exercise the actual degenerate case:
 // scale(0, 0, 0, inner) = inner/2 (midpoint). The removed guard would have
 // produced scale(0, 0, 1, inner) = 0 (bottom), causing misalignment.
+// ── Partial (in-progress month) marker ─────────────────────────────────────
+
+test("renders a dashed partial segment when the last point is partial", () => {
+  const { container } = render(
+    <AreaChart points={points} partial={[false, false, false, true]} />
+  );
+  const dashed = Array.from(container.querySelectorAll("path")).filter((p) =>
+    p.getAttribute("stroke-dasharray")
+  );
+  expect(dashed.length).toBeGreaterThan(0);
+});
+
+test("partial last-point value label includes a (so far) affordance", () => {
+  const { container } = render(
+    <AreaChart points={points} showAxis partial={[false, false, false, true]} />
+  );
+  const texts = Array.from(container.querySelectorAll("text")).map((t) => t.textContent ?? "");
+  expect(texts.some((t) => /so far/i.test(t))).toBe(true);
+});
+
+test("no dashed partial path when partial prop is omitted (backward compatible)", () => {
+  const { container } = render(<AreaChart points={points} />);
+  const dashed = Array.from(container.querySelectorAll("path")).filter((p) =>
+    p.getAttribute("stroke-dasharray")
+  );
+  expect(dashed).toHaveLength(0);
+});
+
 test("all-equal zero values: gridline y aligns with data point y", () => {
   const equalPoints = [{ value: 0 }, { value: 0 }];
   const { container } = render(<AreaChart points={equalPoints} showAxis />);

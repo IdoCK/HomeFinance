@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from "react";
-import { axisTicks, categoryColor, layoutShared, scale, toPath } from "./_svg";
+import { axisTicks, categoryColor, layoutShared, scale, splitPartialPath, toPath } from "./_svg";
 import { formatMoney } from "@/components/money";
 
 export type LineSeries = { name: string; values: number[]; color?: string; total?: number };
@@ -22,6 +22,7 @@ export function LineChart({
   ariaLabel = "Spending by category over time",
   showAxis = true,
   valueFormat = formatMoney,
+  partial,
 }: {
   series: LineSeries[];
   /** x-axis tick labels (one per data point); rendered beneath the plot. */
@@ -34,6 +35,9 @@ export function LineChart({
   showAxis?: boolean;
   /** Format a numeric tick/value label. Defaults to formatMoney. */
   valueFormat?: (n: number) => string;
+  /** Per-point (shared x) in-progress flag. The trailing run of `true` points
+   *  renders dashed for every series. Defaults to all-complete. */
+  partial?: boolean[];
 }) {
   const containerRef = useRef<SVGSVGElement>(null);
   const [measuredW, setMeasuredW] = useState<number>(600);
@@ -117,20 +121,38 @@ export function LineChart({
           );
         })}
 
-        {/* Series paths — one <path> per series; must stay as paths for the
-            existing test assertion path count === series count */}
-        {colored.map((s, i) => (
-          <path
-            key={s.name}
-            d={toPath(pts[i], mode === "smooth")}
-            fill="none"
-            stroke={s.color}
-            strokeWidth="2"
-            strokeLinejoin="round"
-            strokeLinecap="round"
-            vectorEffect="non-scaling-stroke"
-          />
-        ))}
+        {/* Series paths — one solid <path> per series (so the no-partial path
+            count stays === series count); a dashed sibling draws the in-progress
+            tail only when `partial` marks trailing points. */}
+        {colored.map((s, i) => {
+          const { solid, partial: tail } = splitPartialPath(pts[i], partial);
+          return (
+            <g key={s.name}>
+              <path
+                d={toPath(solid, mode === "smooth")}
+                fill="none"
+                stroke={s.color}
+                strokeWidth="2"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                vectorEffect="non-scaling-stroke"
+              />
+              {tail.length > 0 && (
+                <path
+                  d={toPath(tail, mode === "smooth")}
+                  fill="none"
+                  stroke={s.color}
+                  strokeWidth="2"
+                  strokeDasharray="5 4"
+                  strokeOpacity={0.85}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  vectorEffect="non-scaling-stroke"
+                />
+              )}
+            </g>
+          );
+        })}
 
         {/* Last-point value labels, one per series */}
         {showAxis &&
@@ -159,6 +181,9 @@ export function LineChart({
         {labels.map((l, i) => (
           <span key={`${l}-${i}`} style={{ flex: 1, textAlign: i === 0 ? "left" : i === labels.length - 1 ? "right" : "center" }}>
             {l.length > 7 ? l.slice(5) : l}
+            {(partial?.[i] ?? false) && (
+              <span style={{ display: "block", fontSize: 8, fontStyle: "italic", opacity: 0.85 }}>so far</span>
+            )}
           </span>
         ))}
       </div>
