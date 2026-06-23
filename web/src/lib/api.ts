@@ -191,6 +191,10 @@ export type Goal = {
   notes: string;
   percent: number;
   monthly_needed: number | null;
+  /** Pace status computed from avg monthly savings vs monthly_needed. Null when no pace info available. */
+  status: "ahead" | "on_track" | "behind" | "overdue" | null;
+  /** ISO date string: projected month of goal completion based on current savings rate. Null when unknown or already complete. */
+  projected_completion: string | null;
 };
 
 export const getGoals = (p: { personId?: number; display?: Currency }) =>

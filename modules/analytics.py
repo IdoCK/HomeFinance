@@ -470,26 +470,100 @@ def net_worth_trend(snapshots):
     return pd.DataFrame(out)
 
 
-def goal_progress(goals):
-    """Attach percent-complete and a simple monthly-needed estimate to each goal."""
+def goal_progress(goals, actual_monthly_savings=None):
+    """Attach percent-complete, monthly-needed, pace status, and projected completion.
+
+    Parameters
+    ----------
+    goals : list of dicts  —  raw goal rows from the DB.
+    actual_monthly_savings : float | None
+        The household's average monthly savings in USD (base currency).  When
+        provided, each goal receives a ``status`` of "ahead" / "on_track" /
+        "behind" / "overdue".  When None, ``status`` is None for goals that
+        need pace info (no pace info available).
+
+    Returns
+    -------
+    List of goal dicts with added keys:
+        percent               – float, 0-100
+        monthly_needed        – float | None  (None when no target_date)
+        status                – "ahead" | "on_track" | "behind" | "overdue" | None
+        projected_completion  – ISO date str | None
+
+    Decisions / design notes
+    ------------------------
+    * on_track tolerance band: ±10 % of monthly_needed.  A goal is "on_track"
+      when actual savings fall within [0.90 * monthly_needed, 1.10 * monthly_needed].
+      This is a narrow but sensible band; callers can document it for users.
+    * overdue: months_left == 0 AND remaining > 0.  This fixes the pre-existing
+      bug that silently set monthly_needed = remaining instead of flagging it.
+    * status is None when: no target_date AND no actual_monthly_savings that
+      would let us derive pace.  For goals without a target_date, status is
+      also None (we can't compare against a monthly_needed we don't have), but
+      projected_completion IS still computed when actual_monthly_savings > 0.
+    * projected_completion: ceil(remaining / actual_monthly_savings) months from
+      today, as an ISO date (first day of the projected completion month).
+      None when savings <= 0, unknown, or goal already complete.
+    """
+    import math as _math
+
+    ON_TRACK_TOLERANCE = 0.10  # ±10 % of monthly_needed
+
     out = []
     today = date.today()
     for g in goals:
         target = g["target_amount"] or 0
         saved = g["saved_amount"] or 0
         pct = (saved / target * 100) if target else 0
+        remaining = max(target - saved, 0)
         monthly_needed = None
+        status = None
+        projected_completion = None
+
+        # ── target-date branch ──────────────────────────────────────────────
         if g.get("target_date"):
             try:
                 td = pd.to_datetime(g["target_date"]).date()
-                months_left = max(
-                    (td.year - today.year) * 12 + (td.month - today.month), 0
-                )
-                remaining = max(target - saved, 0)
-                monthly_needed = remaining / months_left if months_left else remaining
+                months_left = (td.year - today.year) * 12 + (td.month - today.month)
+
+                if months_left <= 0 and remaining > 0:
+                    # Overdue: deadline is this month or past and goal is unmet.
+                    status = "overdue"
+                    # monthly_needed stays None — no forward-looking figure is meaningful.
+                else:
+                    months_left = max(months_left, 0)
+                    if months_left > 0:
+                        monthly_needed = remaining / months_left
+
+                    # Pace status (requires actual_monthly_savings)
+                    if actual_monthly_savings is not None and monthly_needed is not None and remaining > 0:
+                        lo = monthly_needed * (1 - ON_TRACK_TOLERANCE)
+                        hi = monthly_needed * (1 + ON_TRACK_TOLERANCE)
+                        if actual_monthly_savings < lo:
+                            status = "behind"
+                        elif actual_monthly_savings > hi:
+                            status = "ahead"
+                        else:
+                            status = "on_track"
             except Exception:
                 pass
-        out.append({**g, "percent": round(pct, 1), "monthly_needed": monthly_needed})
+
+        # ── projected_completion ─────────────────────────────────────────────
+        # Computed whenever actual_monthly_savings > 0 and goal is not yet met.
+        if actual_monthly_savings is not None and actual_monthly_savings > 0 and remaining > 0:
+            months_needed = _math.ceil(remaining / actual_monthly_savings)
+            # Advance today by months_needed calendar months.
+            proj_year = today.year + (today.month + months_needed - 1) // 12
+            proj_month = (today.month + months_needed - 1) % 12 + 1
+            projected_completion = date(proj_year, proj_month, 1).isoformat()
+
+        out.append({
+            **g,
+            "percent": round(pct, 1),
+            "monthly_needed": monthly_needed,
+            "status": status,
+            "projected_completion": projected_completion,
+        })
     return out
 
 

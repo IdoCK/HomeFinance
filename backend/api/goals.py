@@ -14,9 +14,26 @@ router = APIRouter(prefix="/goals", tags=["goals"])
 def list_goals(person_id: Optional[int] = None, display: str = "USD"):
     """person_id omitted -> Joint -> all goals (everyone's + shared)."""
     goals = db.get_goals(person_id if person_id is not None else "all")
-    out = analytics.goal_progress(goals)
+
+    # Derive the household's average monthly savings in USD (base currency) so
+    # goal_progress can compute pace status and projected completion.
+    # fx.base_txns converts each transaction's amount to the USD pivot so
+    # analytics.monthly_savings sums one currency across all accounts.
+    txns = fx.base_txns(db.get_transactions(person_id if person_id is not None else None))
+    savings_df = analytics.monthly_savings(txns)
+    avg_monthly_savings: Optional[float] = None
+    if not savings_df.empty and "savings" in savings_df.columns:
+        complete = savings_df[savings_df.get("complete", False)] if "complete" in savings_df.columns else savings_df
+        if not complete.empty:
+            avg_monthly_savings = float(complete["savings"].mean())
+        else:
+            avg_monthly_savings = float(savings_df["savings"].mean())
+
+    out = analytics.goal_progress(goals, actual_monthly_savings=avg_monthly_savings)
+
     f = fx.display_factor(display) or 1.0
     if f != 1.0:
+        # Scale money fields; leave status (str) and projected_completion (date str) untouched.
         keys = ("target_amount", "saved_amount", "monthly_needed")
         out = [{**g, **{k: (None if g.get(k) is None else round(g[k] * f, 2)) for k in keys}} for g in out]
     return out
