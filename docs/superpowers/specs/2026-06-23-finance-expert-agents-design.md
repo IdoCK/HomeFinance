@@ -33,7 +33,7 @@ hitting our goals?"* Every agent serves that question from its own angle.
   `fx.py`, `keywords.py`, `agent_parser.py`, `formats.py`, `parsing.py`,
   `ai_insights.py`) → thin FastAPI layer in `backend/api/` → React (Vite) + shadcn
   SPA in `web/`. SQLite at `data/finance.db`.
-- **Two-person model:** You = blue `#3B82F6`, Spouse = pink `#EC4899`, Joint =
+- **Two-person model:** Ido = blue `#3B82F6`, Aviv = pink `#EC4899`, Joint =
   both/merged. Persona is a `person_id` (omitted/None = Joint). Visual identity is
   "Frosted Ledger."
 - **Multi-currency:** canonical pivot + default display = USD; `amount_base` holds
