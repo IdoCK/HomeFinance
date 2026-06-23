@@ -2,6 +2,9 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 
 const getOverview = vi.fn();
+vi.mock("@/lib/currency", () => ({
+  useCurrency: () => ({ currency: "USD", setCurrency: () => {}, symbol: "$", format: (n: number) => `$${n}` }),
+}));
 vi.mock("@/lib/persona", () => ({
   usePersona: () => ({ persona: "you", personId: 1, label: "Ada", people: [], setPersona: () => {} }),
 }));

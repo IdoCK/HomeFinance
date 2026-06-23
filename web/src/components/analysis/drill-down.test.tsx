@@ -3,6 +3,9 @@ import { afterEach, expect, test, vi } from "vitest";
 
 const getDrill = vi.fn();
 vi.mock("@/lib/api", () => ({ getDrill: (...a: unknown[]) => getDrill(...a) }));
+vi.mock("@/lib/currency", () => ({
+  useCurrency: () => ({ currency: "USD", setCurrency: () => {}, symbol: "$", format: (n: number) => `$${n}` }),
+}));
 
 import { DrillDown } from "./drill-down";
 

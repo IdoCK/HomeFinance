@@ -9,6 +9,9 @@ const getTransactions = vi.fn();
 const getEventTransactions = vi.fn();
 const setEventTags = vi.fn();
 
+vi.mock("@/lib/currency", () => ({
+  useCurrency: () => ({ currency: "USD", setCurrency: () => {}, symbol: "$", format: (n: number) => `$${n}` }),
+}));
 vi.mock("@/lib/persona", () => ({
   usePersona: () => ({
     persona: "you", personId: 1, label: "Ada",

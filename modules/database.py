@@ -237,6 +237,41 @@ def init_db():
         if "balance" not in cols:
             c.execute("ALTER TABLE transactions ADD COLUMN balance REAL")
 
+        # Migration: multi-currency. `currency` = the ORIGINAL entry currency
+        # (ISO-4217); `currency_source` records which detection signal set it;
+        # `amount_base` is the value in the canonical pivot (USD), derived at
+        # write-time. Legacy rows are all USD (US-bank data), so base == amount.
+        cols = [r[1] for r in c.execute("PRAGMA table_info(transactions)")]
+        if "currency" not in cols:
+            c.execute("ALTER TABLE transactions ADD COLUMN currency TEXT NOT NULL DEFAULT 'USD'")
+        if "currency_source" not in cols:
+            c.execute("ALTER TABLE transactions ADD COLUMN currency_source TEXT NOT NULL DEFAULT 'legacy'")
+        if "amount_base" not in cols:
+            c.execute("ALTER TABLE transactions ADD COLUMN amount_base REAL")
+            # Backfill legacy rows: all USD, so base == amount. No rate lookups.
+            c.execute("UPDATE transactions SET currency='USD', currency_source='legacy', "
+                      "amount_base=amount WHERE amount_base IS NULL")
+
+        # Currency on the net-worth / planning tables so the display toggle is
+        # global. All existing data is USD.
+        for tbl in ("accounts", "balance_snapshots", "budgets", "goals"):
+            tcols = [r[1] for r in c.execute(f"PRAGMA table_info({tbl})")]
+            if "currency" not in tcols:
+                c.execute(f"ALTER TABLE {tbl} ADD COLUMN currency TEXT NOT NULL DEFAULT 'USD'")
+
+        # FX rates: one direction only (base='USD'); invert in code for reverse.
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS fx_rates (
+                   rate_date  TEXT NOT NULL,
+                   base       TEXT NOT NULL,
+                   quote      TEXT NOT NULL,
+                   rate       REAL NOT NULL,
+                   source     TEXT NOT NULL DEFAULT 'frankfurter',
+                   fetched_at TEXT,
+                   PRIMARY KEY (rate_date, base, quote)
+               )""")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_fx_lookup ON fx_rates(base, quote, rate_date)")
+
 
 # ---- people ---------------------------------------------------------------
 
@@ -254,19 +289,42 @@ def rename_person(person_id, new_name):
 
 def add_transactions(person_id, rows, file_hash=None):
     """rows: list of dicts with keys date, description, amount, category, source,
-    and optional included (defaults to 1). file_hash links every row to the
-    imported file (see imported_files)."""
+    currency, currency_source, amount_base, and optional included (defaults to 1).
+    file_hash links every row to the imported file (see imported_files)."""
     with get_conn() as conn:
         conn.executemany(
             """INSERT INTO transactions
                (person_id, date, description, amount, category, source,
-                file_hash, included, balance)
+                file_hash, included, balance, currency, currency_source, amount_base)
                VALUES (:person_id, :date, :description, :amount, :category,
-                       :source, :file_hash, :included, :balance)""",
+                       :source, :file_hash, :included, :balance,
+                       :currency, :currency_source, :amount_base)""",
             [{**r, "person_id": person_id, "file_hash": file_hash,
               "included": int(r.get("included", 1)),
-              "balance": r.get("balance")} for r in rows],
+              "balance": r.get("balance"),
+              "currency": r.get("currency", "USD"),
+              "currency_source": r.get("currency_source", "unknown"),
+              "amount_base": r.get("amount_base")} for r in rows],
         )
+
+
+def recompute_amount_base():
+    """Re-derive amount_base (USD) for every transaction from its stored
+    amount/currency/date. Returns (updated, stale). Used after a rate refresh."""
+    from modules import fx
+    with get_conn() as conn:
+        rows = [dict(r) for r in conn.execute(
+            "SELECT id, amount, currency, date FROM transactions")]
+        fx.resolve_rows(rows)  # fills amount_base / sets rate_stale
+        updated = stale = 0
+        for r in rows:
+            if r.get("rate_stale"):
+                stale += 1
+                continue
+            conn.execute("UPDATE transactions SET amount_base=? WHERE id=?",
+                         (r["amount_base"], r["id"]))
+            updated += 1
+    return updated, stale
 
 
 def set_transaction_included(txn_id, included):
@@ -459,23 +517,23 @@ def get_budgets(person_id=None):
         return [dict(r) for r in rows]
 
 
-def set_budget(person_id, category, amount):
+def set_budget(person_id, category, amount, currency="USD"):
     """Upsert a monthly budget cap for a category (manual upsert so it also works
     for household budgets where person_id IS NULL — SQLite treats NULLs as
     distinct in UNIQUE constraints)."""
     with get_conn() as conn:
         if person_id is None:
             cur = conn.execute(
-                "UPDATE budgets SET amount=? WHERE person_id IS NULL AND category=?",
-                (amount, category))
+                "UPDATE budgets SET amount=?, currency=? WHERE person_id IS NULL AND category=?",
+                (amount, currency, category))
         else:
             cur = conn.execute(
-                "UPDATE budgets SET amount=? WHERE person_id=? AND category=?",
-                (amount, person_id, category))
+                "UPDATE budgets SET amount=?, currency=? WHERE person_id=? AND category=?",
+                (amount, currency, person_id, category))
         if cur.rowcount == 0:
             conn.execute(
-                "INSERT INTO budgets(person_id, category, amount) VALUES (?,?,?)",
-                (person_id, category, amount))
+                "INSERT INTO budgets(person_id, category, amount, currency) VALUES (?,?,?,?)",
+                (person_id, category, amount, currency))
 
 
 def delete_budget(budget_id):
@@ -551,13 +609,14 @@ def get_goals(person_id="all"):
         return [dict(r) for r in rows]
 
 
-def add_goal(person_id, name, target_amount, saved_amount, target_date, horizon, notes):
+def add_goal(person_id, name, target_amount, saved_amount, target_date, horizon, notes,
+             currency="USD"):
     with get_conn() as conn:
         conn.execute(
             """INSERT INTO goals
-               (person_id, name, target_amount, saved_amount, target_date, horizon, notes)
-               VALUES (?,?,?,?,?,?,?)""",
-            (person_id, name, target_amount, saved_amount, target_date, horizon, notes),
+               (person_id, name, target_amount, saved_amount, target_date, horizon, notes, currency)
+               VALUES (?,?,?,?,?,?,?,?)""",
+            (person_id, name, target_amount, saved_amount, target_date, horizon, notes, currency),
         )
 
 
@@ -578,20 +637,20 @@ def delete_goal(goal_id):
 
 # ---- accounts / net worth -------------------------------------------------
 
-def add_account(person_id, name, kind, is_asset, balance):
+def add_account(person_id, name, kind, is_asset, balance, currency="USD"):
     """Create an account and write an initial snapshot dated today. Returns id."""
     now = datetime.now().isoformat(timespec="seconds")
     with get_conn() as conn:
         cur = conn.execute(
-            """INSERT INTO accounts(person_id, name, kind, is_asset, balance, updated_at)
-               VALUES (?,?,?,?,?,?)""",
-            (person_id, name, kind, int(bool(is_asset)), float(balance), now),
+            """INSERT INTO accounts(person_id, name, kind, is_asset, balance, updated_at, currency)
+               VALUES (?,?,?,?,?,?,?)""",
+            (person_id, name, kind, int(bool(is_asset)), float(balance), now, currency),
         )
         aid = cur.lastrowid
         conn.execute(
-            """INSERT INTO balance_snapshots(account_id, date, balance) VALUES (?,?,?)
+            """INSERT INTO balance_snapshots(account_id, date, balance, currency) VALUES (?,?,?,?)
                ON CONFLICT(account_id, date) DO UPDATE SET balance=excluded.balance""",
-            (aid, date.today().isoformat(), float(balance)),
+            (aid, date.today().isoformat(), float(balance), currency),
         )
         return aid
 

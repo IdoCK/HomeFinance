@@ -1,11 +1,11 @@
+from datetime import date as _date
 from typing import Optional
 
-from fastapi import APIRouter
-
-from fastapi import HTTPException
+from fastapi import APIRouter, HTTPException
 
 from modules import database as db
 from modules import analytics
+from modules import fx
 from backend.schemas import (
     AccountCreate, AccountBalanceUpdate, AccountSnapshotCreate, PopulateFromStatements,
 )
@@ -18,13 +18,29 @@ def _scope(person_id: Optional[int]):
     return person_id if person_id is not None else "all"
 
 
+def _accounts_to_base(accounts):
+    """Copies with balance converted to USD via each account's own currency
+    (current balances -> today's rate). Adds original_balance + currency."""
+    today = _date.today().isoformat()
+    out = []
+    for a in accounts:
+        ccy = a.get("currency", "USD")
+        base = a["balance"] if ccy == "USD" else (fx.to_base(a["balance"], ccy, today) or a["balance"])
+        out.append({**a, "balance": base, "original_balance": a["balance"], "currency": ccy})
+    return out
+
+
 @router.get("")
-def get_networth(person_id: Optional[int] = None):
+def get_networth(person_id: Optional[int] = None, display: str = "USD"):
     scope = _scope(person_id)
-    accounts = db.list_accounts(scope)
-    summary = analytics.net_worth(accounts)
+    accounts = _accounts_to_base(db.list_accounts(scope))   # USD base
+    f = fx.display_factor(display) or 1.0
+    summary = analytics.net_worth(accounts)                 # USD
+    summary = {k: round(v * f, 2) for k, v in summary.items()}
     trend_df = analytics.net_worth_trend(db.get_snapshots(scope))
     trend = [] if trend_df.empty else trend_df.to_dict(orient="records")
+    trend = [{**p, "assets": round(p["assets"] * f, 2), "liabilities": round(p["liabilities"] * f, 2),
+              "net": round(p["net"] * f, 2)} for p in trend]
     delta = round(summary["net"] - trend[-2]["net"], 2) if len(trend) >= 2 else None
 
     # Joint view: break net worth down by owner (shared accounts → "Shared").
@@ -40,11 +56,16 @@ def get_networth(person_id: Optional[int] = None):
             split.append({
                 "person_id": pid,
                 "name": names.get(pid, "Shared") if pid is not None else "Shared",
-                "net": s["net"], "assets": s["assets"], "liabilities": s["liabilities"],
+                "net": round(s["net"] * f, 2), "assets": round(s["assets"] * f, 2),
+                "liabilities": round(s["liabilities"] * f, 2),
             })
         split.sort(key=lambda r: r["net"], reverse=True)
 
-    return {"summary": summary, "delta": delta, "accounts": accounts, "trend": trend, "split": split}
+    # accounts shown in display currency, originals preserved
+    disp_accounts = [{**a, "balance": round(a["balance"] * f, 2)} for a in accounts]
+
+    return {"summary": summary, "delta": delta, "accounts": disp_accounts,
+            "trend": trend, "split": split}
 
 
 @router.get("/reconcile")
@@ -111,7 +132,7 @@ def populate_from_statements(account_id: int, body: PopulateFromStatements):
 
 @router.post("/accounts")
 def create_account(body: AccountCreate):
-    aid = db.add_account(body.person_id, body.name, body.kind, body.is_asset, body.balance)
+    aid = db.add_account(body.person_id, body.name, body.kind, body.is_asset, body.balance, body.currency)
     return {"ok": True, "id": aid}
 
 

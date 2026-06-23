@@ -10,7 +10,11 @@ const upsertVendor = vi.fn().mockResolvedValue({ ok: true });
 const deleteVendor = vi.fn().mockResolvedValue({ ok: true });
 const getCategories = vi.fn().mockResolvedValue([{ id: 10, person_id: 1, name: "Groceries", keywords: "whole foods" }]);
 const getVendors = vi.fn().mockResolvedValue([{ id: 20, person_id: 1, name: "Amazon", keywords: "amazon,amzn" }]);
+const getFxRates = vi.fn().mockResolvedValue({ source: null, last_fetched: null, count: 0, rates: [] });
 
+vi.mock("@/lib/currency", () => ({
+  useCurrency: () => ({ currency: "USD", setCurrency: () => {}, symbol: "$", format: (n: number) => `$${n}` }),
+}));
 vi.mock("@/lib/persona", () => ({
   usePersona: () => ({
     persona: "you", personId: 1, label: "Ada",
@@ -26,6 +30,7 @@ vi.mock("@/lib/api", () => ({
   getVendors: (...a: unknown[]) => getVendors(...a),
   upsertVendor: (...a: unknown[]) => upsertVendor(...a),
   deleteVendor: (...a: unknown[]) => deleteVendor(...a),
+  getFxRates: (...a: unknown[]) => getFxRates(...a),
 }));
 
 import Settings from "./Settings";
@@ -33,6 +38,12 @@ import Settings from "./Settings";
 afterEach(() => {
   renamePerson.mockClear(); upsertCategory.mockClear(); deleteCategory.mockClear();
   upsertVendor.mockClear(); deleteVendor.mockClear();
+});
+
+test("renders a Money section with a currency control", async () => {
+  render(<Settings />);
+  expect(await screen.findByText(/Money/i)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /USD/ })).toBeInTheDocument();
 });
 
 test("renders categories and vendors for the active person", async () => {

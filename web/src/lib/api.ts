@@ -1,3 +1,5 @@
+import type { Currency } from "@/lib/currency";
+
 const BASE = "/api";
 
 function qs(params: Record<string, string | number | undefined>): string {
@@ -59,9 +61,15 @@ export type Overview = {
   split: PersonSpend[] | null;
 };
 
+export type FxRatesInfo = {
+  source: string | null; last_fetched: string | null; count: number;
+  rates: { rate_date: string; base: string; quote: string; rate: number; source: string }[];
+};
+export const getFxRates = () => apiGet<FxRatesInfo>("/fx/rates");
+
 export const getPeople = () => apiGet<Person[]>("/people");
-export const getOverview = (p: { personId?: number; month?: string }) =>
-  apiGet<Overview>("/overview", { person_id: p.personId, month: p.month });
+export const getOverview = (p: { personId?: number; month?: string; display?: Currency }) =>
+  apiGet<Overview>("/overview", { person_id: p.personId, month: p.month, display: p.display });
 
 export type Transaction = {
   id: number;
@@ -74,10 +82,14 @@ export type Transaction = {
   included: number; // 0 | 1
   balance: number | null;
   person: string;
+  original_amount: number;
+  original_currency: Currency;
+  amount_base: number;
+  rate_stale: boolean;
 };
 
-export const getTransactions = (p: { personId?: number }) =>
-  apiGet<Transaction[]>("/transactions", { person_id: p.personId });
+export const getTransactions = (p: { personId?: number; display?: Currency }) =>
+  apiGet<Transaction[]>("/transactions", { person_id: p.personId, display: p.display });
 
 export const updateTransaction = (id: number, body: { category?: string; included?: boolean }) =>
   apiSend<Transaction>("PATCH", `/transactions/${id}`, body);
@@ -113,8 +125,8 @@ export type Budget = {
   status: "on_track" | "ahead" | "over";
 };
 
-export const getBudgets = (p: { personId?: number }) =>
-  apiGet<Budget[]>("/budgets", { person_id: p.personId });
+export const getBudgets = (p: { personId?: number; display?: Currency }) =>
+  apiGet<Budget[]>("/budgets", { person_id: p.personId, display: p.display });
 
 export const setBudget = (b: { personId?: number; category: string; amount: number }) =>
   apiSend<{ ok: boolean }>("PUT", "/budgets", { person_id: b.personId, category: b.category, amount: b.amount });
@@ -157,8 +169,8 @@ export type RecurringData = {
   anomalies: RecurringAnomaly[];
 };
 
-export const getRecurring = (p: { personId?: number }) =>
-  apiGet<RecurringData>("/recurring", { person_id: p.personId });
+export const getRecurring = (p: { personId?: number; display?: Currency }) =>
+  apiGet<RecurringData>("/recurring", { person_id: p.personId, display: p.display });
 
 export type Goal = {
   id: number;
@@ -173,8 +185,8 @@ export type Goal = {
   monthly_needed: number | null;
 };
 
-export const getGoals = (p: { personId?: number }) =>
-  apiGet<Goal[]>("/goals", { person_id: p.personId });
+export const getGoals = (p: { personId?: number; display?: Currency }) =>
+  apiGet<Goal[]>("/goals", { person_id: p.personId, display: p.display });
 
 export const addGoal = (g: { personId?: number; name: string; targetAmount: number; targetDate?: string; horizon?: string; notes?: string }) =>
   apiSend<{ ok: boolean }>("POST", "/goals", {
@@ -199,6 +211,8 @@ export type Account = {
   is_asset: number;
   balance: number;
   updated_at: string;
+  original_balance?: number;
+  currency?: string;
 };
 
 export type NetWorthPoint = { date: string; assets: number; liabilities: number; net: number };
@@ -212,8 +226,8 @@ export type NetWorthData = {
   split: NetWorthSplit[] | null;
 };
 
-export const getNetWorth = (p: { personId?: number }) =>
-  apiGet<NetWorthData>("/networth", { person_id: p.personId });
+export const getNetWorth = (p: { personId?: number; display?: Currency }) =>
+  apiGet<NetWorthData>("/networth", { person_id: p.personId, display: p.display });
 
 export type Reconciliation =
   | { reconcilable: false }
@@ -285,6 +299,7 @@ export type OllamaStatus = { ok: boolean; message: string };
 export type ImportRow = {
   date: string; description: string; amount: number; category: string;
   source: string; included: boolean; balance: number | null;
+  currency: string; currency_source: string;
 };
 export type ImportParseResult = {
   already_imported: boolean; file_hash: string; filename: string;
@@ -295,11 +310,13 @@ export const getOllamaStatus = () => apiGet<OllamaStatus>("/import/status");
 
 // Multipart upload — let the browser set the Content-Type boundary, so this
 // doesn't go through apiSend (which sends JSON).
-export async function parseImport(file: File, source: string, personId: number): Promise<ImportParseResult> {
+export async function parseImport(file: File, source: string, personId: number,
+                                  currency = "auto"): Promise<ImportParseResult> {
   const fd = new FormData();
   fd.append("file", file);
   fd.append("source", source);
   fd.append("person_id", String(personId));
+  fd.append("currency", currency);
   const res = await fetch(`${BASE}/import/parse`, { method: "POST", body: fd });
   if (!res.ok) throw new Error(`POST /import/parse -> ${res.status}`);
   return res.json() as Promise<ImportParseResult>;

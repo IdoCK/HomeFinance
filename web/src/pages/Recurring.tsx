@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { getRecurring, type RecurringAnomaly, type RecurringCharge, type RecurringData } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
+import { useCurrency } from "@/lib/currency";
 import { formatMoney } from "@/components/money";
 import { Loading } from "@/components/loading";
 
@@ -42,13 +43,14 @@ function ChargeRow({ c }: { c: RecurringCharge }) {
 
 export default function Recurring() {
   const { personId, label } = usePersona();
+  const { currency } = useCurrency();
   const [data, setData] = useState<RecurringData | null>(null);
 
   useEffect(() => {
     let alive = true;
-    getRecurring({ personId }).then((d) => alive && setData(d)).catch(() => alive && setData(null));
+    getRecurring({ personId, display: currency }).then((d) => alive && setData(d)).catch(() => alive && setData(null));
     return () => { alive = false; };
-  }, [personId]);
+  }, [personId, currency]);
 
   if (!data) return <Loading />;
 

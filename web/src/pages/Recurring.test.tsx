@@ -10,6 +10,9 @@ const getRecurring = vi.fn().mockResolvedValue({
   anomalies: [{ vendor: "Comcast", type: "price_change", detail: "85.00 -> 102.00", pct: 20 }],
 });
 
+vi.mock("@/lib/currency", () => ({
+  useCurrency: () => ({ currency: "USD", setCurrency: () => {}, symbol: "$", format: (n: number) => `$${n}` }),
+}));
 vi.mock("@/lib/persona", () => ({
   usePersona: () => ({ persona: "joint", personId: undefined, label: "Joint", people: [], setPersona: () => {} }),
 }));

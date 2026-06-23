@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { pillStyle as pill } from "@/lib/ui";
 import { getGoals, addGoal, updateGoalSaved, updateGoalNotes, deleteGoal, type Goal } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
+import { useCurrency } from "@/lib/currency";
 import { Money, formatMoney } from "@/components/money";
 
 const horizonBadge: React.CSSProperties = {
@@ -62,6 +63,7 @@ function GoalCard({ g, onSave, onSaveNotes, onRemove }: {
 
 export default function Goals() {
   const { personId, label } = usePersona();
+  const { currency } = useCurrency();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
@@ -71,8 +73,8 @@ export default function Goals() {
   const [notes, setNotes] = useState("");
 
   const load = useCallback(
-    () => getGoals({ personId }).then(setGoals).catch(() => setGoals([])),
-    [personId],
+    () => getGoals({ personId, display: currency }).then(setGoals).catch(() => setGoals([])),
+    [personId, currency],
   );
   useEffect(() => { load(); }, [load]);
 
