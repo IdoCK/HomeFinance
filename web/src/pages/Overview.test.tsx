@@ -31,6 +31,38 @@ test("renders headline numbers and category breakdown", async () => {
   expect(screen.getByText("Housing")).toBeInTheDocument();
 });
 
+test("partial month: shows an in-progress banner and guards the MoM delta", async () => {
+  getOverview.mockResolvedValue({
+    ...base,
+    complete: false,
+    series: [
+      { month: "2026-04", income: 4000, spend: 3000, net: 1000, savings_rate: 0.25, complete: true },
+      { month: "2026-05", income: 5000, spend: 2400, net: 2600, savings_rate: 0.52, complete: false },
+    ],
+  });
+  render(<Overview />);
+  // A partial-month notice appears (text differs for current vs past partial month).
+  await waitFor(() => expect(screen.getByText(/in progress|partial month/i)).toBeInTheDocument());
+  // The trend arrow must NOT render when a month in the comparison is incomplete…
+  expect(screen.queryByText(/▲|▼/)).toBeNull();
+  // …it is replaced by an explicit "(partial)" affordance instead.
+  expect(screen.getByText(/vs last month/i)).toBeInTheDocument();
+});
+
+test("complete month: shows a trend arrow, no partial banner", async () => {
+  getOverview.mockResolvedValue({
+    ...base,
+    complete: true,
+    series: [
+      { month: "2026-04", income: 4000, spend: 3000, net: 1000, savings_rate: 0.25, complete: true },
+      { month: "2026-05", income: 5000, spend: 2400, net: 2600, savings_rate: 0.52, complete: true },
+    ],
+  });
+  render(<Overview />);
+  await waitFor(() => expect(screen.getByText(/▲|▼/)).toBeInTheDocument());
+  expect(screen.queryByText(/in progress/i)).toBeNull();
+});
+
 test("renders spending alert chips", async () => {
   getOverview.mockResolvedValue({
     ...base,

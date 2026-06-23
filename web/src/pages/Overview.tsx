@@ -12,6 +12,7 @@ import { LineChart } from "@/components/charts/line-chart";
 import { BarChart } from "@/components/charts/bar-chart";
 import { StackedBars } from "@/components/charts/stacked-bars";
 import { DotMatrix, type Segment } from "@/components/charts/dot-matrix";
+import { Banner } from "@/components/ui/banner";
 import { Loading } from "@/components/loading";
 
 const CARD: React.CSSProperties = { padding: 16 };
@@ -77,9 +78,30 @@ export default function Overview() {
     { label: "Saved", value: data.net, pct: (Math.abs(data.net) / denom) * 100, color: "var(--saved)" },
   ];
 
-  // Delta vs previous month's net (for the "this month" headline).
-  const prevNet = idx > 0 ? series.find((s) => s.month === months[idx - 1])?.net : undefined;
+  // Delta vs previous month's net (for the "this month" headline). A MoM delta is
+  // only trustworthy when BOTH months are complete — comparing a partial month to
+  // a full one (or two partials) is misleading, so we show "(partial)" instead.
+  const prevPoint = idx > 0 ? series.find((s) => s.month === months[idx - 1]) : undefined;
+  const prevNet = prevPoint?.net;
   const delta = prevNet != null ? data.net - prevNet : undefined;
+  const deltaTrustworthy = delta != null && data.complete && !!prevPoint?.complete;
+
+  // Partial-month notice: the month still in progress (current calendar month) or
+  // a month whose data simply doesn't span the full calendar (statement cycles).
+  const now = new Date();
+  const ym = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  // Parse as a LOCAL date (y, m-1, 1) — `new Date("2026-05-01")` is UTC midnight
+  // and shifts to the previous month in timezones behind UTC.
+  const [mY, mM] = (data.month ?? "").split("-").map(Number);
+  const monthName = data.month
+    ? new Date(mY, mM - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" })
+    : "This month";
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const partialNote = data.complete
+    ? null
+    : data.month === ym(now)
+      ? `${monthName} is still in progress — day ${now.getDate()} of ${daysInMonth}. These figures will keep changing.`
+      : `${monthName} is a partial month — the data doesn't cover the full calendar month, so totals understate it.`;
 
   // Who-spent-what: Joint → per-person split; single-persona → top category split.
   const segments: Segment[] =
@@ -99,6 +121,16 @@ export default function Overview() {
           <Pill onClick={() => step(1)} disabled={idx < 0 || idx >= months.length - 1} aria-label="Next month">›</Pill>
         </div>
       </header>
+
+      {partialNote && (
+        <Banner
+          tone="warn"
+          dashed
+          icon={<span style={{ width: 12, height: 12, borderRadius: 3, border: "1.5px dashed currentColor", display: "inline-block" }} />}
+        >
+          {partialNote}
+        </Banner>
+      )}
 
       {data.alerts.length > 0 && (
         <section aria-label="Spending alerts" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -152,11 +184,15 @@ export default function Overview() {
             <span style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1 }}>
               <Money value={data.net} colored />
             </span>
-            {delta != null && (
+            {delta != null && (deltaTrustworthy ? (
               <span style={{ fontSize: 11, fontWeight: 700, color: delta >= 0 ? "var(--pos)" : "var(--neg)", background: `color-mix(in srgb, ${delta >= 0 ? "var(--pos)" : "var(--neg)"} 12%, transparent)`, padding: "2px 7px", borderRadius: 999 }}>
                 {delta >= 0 ? "▲" : "▼"} {Math.abs(Math.round(delta)).toLocaleString()}
               </span>
-            )}
+            ) : (
+              <span title="A month in this comparison is incomplete" style={{ fontSize: 11, fontWeight: 700, color: "var(--fl-muted)", background: "var(--fl-frame)", padding: "2px 7px", borderRadius: 999, border: "1px dashed var(--fl-line)" }}>
+                vs last month (partial)
+              </span>
+            ))}
           </div>
           <StackedBars rows={stackRows} />
         </section>
