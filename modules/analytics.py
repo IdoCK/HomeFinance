@@ -371,7 +371,7 @@ def month_end_balances(transactions):
             for m in sorted(bymonth)]
 
 
-def reconcile(rows):
+def reconcile(rows, currency=None):
     """Tie out a bank statement against its running-balance column.
 
     `rows` are transaction dicts carrying 'amount' and (for bank feeds) a running
@@ -380,9 +380,13 @@ def reconcile(rows):
     opening + Σ(all amounts) lands on the last row's balance. Σ is order-
     independent, so this is robust to forward- or reverse-chronological exports.
 
+    `currency` is the statement's own currency code (e.g. "USD", "ILS"). When
+    supplied it is included verbatim in the returned dict — raw, not converted.
+
     Returns None when fewer than two rows carry a balance (e.g. a credit-card
     feed has no running balance to reconcile). Otherwise a dict:
-    {ok, begin, end, sum_amounts, computed_end, discrepancy, n, chain_breaks}."""
+    {ok, begin, end, sum_amounts, computed_end, discrepancy, n, chain_breaks}
+    plus `currency` when provided."""
     bal = [r for r in rows
            if r.get("balance") is not None and r.get("amount") is not None]
     if len(bal) < 2:
@@ -400,10 +404,13 @@ def reconcile(rows):
     chain_breaks = sum(
         1 for i in range(1, len(bal))
         if abs(balances[i] - (balances[i - 1] + amounts[i])) >= 0.01)
-    return {"ok": abs(discrepancy) < 0.01, "begin": round(begin, 2),
-            "end": round(end, 2), "sum_amounts": round(total, 2),
-            "computed_end": round(computed_end, 2), "discrepancy": discrepancy,
-            "n": len(bal), "chain_breaks": chain_breaks}
+    result = {"ok": abs(discrepancy) < 0.01, "begin": round(begin, 2),
+              "end": round(end, 2), "sum_amounts": round(total, 2),
+              "computed_end": round(computed_end, 2), "discrepancy": discrepancy,
+              "n": len(bal), "chain_breaks": chain_breaks}
+    if currency is not None:
+        result["currency"] = currency
+    return result
 
 
 def net_worth_trend(snapshots):

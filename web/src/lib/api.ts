@@ -229,16 +229,25 @@ export type NetWorthData = {
 export const getNetWorth = (p: { personId?: number; display?: Currency }) =>
   apiGet<NetWorthData>("/networth", { person_id: p.personId, display: p.display });
 
-export type Reconciliation =
-  | { reconcilable: false }
-  | {
-      reconcilable: true; ok: boolean; begin: number; end: number;
-      sum_amounts: number; computed_end: number; discrepancy: number;
-      n: number; chain_breaks: number;
-    };
+export type StatementReconciliation = {
+  filename: string;
+  currency: Currency;
+  ok: boolean;
+  begin: number;
+  end: number;
+  sum_amounts: number;
+  computed_end: number;
+  discrepancy: number;
+  n: number;
+  chain_breaks: number;
+};
+
+export type ReconciliationResult = {
+  statements: StatementReconciliation[];
+};
 
 export const getReconciliation = (personId?: number) =>
-  apiGet<Reconciliation>("/networth/reconcile", { person_id: personId });
+  apiGet<ReconciliationResult>("/networth/reconcile", { person_id: personId });
 
 export const addAccount = (a: { personId?: number; name: string; kind: string; isAsset: boolean; balance: number }) =>
   apiSend<{ ok: boolean; id: number }>("POST", "/networth/accounts", {

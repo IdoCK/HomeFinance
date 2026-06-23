@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { pillStyle as pill } from "@/lib/ui";
-import { getNetWorth, addAccount, updateAccountBalance, deleteAccount, getReconciliation, getAccountHistory, getAccountImports, recordAccountSnapshot, populateFromStatements, type Account, type AccountSnapshot, type StatementImport, type NetWorthData, type Reconciliation } from "@/lib/api";
+import { getNetWorth, addAccount, updateAccountBalance, deleteAccount, getReconciliation, getAccountHistory, getAccountImports, recordAccountSnapshot, populateFromStatements, type Account, type AccountSnapshot, type StatementImport, type NetWorthData, type ReconciliationResult, type StatementReconciliation } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { useCurrency } from "@/lib/currency";
 import { Money, formatMoney } from "@/components/money";
@@ -143,7 +143,7 @@ export default function NetWorth() {
   const { personId, label } = usePersona();
   const { currency } = useCurrency();
   const [data, setData] = useState<NetWorthData | null>(null);
-  const [recon, setRecon] = useState<Reconciliation | null>(null);
+  const [recon, setRecon] = useState<ReconciliationResult | null>(null);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [kind, setKind] = useState("checking");
@@ -227,25 +227,25 @@ export default function NetWorth() {
         </section>
       )}
 
-      {recon && recon.reconcilable && (
-        <section className="frosted-card" aria-label="Statement reconciliation" style={{ padding: 20, display: "grid", gap: 8 }}>
+      {recon && recon.statements.length > 0 && recon.statements.map((stmt: StatementReconciliation) => (
+        <section key={stmt.filename} className="frosted-card" aria-label={`Statement reconciliation: ${stmt.filename}`} style={{ padding: 20, display: "grid", gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <span style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--fl-muted)" }}>
-              Statement reconciliation
+              Statement reconciliation · {stmt.filename}
             </span>
             <span style={{
               fontWeight: 700, fontSize: 13,
-              color: recon.ok ? "#22C55E" : "#EF4444",
+              color: stmt.ok ? "#22C55E" : "#EF4444",
             }}>
-              {recon.ok ? "✓ Statements tie out" : `⚠ Off by ${formatMoney(Math.abs(recon.discrepancy))}`}
+              {stmt.ok ? "✓ Ties out" : `⚠ Off by ${formatMoney(Math.abs(stmt.discrepancy), stmt.currency)}`}
             </span>
           </div>
           <div style={{ color: "var(--fl-muted)", fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
-            {formatMoney(recon.begin)} opening → {formatMoney(recon.end)} ending across {recon.n} rows
-            {recon.chain_breaks > 0 && `; ${recon.chain_breaks} balance break${recon.chain_breaks === 1 ? "" : "s"}`}
+            <Money value={stmt.begin} currency={stmt.currency} /> opening → <Money value={stmt.end} currency={stmt.currency} /> ending across {stmt.n} rows
+            {stmt.chain_breaks > 0 && `; ${stmt.chain_breaks} balance break${stmt.chain_breaks === 1 ? "" : "s"}`}
           </div>
         </section>
-      )}
+      ))}
 
       {accounts.length === 0 && !adding && (
         <section className="frosted-card" style={{ padding: 32, textAlign: "center", color: "var(--fl-muted)" }}>

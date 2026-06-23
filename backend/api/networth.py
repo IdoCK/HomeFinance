@@ -70,12 +70,41 @@ def get_networth(person_id: Optional[int] = None, display: str = "USD"):
 
 @router.get("/reconcile")
 def reconcile(person_id: Optional[int] = None):
-    """Tie a person's bank statements out against their running-balance column.
-    Joint (person_id omitted) reconciles all transactions together."""
-    result = analytics.reconcile(db.get_transactions(person_id))
-    if result is None:
-        return {"reconcilable": False}
-    return {"reconcilable": True, **result}
+    """Tie each bank statement out against its own running-balance column.
+
+    Groups transactions by (person_id, file_hash) so that statements in
+    different accounts or currencies are reconciled independently. Each result
+    carries the statement's own currency (raw, not converted to any display
+    currency). Returns { statements: [{ filename, currency, begin, end,
+    computed_end, discrepancy, n, chain_breaks, ok }] }.
+    """
+    # Collect all import records for the scope so we can look up filenames.
+    imports = db.list_imports(person_id)
+    filename_by_hash: dict = {im["file_hash"]: im["filename"] for im in imports}
+
+    # Group transactions by (person_id, file_hash) so each statement is
+    # reconciled independently.
+    scope_txns = db.get_transactions(person_id)
+    by_statement: dict = {}
+    for txn in scope_txns:
+        key = (txn.get("person_id"), txn.get("file_hash"))
+        by_statement.setdefault(key, []).append(txn)
+
+    statements = []
+    for (pid, fh), rows in by_statement.items():
+        if fh is None:
+            continue  # skip transactions with no associated import file
+        # Derive the statement currency from the first row that has one.
+        currency = next(
+            (r.get("currency") for r in rows if r.get("currency")), "USD"
+        )
+        result = analytics.reconcile(rows, currency=currency)
+        if result is None:
+            continue  # no running-balance data — not reconcilable
+        filename = filename_by_hash.get(fh, fh)
+        statements.append({"filename": filename, **result})
+
+    return {"statements": statements}
 
 
 @router.get("/accounts/{account_id}/history")

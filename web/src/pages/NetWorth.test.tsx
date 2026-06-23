@@ -5,7 +5,7 @@ import { afterEach, expect, test, vi } from "vitest";
 const addAccount = vi.fn().mockResolvedValue({ ok: true, id: 9 });
 const updateAccountBalance = vi.fn().mockResolvedValue({ ok: true });
 const deleteAccount = vi.fn().mockResolvedValue({ ok: true });
-const getReconciliation = vi.fn().mockResolvedValue({ reconcilable: false });
+const getReconciliation = vi.fn().mockResolvedValue({ statements: [] });
 const getAccountHistory = vi.fn().mockResolvedValue({ snapshots: [] });
 const getAccountImports = vi.fn().mockResolvedValue({ imports: [] });
 const recordAccountSnapshot = vi.fn().mockResolvedValue({ ok: true });
@@ -90,14 +90,21 @@ test("Manage panel populates month-end balances from a picked statement", async 
   expect(populateFromStatements).toHaveBeenCalledWith(1, ["h1"]);
 });
 
-test("shows the reconciliation panel when statements tie out", async () => {
+test("shows a reconciliation card per statement when statements tie out", async () => {
   getReconciliation.mockResolvedValueOnce({
-    reconcilable: true, ok: true, begin: 1000, end: 1300, sum_amounts: 300,
-    computed_end: 1300, discrepancy: 0, n: 2, chain_breaks: 0,
+    statements: [
+      {
+        filename: "bank.csv", currency: "USD",
+        ok: true, begin: 1000, end: 1300, sum_amounts: 300,
+        computed_end: 1300, discrepancy: 0, n: 2, chain_breaks: 0,
+      },
+    ],
   });
   render(<NetWorth />);
-  await waitFor(() => expect(screen.getByLabelText("Statement reconciliation")).toBeInTheDocument());
-  expect(screen.getByText(/statements tie out/i)).toBeInTheDocument();
+  await waitFor(() =>
+    expect(screen.getByLabelText("Statement reconciliation: bank.csv")).toBeInTheDocument()
+  );
+  expect(screen.getByText(/ties out/i)).toBeInTheDocument();
 });
 
 test("editing a balance calls updateAccountBalance", async () => {

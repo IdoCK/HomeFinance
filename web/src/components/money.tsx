@@ -14,17 +14,23 @@ export function formatMoney(n: number, currency: Currency = "USD"): string {
 }
 
 /** Ledger figure. `colored` tints by sign; `accent` uses the persona color.
- *  Renders in the active display currency (via CurrencyProvider). `original`
- *  surfaces an entered-in-another-currency marker. Tabular-nums for alignment. */
+ *  Renders in the active display currency (via CurrencyProvider) unless
+ *  `currency` is provided explicitly, which overrides the display toggle —
+ *  use this for statement-scoped figures that must stay in the statement's
+ *  own currency. `original` surfaces an entered-in-another-currency marker.
+ *  Tabular-nums for alignment. */
 export function Money({
   value, colored = false, accent = false, cents = true,
-  original, rateMissing = false,
+  currency: currencyProp, original, rateMissing = false,
 }: {
   value: number; colored?: boolean; accent?: boolean; cents?: boolean;
+  /** Override the display-toggle currency with a fixed one (e.g. statement currency). */
+  currency?: Currency;
   original?: { amount: number; currency: Currency };
   rateMissing?: boolean;
 }) {
-  const { currency } = useCurrency();
+  const { currency: displayCurrency } = useCurrency();
+  const currency = currencyProp ?? displayCurrency;
   const color = accent
     ? "var(--persona-solid)"
     : !colored ? undefined

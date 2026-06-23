@@ -13,24 +13,32 @@ def test_reconcile_ties_out(client, people):
     from modules import database as db
     you = people[0]["id"]
     # A tidy statement: opening 1000, two moves, running balance tracks them.
+    fh = "recon-test-001"
     db.add_transactions(you, [
         {"date": "2026-05-01", "description": "Open", "amount": -200.0, "category": "x", "source": "bank", "balance": 800.0},
         {"date": "2026-05-02", "description": "Deposit", "amount": 500.0, "category": "x", "source": "bank", "balance": 1300.0},
-    ])
+    ], file_hash=fh)
+    db.record_import(you, fh, "bank.csv", 2, "2026-06-01T00:00:00")
     r = client.get("/api/networth/reconcile", params={"person_id": you}).json()
-    assert r["reconcilable"] is True
-    assert r["ok"] is True
-    assert r["begin"] == 1000.0 and r["end"] == 1300.0
+    # New shape: { statements: [...] }
+    assert "statements" in r
+    stmt = r["statements"][0]
+    assert stmt["ok"] is True
+    assert stmt["begin"] == 1000.0 and stmt["end"] == 1300.0
 
 
 def test_reconcile_not_possible_without_balances(client, people):
     from modules import database as db
     you = people[0]["id"]
+    fh = "card-no-bal"
     db.add_transactions(you, [
         {"date": "2026-05-01", "description": "Card", "amount": -50.0, "category": "x", "source": "credit_card"},
-    ])
+    ], file_hash=fh)
+    db.record_import(you, fh, "card.csv", 1, "2026-06-01T00:00:00")
     r = client.get("/api/networth/reconcile", params={"person_id": you}).json()
-    assert r["reconcilable"] is False
+    # Credit-card feed has no running balance → empty statements list
+    assert "statements" in r
+    assert r["statements"] == []
 
 
 def test_add_account_via_api(client, people):
