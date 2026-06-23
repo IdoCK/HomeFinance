@@ -176,14 +176,17 @@ export type Goal = {
 export const getGoals = (p: { personId?: number }) =>
   apiGet<Goal[]>("/goals", { person_id: p.personId });
 
-export const addGoal = (g: { personId?: number; name: string; targetAmount: number; targetDate?: string; horizon?: string }) =>
+export const addGoal = (g: { personId?: number; name: string; targetAmount: number; targetDate?: string; horizon?: string; notes?: string }) =>
   apiSend<{ ok: boolean }>("POST", "/goals", {
     person_id: g.personId, name: g.name, target_amount: g.targetAmount,
-    target_date: g.targetDate, horizon: g.horizon ?? "short",
+    target_date: g.targetDate, horizon: g.horizon ?? "short", notes: g.notes ?? "",
   });
 
 export const updateGoalSaved = (id: number, savedAmount: number) =>
   apiSend<{ ok: boolean }>("PATCH", `/goals/${id}`, { saved_amount: savedAmount });
+
+export const updateGoalNotes = (id: number, notes: string) =>
+  apiSend<{ ok: boolean }>("PATCH", `/goals/${id}/notes`, { notes });
 
 export const deleteGoal = (id: number) =>
   apiSend<{ ok: boolean }>("DELETE", `/goals/${id}`);

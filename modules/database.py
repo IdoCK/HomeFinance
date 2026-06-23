@@ -566,6 +566,11 @@ def update_goal_saved(goal_id, saved_amount):
         conn.execute("UPDATE goals SET saved_amount=? WHERE id=?", (saved_amount, goal_id))
 
 
+def update_goal_notes(goal_id, notes):
+    with get_conn() as conn:
+        conn.execute("UPDATE goals SET notes=? WHERE id=?", (notes, goal_id))
+
+
 def delete_goal(goal_id):
     with get_conn() as conn:
         conn.execute("DELETE FROM goals WHERE id=?", (goal_id,))

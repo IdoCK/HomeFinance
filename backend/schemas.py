@@ -31,6 +31,10 @@ class GoalSavedUpdate(BaseModel):
     saved_amount: float
 
 
+class GoalNotesUpdate(BaseModel):
+    notes: str
+
+
 class AccountCreate(BaseModel):
     person_id: Optional[int] = None
     name: str

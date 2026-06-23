@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { pillStyle as pill } from "@/lib/ui";
-import { getGoals, addGoal, updateGoalSaved, deleteGoal, type Goal } from "@/lib/api";
+import { getGoals, addGoal, updateGoalSaved, updateGoalNotes, deleteGoal, type Goal } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { Money, formatMoney } from "@/components/money";
 
+const horizonBadge: React.CSSProperties = {
+  border: "1px solid var(--fl-line)", borderRadius: 999, padding: "1px 9px",
+  fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--fl-muted)",
+};
 
-function GoalCard({ g, onSave, onRemove }: {
-  g: Goal; onSave: (g: Goal, v: string) => void; onRemove: (g: Goal) => void;
+function GoalCard({ g, onSave, onSaveNotes, onRemove }: {
+  g: Goal; onSave: (g: Goal, v: string) => void; onSaveNotes: (g: Goal, v: string) => void; onRemove: (g: Goal) => void;
 }) {
   const pct = Math.min(Math.max(g.percent, 0), 100);
   const done = g.percent >= 100;
@@ -14,6 +18,7 @@ function GoalCard({ g, onSave, onRemove }: {
     <section className="frosted-card" style={{ padding: 20, display: "grid", gap: 10 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
         <span style={{ fontWeight: 700 }}>{g.name}</span>
+        <span style={horizonBadge}>{g.horizon === "long" ? "long-term" : "short-term"}</span>
         {g.target_date && <span style={{ color: "var(--fl-muted)", fontSize: 12 }}>by {g.target_date}</span>}
         <span style={{ marginLeft: "auto", fontVariantNumeric: "tabular-nums" }}>
           <input
@@ -44,6 +49,13 @@ function GoalCard({ g, onSave, onRemove }: {
           <span>· {formatMoney(g.monthly_needed)}/mo to stay on track</span>
         )}
       </div>
+      <input
+        defaultValue={g.notes ?? ""}
+        placeholder="Add a note…"
+        aria-label={`Notes for ${g.name}`}
+        onBlur={(e) => onSaveNotes(g, e.target.value)}
+        style={{ border: "1px solid var(--fl-line)", borderRadius: 10, padding: "6px 10px", fontSize: 12.5, background: "var(--fl-card)", color: "var(--fl-ink)", width: "100%" }}
+      />
     </section>
   );
 }
@@ -56,6 +68,7 @@ export default function Goals() {
   const [target, setTarget] = useState("");
   const [targetDate, setTargetDate] = useState("");
   const [horizon, setHorizon] = useState("short");
+  const [notes, setNotes] = useState("");
 
   const load = useCallback(
     () => getGoals({ personId }).then(setGoals).catch(() => setGoals([])),
@@ -70,12 +83,15 @@ export default function Goals() {
     }
   };
   const remove = (g: Goal) => deleteGoal(g.id).then(load);
+  const commitNotes = (g: Goal, value: string) => {
+    if (value !== (g.notes ?? "")) updateGoalNotes(g.id, value).then(load);
+  };
   const submit = () => {
     const targetAmount = Number(target);
     const nm = name.trim();
     if (nm && Number.isFinite(targetAmount) && targetAmount > 0) {
-      addGoal({ personId, name: nm, targetAmount, targetDate: targetDate || undefined, horizon }).then(() => {
-        setName(""); setTarget(""); setTargetDate(""); setHorizon("short"); setAdding(false); load();
+      addGoal({ personId, name: nm, targetAmount, targetDate: targetDate || undefined, horizon, notes: notes.trim() || undefined }).then(() => {
+        setName(""); setTarget(""); setTargetDate(""); setHorizon("short"); setNotes(""); setAdding(false); load();
       });
     }
   };
@@ -115,7 +131,7 @@ export default function Goals() {
       )}
 
       <div style={{ display: "grid", gap: 12 }}>
-        {goals.map((g) => <GoalCard key={g.id} g={g} onSave={commitSaved} onRemove={remove} />)}
+        {goals.map((g) => <GoalCard key={g.id} g={g} onSave={commitSaved} onSaveNotes={commitNotes} onRemove={remove} />)}
       </div>
 
       {adding ? (
@@ -127,6 +143,7 @@ export default function Goals() {
             <option value="short">Short-term</option>
             <option value="long">Long-term</option>
           </select>
+          <input placeholder="Notes (optional)" aria-label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} style={{ ...pill, width: 200 }} />
           <button onClick={submit} style={{ ...pill, fontWeight: 700, color: "var(--persona-solid)" }}>Add goal</button>
           <button onClick={() => setAdding(false)} style={{ ...pill, color: "var(--fl-muted)" }}>Cancel</button>
         </section>
