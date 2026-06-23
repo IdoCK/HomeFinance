@@ -59,16 +59,17 @@ export function LineChart({
     return <div style={{ fontSize: 12, color: "var(--fl-muted)" }}>No spending in range.</div>;
   }
 
-  // Shared domain (same as layoutShared uses)
+  // Shared domain (same as layoutShared uses).
+  // `scale()` already returns size/2 when domainMax===domainMin, so no effectiveMax
+  // guard — diverging guards here would misalign ticks from layoutShared's data points.
   const allVals = series.flatMap((s) => s.values);
   const domainMin = Math.min(0, ...allVals);
   const domainMax = Math.max(0, ...allVals);
   const inner = h - pad * 2;
-  const effectiveMax = domainMax === domainMin ? domainMax + 1 : domainMax;
 
   const ticks = showAxis ? axisTicks(domainMin, domainMax) : [];
   const tickY = (v: number) =>
-    Math.round(h - pad - scale(v, domainMin, effectiveMax, inner));
+    Math.round(h - pad - scale(v, domainMin, domainMax, inner));
 
   return (
     <div>

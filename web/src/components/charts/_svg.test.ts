@@ -101,3 +101,12 @@ test("axisTicks returns sorted ascending values", () => {
     expect(ticks[i]).toBeGreaterThan(ticks[i - 1]);
   }
 });
+
+test("axisTicks all-negative domain returns sorted values including 0 as max boundary", () => {
+  const ticks = axisTicks(-300, 0);
+  // 0 is the max and should be included; -300 is the min; no duplicates
+  expect(ticks).toContain(-300);
+  expect(ticks).toContain(0);
+  // Sorted ascending, no duplicates
+  expect(ticks).toEqual([-300, 0]);
+});

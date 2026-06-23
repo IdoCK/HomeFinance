@@ -70,11 +70,13 @@ export function AreaChart({
   const fillId = `area-fill-${uid}`;
   const hatchId = `area-hatch-${uid}`;
 
-  // Compute y-axis tick screen positions
+  // Compute y-axis tick screen positions.
+  // `scale()` already returns size/2 when max===min, so no inline guard needed here —
+  // using max+1 would cause gridlines to land at a different y than the data points.
   const inner = h - pad * 2;
   const ticks = showAxis && values.length > 0 ? axisTicks(min, max) : [];
   const tickY = (v: number) =>
-    Math.round(h - pad - scale(v, min, max === min ? max + 1 : max, inner));
+    Math.round(h - pad - scale(v, min, max, inner));
 
   // Last point value label
   const lastPt = pts[pts.length - 1];
@@ -111,7 +113,7 @@ export function AreaChart({
             y1={y}
             x2={w}
             y2={y}
-            stroke={v === 0 ? "var(--fl-line, #e2e8f0)" : "var(--fl-line, #e2e8f0)"}
+            stroke={v === 0 ? "var(--fl-ink, #334155)" : "var(--fl-line, #e2e8f0)"}
             strokeWidth={v === 0 ? 1.5 : 1}
             strokeOpacity={v === 0 ? 0.7 : 0.4}
             strokeDasharray={v === 0 ? undefined : "3 3"}
