@@ -69,6 +69,8 @@ export type Overview = {
   committed_spent: number;
   /** This month's spend that is not on recurring vendors. */
   discretionary_spent: number;
+  /** Recurring bills whose next charge falls before month-end. */
+  bills_due: { count: number; amount: number };
 };
 
 export type FxRatesInfo = {
@@ -185,6 +187,7 @@ export type RecurringData = {
   charges: RecurringCharge[];
   committed: Committed;
   anomalies: RecurringAnomaly[];
+  bills_due: { count: number; amount: number };
 };
 
 export const getRecurring = (p: { personId?: number; display?: Currency }) =>

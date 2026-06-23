@@ -19,6 +19,7 @@ const base = {
   alerts: [],
   uncategorized: { count: 0, amount: 0 },
   safe_to_spend: 4685, committed: 15, committed_spent: 15, discretionary_spent: 300,
+  bills_due: { count: 0, amount: 0 },
 };
 
 afterEach(() => vi.restoreAllMocks());
@@ -68,6 +69,13 @@ test("complete month: shows a trend arrow, no partial banner", async () => {
   render(<Overview />);
   await waitFor(() => expect(screen.getByText(/▲|▼/)).toBeInTheDocument());
   expect(screen.queryByText(/in progress/i)).toBeNull();
+});
+
+test("summarizes bills still due this month when any are pending", async () => {
+  getOverview.mockResolvedValue({ ...base, bills_due: { count: 3, amount: 250 } });
+  render(<Overview />);
+  await waitFor(() => expect(screen.getByText(/still due this month/i)).toBeInTheDocument());
+  expect(screen.getByText(/3 bills/i)).toBeInTheDocument();
 });
 
 test("renders spending alert chips", async () => {

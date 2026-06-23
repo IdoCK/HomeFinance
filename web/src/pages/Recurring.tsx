@@ -54,7 +54,7 @@ export default function Recurring() {
 
   if (!data) return <Loading />;
 
-  const { charges, committed, anomalies } = data;
+  const { charges, committed, anomalies, bills_due } = data;
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -72,6 +72,11 @@ export default function Recurring() {
         <div style={{ marginLeft: "auto", textAlign: "right", color: "var(--fl-muted)", fontSize: 13 }}>
           <div>{charges.length} active {charges.length === 1 ? "charge" : "charges"}</div>
           <div>{formatMoney(committed.fixed)} fixed · {formatMoney(committed.variable)} variable</div>
+          {bills_due && bills_due.count > 0 && (
+            <div data-testid="bills-due" style={{ marginTop: 4, color: "var(--fl-ink)", fontWeight: 700 }}>
+              {bills_due.count} due this month · {formatMoney(bills_due.amount)}
+            </div>
+          )}
         </div>
       </section>
 

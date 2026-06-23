@@ -27,6 +27,7 @@ def list_recurring(person_id: Optional[int] = None, display: str = "USD"):
     )
     committed = analytics.committed_monthly(recurring)
     anomalies = analytics.recurring_anomalies(recurring)
+    bills_due = analytics.bills_due_this_month(recurring)
     charges = recurring
     f = fx.display_factor(display) or 1.0
     if f != 1.0:
@@ -34,8 +35,10 @@ def list_recurring(person_id: Optional[int] = None, display: str = "USD"):
         charges = [{**c, **{k: round(c[k] * f, 2) for k in ck if c.get(k) is not None}}
                    for c in recurring]
         committed = {k: round(v * f, 2) for k, v in committed.items()}
+        bills_due = {"count": bills_due["count"], "amount": round(bills_due["amount"] * f, 2)}
     return {
         "charges": charges,
         "committed": committed,
         "anomalies": anomalies,
+        "bills_due": bills_due,
     }

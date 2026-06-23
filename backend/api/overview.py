@@ -16,7 +16,8 @@ def _empty():
             "alerts": [], "series": [], "split": None,
             "uncategorized": {"count": 0, "amount": 0.0},
             "safe_to_spend": 0.0, "committed": 0.0,
-            "committed_spent": 0.0, "discretionary_spent": 0.0}
+            "committed_spent": 0.0, "discretionary_spent": 0.0,
+            "bills_due": {"count": 0, "amount": 0.0}}
 
 
 def _scale(v, f):
@@ -82,6 +83,7 @@ def overview(person_id: Optional[int] = None, month: Optional[str] = None,
     )
     discretionary_spent_base = max(0.0, sel["spend"] - committed_spent_base)
     safe_to_spend_base = sel["income"] - committed["total"] - discretionary_spent_base
+    bills_due = analytics.bills_due_this_month(recurring)
 
     # Uncategorized count: expense rows (amount < 0) whose category is Uncategorized/empty/None
     _unc_cats = {"Uncategorized", "", None}
@@ -116,4 +118,5 @@ def overview(person_id: Optional[int] = None, month: Optional[str] = None,
         "committed": _scale(committed["total"], f),
         "committed_spent": _scale(committed_spent_base, f),
         "discretionary_spent": _scale(discretionary_spent_base, f),
+        "bills_due": {"count": bills_due["count"], "amount": _scale(bills_due["amount"], f)},
     }

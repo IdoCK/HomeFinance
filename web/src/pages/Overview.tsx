@@ -153,6 +153,11 @@ export default function Overview() {
           <span style={{ fontSize: 12.5, color: "var(--fl-muted)", marginLeft: "auto" }}>
             <Money value={data.income} /> in − <Money value={data.committed} /> committed − <Money value={data.discretionary_spent} /> spent
           </span>
+          {data.bills_due && data.bills_due.count > 0 && (
+            <div style={{ flexBasis: "100%", fontSize: 12, color: "var(--fl-muted)" }}>
+              {data.bills_due.count} {data.bills_due.count === 1 ? "bill" : "bills"} (~<Money value={data.bills_due.amount} />) still due this month
+            </div>
+          )}
         </section>
       )}
 

@@ -902,6 +902,23 @@ def recurring_charges(txns, vendor_rules=None):
     return out
 
 
+def bills_due_this_month(recurring, as_of=None):
+    """Recurring charges whose NEXT expected date falls between today and the end
+    of the current calendar month — the bills still to hit before month-end.
+    Returns {count, amount}, amount summing each due charge's typical amount.
+    Bounds are inclusive of both today and the last day of the month."""
+    import calendar
+    today = pd.to_datetime(as_of).date() if as_of else date.today()
+    last_day = calendar.monthrange(today.year, today.month)[1]
+    month_end = date(today.year, today.month, last_day)
+    due = [
+        r for r in recurring
+        if r.get("next_expected") and today <= date.fromisoformat(r["next_expected"]) <= month_end
+    ]
+    amount = sum(r.get("typical_amount", 0.0) for r in due)
+    return {"count": len(due), "amount": round(amount, 2)}
+
+
 def committed_monthly(recurring):
     """Total recurring monthly spend, split into 'fixed' / 'variable' / 'total'."""
     fixed = sum(r["monthly_cost"] for r in recurring if r["kind"] == "fixed")
