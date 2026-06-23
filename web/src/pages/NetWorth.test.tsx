@@ -58,6 +58,23 @@ test("renders the net worth total and accounts", async () => {
   expect(screen.getByText("Visa")).toBeInTheDocument();
 });
 
+test("net-worth trend shows dated axis labels and milestone markers", async () => {
+  getNetWorth.mockResolvedValueOnce({
+    summary: { assets: 320000, liabilities: 20000, net: 300000 }, delta: 5000,
+    accounts: [],
+    trend: [
+      { date: "2026-01-01", assets: 130000, liabilities: 10000, net: 120000 },
+      { date: "2026-06-19", assets: 320000, liabilities: 20000, net: 300000 },
+    ],
+  });
+  const { container } = render(<NetWorth />);
+  await waitFor(() => expect(screen.getByTestId("networth-total")).toBeInTheDocument());
+  // $100k and $250k fall inside the 0..300k domain; $500k/$1M do not.
+  expect(container.querySelectorAll("[data-milestone]").length).toBeGreaterThanOrEqual(2);
+  expect(screen.getByText("Jan")).toBeInTheDocument();
+  expect(screen.getByText("Jun")).toBeInTheDocument();
+});
+
 test("renders a per-account balance sparkline when history has 2+ snapshots", async () => {
   getAccountHistory.mockResolvedValue({
     snapshots: [

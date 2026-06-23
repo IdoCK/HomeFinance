@@ -25,6 +25,8 @@ export function AreaChart({
   showAxis = area,
   valueFormat = formatMoney,
   partial,
+  xLabels,
+  milestones,
 }: {
   points: AreaPoint[];
   accent?: string;
@@ -42,6 +44,11 @@ export function AreaChart({
   /** Per-point in-progress flag. The trailing run of `true` points renders as a
    *  dashed segment ("this month isn't settled yet"). Defaults to all-complete. */
   partial?: boolean[];
+  /** Optional x-axis tick labels (one per point), rendered beneath the plot. */
+  xLabels?: string[];
+  /** Round-number reference lines (e.g. net-worth milestones). Only those inside
+   *  the data's y-domain are drawn. */
+  milestones?: number[];
 }) {
   const containerRef = useRef<SVGSVGElement>(null);
   const [measuredW, setMeasuredW] = useState<number>(600);
@@ -92,7 +99,12 @@ export function AreaChart({
   const lastPt = pts[pts.length - 1];
   const lastVal = values[values.length - 1];
 
-  return (
+  // Round-number milestone reference lines, only those inside the y-domain.
+  const visibleMilestones = (milestones ?? []).filter((m) => m > min && m <= max);
+  const kfmt = (n: number) =>
+    n >= 1_000_000 ? `$${n / 1_000_000}M` : n >= 1000 ? `$${Math.round(n / 1000)}k` : `$${n}`;
+
+  const svg = (
     <svg
       ref={containerRef}
       className={className}
@@ -149,6 +161,19 @@ export function AreaChart({
         );
       })}
 
+      {/* Milestone reference lines (e.g. net-worth $100k/$250k/…) */}
+      {visibleMilestones.map((m) => {
+        const y = tickY(m);
+        return (
+          <g key={`ms-${m}`} data-milestone>
+            <line x1={0} y1={y} x2={w} y2={y} stroke="var(--saved, #A855F7)" strokeWidth={1} strokeOpacity={0.5} strokeDasharray="6 4" />
+            <text x={w - 4} y={y - 3} fontSize={9} fill="var(--saved, #A855F7)" textAnchor="end" fontFamily="inherit" fontWeight="600">
+              {kfmt(m)}
+            </text>
+          </g>
+        );
+      })}
+
       {areaPath && <path d={areaPath} fill={`url(#${fillId})`} />}
       {areaPath && <path d={areaPath} fill={`url(#${hatchId})`} />}
       {solidLine && (
@@ -192,5 +217,19 @@ export function AreaChart({
         </text>
       )}
     </svg>
+  );
+
+  if (!xLabels || xLabels.length === 0) return svg;
+  return (
+    <div>
+      {svg}
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 9.5, fontWeight: 600, color: "var(--fl-muted)" }}>
+        {xLabels.map((l, i) => (
+          <span key={`${l}-${i}`} style={{ flex: 1, textAlign: i === 0 ? "left" : i === xLabels.length - 1 ? "right" : "center" }}>
+            {l}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }

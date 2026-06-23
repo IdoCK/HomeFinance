@@ -5,7 +5,14 @@ import { usePersona } from "@/lib/persona";
 import { useCurrency } from "@/lib/currency";
 import { Money, formatMoney } from "@/components/money";
 import { Sparkline } from "@/components/charts/sparkline";
+import { AreaChart } from "@/components/charts/area-chart";
 import { Loading } from "@/components/loading";
+
+const NET_WORTH_MILESTONES = [100_000, 250_000, 500_000, 1_000_000];
+const monthLabel = (iso: string) => {
+  const [y, m] = iso.split("-").map(Number);
+  return new Date(y, (m || 1) - 1, 1).toLocaleDateString(undefined, { month: "short" });
+};
 
 const KINDS = ["checking", "savings", "investment", "property", "credit_card", "loan", "other"];
 const LIABILITY_KINDS = new Set(["credit_card", "loan"]);
@@ -204,12 +211,17 @@ export default function NetWorth() {
             <div><Money value={summary.liabilities} /> liabilities</div>
           </div>
         </div>
-        <Sparkline
-          values={trend.map((p) => p.net)}
-          height={64}
-          ariaLabel="Net worth trend"
-          emptyLabel="Add a second snapshot to see a trend."
-        />
+        {trend.length >= 2 ? (
+          <AreaChart
+            points={trend.map((p) => ({ value: p.net }))}
+            xLabels={trend.map((p) => monthLabel(p.date))}
+            milestones={NET_WORTH_MILESTONES}
+            height={140}
+            ariaLabel="Net worth trend"
+          />
+        ) : (
+          <div style={{ color: "var(--fl-muted)", fontSize: 13 }}>Add a second snapshot to see a trend.</div>
+        )}
       </section>
 
       {personId == null && split && split.length > 0 && (

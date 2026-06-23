@@ -86,6 +86,31 @@ test("accepts custom valueFormat prop", () => {
 // This test uses the all-zero series to exercise the actual degenerate case:
 // scale(0, 0, 0, inner) = inner/2 (midpoint). The removed guard would have
 // produced scale(0, 0, 1, inner) = 0 (bottom), causing misalignment.
+// ── Milestones + x-axis labels (net-worth trend) ───────────────────────────
+
+test("renders only milestone reference lines that fall within the domain", () => {
+  const pts = [{ value: 0 }, { value: 120000 }, { value: 300000 }];
+  const { container } = render(
+    <AreaChart points={pts} showAxis milestones={[100000, 250000, 500000, 1000000]} />
+  );
+  // 100k and 250k are <= 300k (visible); 500k and 1M are above the domain.
+  const ms = container.querySelectorAll("[data-milestone]");
+  expect(ms).toHaveLength(2);
+});
+
+test("renders x-axis labels beneath the plot when provided", () => {
+  const { getByText } = render(
+    <AreaChart points={[{ value: 0 }, { value: 100 }]} xLabels={["Jan", "Feb"]} />
+  );
+  expect(getByText("Jan")).toBeInTheDocument();
+  expect(getByText("Feb")).toBeInTheDocument();
+});
+
+test("no milestone lines when none provided (backward compatible)", () => {
+  const { container } = render(<AreaChart points={points} showAxis />);
+  expect(container.querySelectorAll("[data-milestone]")).toHaveLength(0);
+});
+
 // ── Partial (in-progress month) marker ─────────────────────────────────────
 
 test("renders a dashed partial segment when the last point is partial", () => {
