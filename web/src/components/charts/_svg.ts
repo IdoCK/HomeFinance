@@ -50,15 +50,13 @@ export function layoutShared(series: number[][], w: number, h: number, pad = 4):
 }
 
 /** Categorical color ramp for multi-series charts. Fixed, well-separated hues
- *  drawn from the brand palette (blue/violet/pink/amber already appear in the
- *  Frosted Ledger tokens + showpiece gradient). Deliberately NOT persona-relative:
- *  a category's color must stay stable when you switch persona, and
- *  --persona-solid collides with --persona-spouse in the spouse view. Wraps when
- *  there are more series than colors. */
+ *  drawn from the brand palette. Deliberately NOT persona-relative: a category's
+ *  color must stay stable when you switch persona. The two PERSONA hues
+ *  (#3B82F6 blue = you, #EC4899 pink = spouse) are intentionally EXCLUDED so a
+ *  generic category can never masquerade as a person in a chart. Wraps when there
+ *  are more series than colors. */
 export const CATEGORY_COLORS = [
-  "#3B82F6", // blue
   "#A855F7", // violet
-  "#EC4899", // pink
   "#F59E0B", // amber
   "#06B6D4", // cyan
   "#10B981", // emerald

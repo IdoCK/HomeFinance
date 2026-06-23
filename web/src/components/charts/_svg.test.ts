@@ -45,10 +45,14 @@ test("layoutShared handles empty input", () => {
   expect(layoutShared([], 600, 100)).toEqual([]);
 });
 
-test("categoryColor cycles through the palette and is persona-independent", () => {
-  expect(categoryColor(0)).toBe("#3B82F6");
+test("categoryColor cycles through the palette and excludes persona hues", () => {
+  expect(categoryColor(0)).toBe("#A855F7"); // violet, not the persona blue
   expect(categoryColor(1)).not.toBe(categoryColor(0)); // adjacent series differ
-  expect(categoryColor(8)).toBe(categoryColor(0)); // wraps
+  expect(categoryColor(6)).toBe(categoryColor(0)); // wraps at 6 (persona blue+pink dropped)
+  // The generic ramp must never collide with the two-person persona signal.
+  for (let i = 0; i < 12; i++) {
+    expect(["#3B82F6", "#EC4899"]).not.toContain(categoryColor(i));
+  }
 });
 
 test("allocateDots apportions proportionally and sums to total", () => {

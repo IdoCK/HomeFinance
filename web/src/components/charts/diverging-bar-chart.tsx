@@ -17,8 +17,8 @@ export function DivergingBarChart({
   labelB: string;
   format?: (n: number) => string;
 }) {
-  const colorA = "#3B82F6"; // Ido-blue
-  const colorB = "#EC4899"; // Aviv-pink
+  const colorA = "var(--persona-you)"; // you / blue
+  const colorB = "var(--persona-spouse)"; // spouse / pink
   const max = Math.max(1, ...rows.flatMap((r) => [Math.abs(r.a), Math.abs(r.b)]));
 
   if (rows.length === 0) {
@@ -28,8 +28,8 @@ export function DivergingBarChart({
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "center", gap: 18, fontSize: 11.5, color: "var(--fl-muted)", marginBottom: 12 }}>
-        <Swatch color={colorA} label={labelA} />
-        <Swatch color={colorB} label={labelB} />
+        <Swatch color={colorA} label={labelA} shape="square" />
+        <Swatch color={colorB} label={labelB} shape="circle" />
       </div>
       <div style={{ display: "grid", gap: 10 }}>
         {rows.map((r) => (
@@ -63,10 +63,11 @@ export function DivergingBarChart({
   );
 }
 
-function Swatch({ color, label }: { color: string; label: string }) {
+function Swatch({ color, label, shape }: { color: string; label: string; shape: "square" | "circle" }) {
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-      <span style={{ width: 9, height: 9, borderRadius: 3, background: color }} />
+      {/* Shape distinguishes the two people on top of color + left/right position. */}
+      <span data-swatch style={{ width: 9, height: 9, borderRadius: shape === "circle" ? "50%" : 2, background: color }} />
       {label}
     </span>
   );
