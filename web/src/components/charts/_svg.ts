@@ -107,6 +107,16 @@ export function toPath(points: Pt[], smooth = false): string {
   return d.join(" ");
 }
 
+/** Return the y-axis tick values to label: always includes min, max, and 0 when
+ *  it falls within the domain. Deduplicates so min===0 or max===0 don't double-
+ *  emit zero. Returns values sorted ascending. */
+export function axisTicks(min: number, max: number): number[] {
+  if (min === max) return [min];
+  const set = new Set<number>([min, max]);
+  if (0 >= min && 0 <= max) set.add(0);
+  return Array.from(set).sort((a, b) => a - b);
+}
+
 /** Largest-remainder apportionment: split `dots` across `values` proportionally,
  *  guaranteeing the result sums to `dots` exactly (when the total is positive). */
 export function allocateDots(values: number[], dots: number): number[] {

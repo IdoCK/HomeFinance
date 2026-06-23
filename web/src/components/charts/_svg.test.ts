@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { allocateDots, barPct, categoryColor, divergingWidths, layout, layoutShared, scale, toPath } from "./_svg";
+import { allocateDots, axisTicks, barPct, categoryColor, divergingWidths, layout, layoutShared, scale, toPath } from "./_svg";
 
 test("scale maps value within range onto pixel size", () => {
   expect(scale(0, 0, 10, 100)).toBe(0);
@@ -73,4 +73,31 @@ test("divergingWidths grows the correct half around the center axis", () => {
   expect(divergingWidths(40, 100)).toEqual({ left: 0, right: 40 });
   expect(divergingWidths(-40, 100)).toEqual({ left: 40, right: 0 });
   expect(divergingWidths(0, 100)).toEqual({ left: 0, right: 0 });
+});
+
+// axisTicks tests
+test("axisTicks includes min, max and zero when within domain", () => {
+  const ticks = axisTicks(-100, 200);
+  expect(ticks).toContain(-100);
+  expect(ticks).toContain(200);
+  expect(ticks).toContain(0);
+});
+
+test("axisTicks all-positive domain still includes 0 as min", () => {
+  const ticks = axisTicks(0, 500);
+  expect(ticks).toContain(0);
+  expect(ticks).toContain(500);
+});
+
+test("axisTicks degenerate domain (min === max) returns single element", () => {
+  const ticks = axisTicks(42, 42);
+  expect(ticks).toContain(42);
+  expect(ticks.length).toBeGreaterThan(0);
+});
+
+test("axisTicks returns sorted ascending values", () => {
+  const ticks = axisTicks(-50, 150);
+  for (let i = 1; i < ticks.length; i++) {
+    expect(ticks[i]).toBeGreaterThan(ticks[i - 1]);
+  }
 });
