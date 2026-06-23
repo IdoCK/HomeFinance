@@ -176,6 +176,38 @@ def budget_status(transactions, budgets, parents=None, as_of=None):
     return out
 
 
+def budget_summary(transactions, budgets, parents=None, as_of=None):
+    """Household roll-up for the current calendar month: total budgeted (sum of
+    caps), total spent on budgeted categories, and unbudgeted spend (this month's
+    spend in categories with no budget — leaf category or its parent)."""
+    import calendar  # noqa: F401  (kept parallel with budget_status)
+    parents = parents or {}
+    rows = budget_status(transactions, budgets, parents, as_of)
+    total_budgeted = sum(float(r.get("budget") or 0) for r in rows)
+
+    today = as_of or date.today()
+    month = today.strftime("%Y-%m")
+    df = _df(transactions)
+    spend_by_cat = {}
+    if not df.empty:
+        cur = _split(df[df["month"] == month])
+        if not cur.empty:
+            spend_by_cat = cur.groupby("category")["spend"].sum().to_dict()
+
+    budget_cats = {b["category"] for b in budgets}
+
+    def _covered(cat):
+        return cat in budget_cats or (parents.get(cat) or "").strip() in budget_cats
+
+    budgeted_spend = sum(v for k, v in spend_by_cat.items() if v > 0 and _covered(k))
+    month_spend = sum(v for v in spend_by_cat.values() if v > 0)
+    return {
+        "total_budgeted": round(total_budgeted, 2),
+        "total_spent": round(budgeted_spend, 2),
+        "unbudgeted_spent": round(max(0.0, month_spend - budgeted_spend), 2),
+    }
+
+
 def month_over_month_change(transactions):
     """Per-category % change from the previous month to the latest month."""
     pivot = spending_by_category_over_time(transactions)

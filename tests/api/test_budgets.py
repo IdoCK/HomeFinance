@@ -19,6 +19,22 @@ def test_budgets_status_for_current_month(client, people):
     assert g["status"] in ("on_track", "ahead", "over")
 
 
+def test_budget_summary_rollup_and_unbudgeted(client, people):
+    from modules import database as db
+    you = people[0]["id"]
+    today = date.today().isoformat()
+    db.add_transactions(you, [
+        {"date": today, "description": "Whole Foods", "amount": -120.0, "category": "Groceries", "source": "card"},
+        {"date": today, "description": "Chipotle", "amount": -50.0, "category": "Eating out", "source": "card"},
+    ])
+    db.set_budget(you, "Groceries", 400.0)
+
+    s = client.get("/api/budgets/summary", params={"person_id": you}).json()
+    assert s["total_budgeted"] == 400.0
+    assert s["total_spent"] == 120.0          # spend on budgeted categories
+    assert s["unbudgeted_spent"] == 50.0      # Eating out has no budget
+
+
 def test_put_budget_upserts(client, people):
     you = people[0]["id"]
     r = client.put("/api/budgets", json={"person_id": you, "category": "Rent", "amount": 2000.0})

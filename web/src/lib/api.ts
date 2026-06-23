@@ -154,6 +154,10 @@ export const setBudget = (b: { personId?: number; category: string; amount: numb
 export const deleteBudget = (id: number) =>
   apiSend<{ ok: boolean }>("DELETE", `/budgets/${id}`);
 
+export type BudgetSummary = { total_budgeted: number; total_spent: number; unbudgeted_spent: number };
+export const getBudgetSummary = (p: { personId?: number; display?: Currency }) =>
+  apiGet<BudgetSummary>("/budgets/summary", { person_id: p.personId, display: p.display });
+
 export type RecurringCharge = {
   vendor: string;
   category: string | null;

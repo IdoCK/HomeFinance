@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { pillStyle as pill } from "@/lib/ui";
-import { getBudgets, setBudget, deleteBudget, type Budget } from "@/lib/api";
+import { getBudgets, getBudgetSummary, setBudget, deleteBudget, type Budget, type BudgetSummary } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { useCurrency } from "@/lib/currency";
 import { Money } from "@/components/money";
@@ -17,14 +17,49 @@ const STATUS_LABEL: Record<Budget["status"], string> = {
 };
 
 
-function PaceMeter({ b }: { b: Budget }) {
-  const fillPct = Math.min(b.budget > 0 ? (b.spent / b.budget) * 100 : 0, 100);
-  const tickPct = Math.min(b.budget > 0 ? (b.expected_to_date / b.budget) * 100 : 0, 100);
+/** Pace bar: fill = used %, with a vertical tick at the pace-expected % (where
+ *  you "should" be today). `color` carries the status. Shared shape between the
+ *  per-budget meter and the household roll-up. */
+function Meter({ fillPct, tickPct, color }: { fillPct: number; tickPct: number; color: string }) {
   return (
     <div style={{ position: "relative", height: 10, borderRadius: 999, background: "var(--fl-line)" }}>
-      <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: `${fillPct}%`, background: STATUS_COLOR[b.status], borderRadius: 999, transition: "width .4s ease" }} />
-      <div style={{ position: "absolute", top: -2, bottom: -2, left: `${tickPct}%`, width: 2, borderRadius: 2, background: "var(--fl-ink)", opacity: 0.5 }} aria-hidden />
+      <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: `${Math.min(fillPct, 100)}%`, background: color, borderRadius: 999, transition: "width .4s ease" }} />
+      <div style={{ position: "absolute", top: -2, bottom: -2, left: `${Math.min(tickPct, 100)}%`, width: 2, borderRadius: 2, background: "var(--fl-ink)", opacity: 0.5 }} aria-hidden />
     </div>
+  );
+}
+
+function PaceMeter({ b }: { b: Budget }) {
+  const fillPct = b.budget > 0 ? (b.spent / b.budget) * 100 : 0;
+  const tickPct = b.budget > 0 ? (b.expected_to_date / b.budget) * 100 : 0;
+  return <Meter fillPct={fillPct} tickPct={tickPct} color={STATUS_COLOR[b.status]} />;
+}
+
+function Rollup({ summary }: { summary: BudgetSummary }) {
+  const { total_budgeted, total_spent, unbudgeted_spent } = summary;
+  const now = new Date();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const paceFrac = now.getDate() / daysInMonth;
+  const fillPct = total_budgeted > 0 ? (total_spent / total_budgeted) * 100 : 0;
+  const color =
+    total_spent > total_budgeted ? "var(--neg)"
+    : total_spent > total_budgeted * paceFrac ? "#F59E0B"
+    : "var(--persona)";
+  return (
+    <section className="frosted-card" aria-label="Budget roll-up" style={{ padding: 20, display: "grid", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fl-muted)" }}>Budgeted this month</span>
+        <span data-testid="budget-rollup" style={{ fontSize: 30, fontWeight: 800, letterSpacing: "-0.03em" }}>
+          <Money value={total_spent} /> <span style={{ fontSize: 15, color: "var(--fl-muted)" }}>/ <Money value={total_budgeted} /></span>
+        </span>
+        {unbudgeted_spent > 0 && (
+          <span style={{ marginLeft: "auto", fontSize: 12.5, color: "var(--fl-muted)" }}>
+            +<Money value={unbudgeted_spent} /> unbudgeted
+          </span>
+        )}
+      </div>
+      <Meter fillPct={fillPct} tickPct={paceFrac * 100} color={color} />
+    </section>
   );
 }
 
@@ -32,12 +67,16 @@ export default function Budgets() {
   const { personId, label } = usePersona();
   const { currency } = useCurrency();
   const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [summary, setSummary] = useState<BudgetSummary | null>(null);
   const [adding, setAdding] = useState(false);
   const [newCat, setNewCat] = useState("");
   const [newAmt, setNewAmt] = useState("");
 
   const load = useCallback(
-    () => getBudgets({ personId, display: currency }).then(setBudgets).catch(() => setBudgets([])),
+    () => {
+      getBudgets({ personId, display: currency }).then(setBudgets).catch(() => setBudgets([]));
+      getBudgetSummary({ personId, display: currency }).then(setSummary).catch(() => setSummary(null));
+    },
     [personId, currency],
   );
   useEffect(() => { load(); }, [load]);
@@ -67,6 +106,8 @@ export default function Budgets() {
         <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", fontSize: 24, margin: 0 }}>Budgets · {label}</h1>
         <span style={{ color: "var(--fl-muted)", fontSize: 13 }}>this month, paced to today</span>
       </header>
+
+      {summary && summary.total_budgeted > 0 && <Rollup summary={summary} />}
 
       {budgets.length === 0 && !adding && (
         <section className="frosted-card" style={{ padding: 32, textAlign: "center", color: "var(--fl-muted)" }}>
