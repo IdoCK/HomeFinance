@@ -4,9 +4,8 @@ data/*.db.bak-*
 venv/
 __pycache__/
 .env
-.claude/
+.claude/*
 !.claude/agents/
-!.claude/agents/**
 .planning/
 .superpowers/
 web/node_modules/
