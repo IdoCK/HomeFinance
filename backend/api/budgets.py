@@ -21,13 +21,25 @@ def list_budgets(person_id: Optional[int] = None, display: str = "USD"):
     # Convert each budget's amount from its stored currency to USD so that
     # analytics.budget_status compares like-for-like against USD-base txns.
     # We use today's date for the rate lookup (budgets are recurring monthly caps).
+    # If the rate is unavailable (to_base returns None), degrade gracefully:
+    # keep the original amount as the cap (non-zero, visible) and mark
+    # rate_stale=True so the UI can warn.  Mirrors the resolve_rows convention
+    # in modules/fx.py.  USD budgets always pass through unchanged.
     today = datetime.date.today().isoformat()
     budgets_usd = []
     for b in budgets:
         currency = b.get("currency") or "USD"
         amount = b.get("amount")
-        amount_usd = fx.to_base(amount, currency, today) if amount is not None else amount
-        budgets_usd.append({**b, "amount": amount_usd})
+        if amount is None:
+            budgets_usd.append({**b})
+            continue
+        amount_usd = fx.to_base(amount, currency, today)
+        if amount_usd is None:
+            # Rate unavailable — keep original amount so cap stays non-zero;
+            # flag stale so the UI/caller can display a warning.
+            budgets_usd.append({**b, "amount": amount, "rate_stale": True})
+        else:
+            budgets_usd.append({**b, "amount": amount_usd})
 
     rows = analytics.budget_status(txns, budgets_usd, parents)
     f = fx.display_factor(display) or 1.0
