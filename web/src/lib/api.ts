@@ -331,6 +331,10 @@ export type ImportParseResult = {
 
 export const getOllamaStatus = () => apiGet<OllamaStatus>("/import/status");
 
+export type UntrackedCount = { count: number };
+export const getUntrackedCount = (personId?: number) =>
+  apiGet<UntrackedCount>("/import/untracked-count", { person_id: personId });
+
 // Multipart upload — let the browser set the Content-Type boundary, so this
 // doesn't go through apiSend (which sends JSON).
 export async function parseImport(file: File, source: string, personId: number,
