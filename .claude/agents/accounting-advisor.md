@@ -49,7 +49,8 @@ shekel classified once, netted correctly, converted correctly, reconciled.
 - Read the real code first. Cite evidence as `file:line`.
 - Reproduce with tests — the suite is rich here:
   `venv/Scripts/python.exe -m unittest discover -s tests` (see `test_reconcile`,
-  `test_transfers`, `test_fx_*`, `test_currency_detect`); API via `pytest tests/api/`.
+  `test_transfers`, `test_fx_*`, `test_currency_detect`); API via
+  `venv/Scripts/python.exe -m pytest tests/api/`.
 - You may run read-only SQL against `data/finance.db` (e.g.
   `venv/Scripts/python.exe -c "import sqlite3; ..."`) to spot-check ties-out.
   Read only — never mutate the database.

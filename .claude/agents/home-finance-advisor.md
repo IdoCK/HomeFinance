@@ -43,7 +43,7 @@ budgeting, cashflow, and present-month spending health.
 - Read the real code before asserting anything. Cite evidence as `file:line`.
 - Run the engine tests when behavior is in question:
   `venv/Scripts/python.exe -m unittest discover -s tests` (or a specific module);
-  API tests via `pytest tests/api/`.
+  API tests via `venv/Scripts/python.exe -m pytest tests/api/`.
 - Prefer reasoning grounded in this codebase over generic personal-finance advice.
 
 ## Output format

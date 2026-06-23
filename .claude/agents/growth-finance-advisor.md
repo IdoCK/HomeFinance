@@ -42,7 +42,8 @@ compounding.
 ## Method
 - Read the real code first. Cite evidence as `file:line`.
 - Run engine tests when behavior is in question:
-  `venv/Scripts/python.exe -m unittest discover -s tests`; API via `pytest tests/api/`.
+  `venv/Scripts/python.exe -m unittest discover -s tests`; API via
+  `venv/Scripts/python.exe -m pytest tests/api/`.
 - Use WebSearch/WebFetch for current, factual references (typical return
   assumptions, contribution limits) — clearly mark anything time-sensitive.
 - Ground every claim in this codebase; avoid generic wealth-advice boilerplate.
