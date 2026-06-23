@@ -99,6 +99,20 @@ test("summarizes bills still due this month when any are pending", async () => {
   expect(screen.getByText(/3 bills/i)).toBeInTheDocument();
 });
 
+test("savings-rate card shows the FIRE benchmark line and a verdict", async () => {
+  getOverview.mockResolvedValue({
+    ...base,
+    series: [
+      { month: "2026-03", income: 5000, spend: 2500, net: 2500, savings_rate: 0.50, complete: true },
+      { month: "2026-04", income: 5000, spend: 2500, net: 2500, savings_rate: 0.50, complete: true },
+      { month: "2026-05", income: 5000, spend: 2400, net: 2600, savings_rate: 0.52, complete: true },
+    ],
+  });
+  render(<Overview />);
+  await waitFor(() => expect(screen.getByText(/50% FIRE/i)).toBeInTheDocument());
+  expect(screen.getByText(/FIRE pace/i)).toBeInTheDocument();
+});
+
 test("renders spending alert chips", async () => {
   getOverview.mockResolvedValue({
     ...base,

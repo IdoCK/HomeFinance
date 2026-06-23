@@ -10,7 +10,6 @@ import { CardHeaderRow } from "@/components/ui/card";
 import { GradientCard } from "@/components/gradient-card";
 import { AreaChart } from "@/components/charts/area-chart";
 import { LineChart } from "@/components/charts/line-chart";
-import { BarChart } from "@/components/charts/bar-chart";
 import { StackedBars } from "@/components/charts/stacked-bars";
 import { DotMatrix, type Segment } from "@/components/charts/dot-matrix";
 import { Banner } from "@/components/ui/banner";
@@ -65,11 +64,20 @@ export default function Overview() {
     { name: "Spending", values: series.map((s) => s.spend), color: "var(--neg)", total: series.reduce((a, s) => a + s.spend, 0) },
     { name: "Saved (cumulative)", values: cumulative, color: "var(--saved)", total: cumulative[cumulative.length - 1] ?? 0 },
   ];
-  const rateBars = series.map((s) => ({
-    label: s.month.slice(5),
-    value: Math.round((s.savings_rate ?? 0) * 100),
-    highlight: s.month === data.month,
-  }));
+  // Savings-rate trajectory: a rolling 3-month average smooths statement-cycle
+  // noise, read against the 20% (solid) and 50% (FIRE) benchmarks.
+  const ratePct = series.map((s) => Math.round((s.savings_rate ?? 0) * 100));
+  const rolling3 = ratePct.map((_, i) => {
+    const window = ratePct.slice(Math.max(0, i - 2), i + 1);
+    return Math.round(window.reduce((a, b) => a + b, 0) / window.length);
+  });
+  const latestRoll = rolling3.length ? rolling3[rolling3.length - 1] : null;
+  const savingsVerdict =
+    latestRoll == null ? null
+    : latestRoll >= 50 ? "FIRE pace — saving about half your income."
+    : latestRoll >= 20 ? "Above the 20% savings guideline."
+    : latestRoll >= 0 ? "Below the 20% savings guideline."
+    : "Spending more than you earn.";
 
   // This-month stacked rows (Income / Spending / Saved), scaled to the largest.
   const denom = Math.max(data.income, data.spend, Math.abs(data.net), 1);
@@ -256,9 +264,25 @@ export default function Overview() {
           <CardHeaderRow action={<span style={{ fontSize: 18, fontWeight: 800 }}>{rate == null ? "—" : `${Math.round(rate * 100)}%`}</span>}>
             Savings rate
           </CardHeaderRow>
-          {rateBars.length > 0
-            ? <BarChart series={rateBars} color="var(--persona-spouse)" highlightColor="var(--persona-spouse)" />
-            : <div style={{ fontSize: 12, color: "var(--fl-muted)" }}>No history yet.</div>}
+          {rolling3.length > 0 ? (
+            <>
+              <LineChart
+                labels={trendLabels}
+                series={[{ name: "3-mo avg", values: rolling3, color: "var(--persona-spouse)" }]}
+                refLines={[
+                  { value: 20, label: "20%", color: "var(--fl-muted)" },
+                  { value: 50, label: "50% FIRE", color: "var(--saved)" },
+                ]}
+                valueFormat={(n) => `${Math.round(n)}%`}
+                legend={false}
+                height={120}
+                ariaLabel="Savings-rate trajectory (3-month average) against 20% and 50% benchmarks"
+              />
+              {savingsVerdict && <div style={{ marginTop: 8, fontSize: 12, color: "var(--fl-muted)" }}>{savingsVerdict}</div>}
+            </>
+          ) : (
+            <div style={{ fontSize: 12, color: "var(--fl-muted)" }}>No history yet.</div>
+          )}
         </section>
 
         <section className="frosted-card" style={CARD}>

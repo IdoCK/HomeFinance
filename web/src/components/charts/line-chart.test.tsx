@@ -72,6 +72,28 @@ test("path count stays equal to series count even with showAxis=true", () => {
   expect(container.querySelectorAll("path")).toHaveLength(2);
 });
 
+// ── Reference lines (benchmark bands) ──────────────────────────────────────
+
+test("renders horizontal reference lines within the domain", () => {
+  const { container } = render(
+    <LineChart
+      series={[{ name: "rate", values: [10, 40], total: 0 }]}
+      labels={["a", "b"]}
+      refLines={[{ value: 20, label: "20%" }, { value: 80, label: "80%" }]}
+    />
+  );
+  // 20 is inside [0,40]; 80 is above the domain → only one refline.
+  expect(container.querySelectorAll("[data-refline]")).toHaveLength(1);
+});
+
+test("no reflines when none provided (path count = series count)", () => {
+  const { container } = render(
+    <LineChart series={series} labels={["2026-04", "2026-05"]} />
+  );
+  expect(container.querySelectorAll("[data-refline]")).toHaveLength(0);
+  expect(container.querySelectorAll("path")).toHaveLength(2);
+});
+
 // ── Partial (in-progress month) marker ─────────────────────────────────────
 
 test("renders dashed partial segments when the last point is partial", () => {

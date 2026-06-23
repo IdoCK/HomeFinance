@@ -24,6 +24,7 @@ export function LineChart({
   showAxis = true,
   valueFormat = formatMoney,
   partial,
+  refLines,
 }: {
   series: LineSeries[];
   /** x-axis tick labels (one per data point); rendered beneath the plot. */
@@ -39,6 +40,9 @@ export function LineChart({
   /** Per-point (shared x) in-progress flag. The trailing run of `true` points
    *  renders dashed for every series. Defaults to all-complete. */
   partial?: boolean[];
+  /** Horizontal benchmark/reference lines (e.g. savings-rate 20%/50%). Only those
+   *  inside the y-domain are drawn. */
+  refLines?: { value: number; label?: string; color?: string }[];
 }) {
   const containerRef = useRef<SVGSVGElement>(null);
   const [measuredW, setMeasuredW] = useState<number>(600);
@@ -121,6 +125,24 @@ export function LineChart({
             </text>
           );
         })}
+
+        {/* Horizontal benchmark reference lines (drawn behind the series) */}
+        {(refLines ?? [])
+          .filter((r) => r.value > domainMin && r.value <= domainMax)
+          .map((r) => {
+            const y = tickY(r.value);
+            const color = r.color ?? "var(--fl-muted)";
+            return (
+              <g key={`ref-${r.value}`} data-refline>
+                <line x1={0} y1={y} x2={w} y2={y} stroke={color} strokeWidth={1} strokeOpacity={0.6} strokeDasharray="5 4" />
+                {r.label && (
+                  <text x={w - 4} y={y - 3} fontSize={9} fill={color} textAnchor="end" fontFamily="inherit" fontWeight="600">
+                    {r.label}
+                  </text>
+                )}
+              </g>
+            );
+          })}
 
         {/* Series paths — one solid <path> per series (so the no-partial path
             count stays === series count); a dashed sibling draws the in-progress
