@@ -1,5 +1,6 @@
 import { formatMoney } from "@/components/money";
 import { barPct } from "./_svg";
+import { Legend } from "./legend";
 
 export type DivergingRow = { category: string; a: number; b: number; shared?: boolean };
 
@@ -27,9 +28,12 @@ export function DivergingBarChart({
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "center", gap: 18, fontSize: 11.5, color: "var(--fl-muted)", marginBottom: 12 }}>
-        <Swatch color={colorA} label={labelA} shape="square" />
-        <Swatch color={colorB} label={labelB} shape="circle" />
+      <div style={{ marginBottom: 12 }}>
+        <Legend
+          justify="center"
+          gap={18}
+          items={[{ label: labelA, color: colorA, shape: "square" }, { label: labelB, color: colorB, shape: "dot" }]}
+        />
       </div>
       <div style={{ display: "grid", gap: 10 }}>
         {rows.map((r) => (
@@ -60,15 +64,5 @@ export function DivergingBarChart({
         ))}
       </div>
     </div>
-  );
-}
-
-function Swatch({ color, label, shape }: { color: string; label: string; shape: "square" | "circle" }) {
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-      {/* Shape distinguishes the two people on top of color + left/right position. */}
-      <span data-swatch style={{ width: 9, height: 9, borderRadius: shape === "circle" ? "50%" : 2, background: color }} />
-      {label}
-    </span>
   );
 }

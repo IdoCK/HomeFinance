@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from "react";
 import { axisTicks, categoryColor, layoutShared, scale, splitPartialPath, toPath } from "./_svg";
 import { formatMoney } from "@/components/money";
+import { Legend } from "./legend";
 
 export type LineSeries = { name: string; values: number[]; color?: string; total?: number };
 
@@ -188,16 +189,8 @@ export function LineChart({
         ))}
       </div>
       {legend && (
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 10, fontSize: 11.5, color: "var(--fl-muted)" }}>
-          {colored.map((s) => (
-            <span key={s.name} style={{ display: "inline-flex", alignItems: "center" }}>
-              <span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: s.color, marginRight: 6 }} />
-              {s.name}
-              {s.total != null && (
-                <b style={{ color: "var(--fl-ink)", fontWeight: 800, marginLeft: 5 }}>{formatMoney(s.total)}</b>
-              )}
-            </span>
-          ))}
+        <div style={{ marginTop: 10 }}>
+          <Legend items={colored.map((s) => ({ label: s.name, color: s.color, total: s.total }))} />
         </div>
       )}
     </div>

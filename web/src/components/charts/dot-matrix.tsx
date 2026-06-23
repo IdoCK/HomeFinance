@@ -1,18 +1,11 @@
-import type { CSSProperties } from "react";
 import { allocateDots } from "./_svg";
 import { formatMoney } from "@/components/money";
+import { Legend, shapeAt, shapeStyle } from "./legend";
 
 export type Segment = { value: number; color: string; label: string };
 
-// Per-segment SHAPE — a non-color cue so a colorblind reader can still tell whose
-// dots are whose (and map them to the legend). Cycles if there are >4 segments.
-const SHAPES: CSSProperties[] = [
-  { borderRadius: "50%" },                          // circle
-  { borderRadius: 2 },                              // square
-  { borderRadius: 2, transform: "rotate(45deg)" },  // diamond
-  { borderRadius: "2px 9px 2px 9px" },              // leaf
-];
-const shapeOf = (i: number): CSSProperties => SHAPES[i % SHAPES.length];
+// Per-segment SHAPE (shared with the legend) — a non-color cue so a colorblind
+// reader can still tell whose dots are whose and map them to the legend swatch.
 
 /** "Who spent what" — the Joint signature. Allocates `dots` proportionally
  *  across segments (largest-remainder, so counts sum to `dots`) and renders a
@@ -41,7 +34,7 @@ export function DotMatrix({
               <span
                 key={`${si}-${di}`}
                 title={s.label}
-                style={{ width: 11, height: 11, background: s.color, ...shapeOf(si) }}
+                style={{ width: 11, height: 11, background: s.color, ...shapeStyle(shapeAt(si)) }}
               />
             )),
           )}
@@ -60,14 +53,10 @@ export function DotMatrix({
           ))}
         </div>
       )}
-      <div style={{ display: "flex", gap: 18, fontSize: 11.5, color: "var(--fl-muted)", flexWrap: "wrap" }}>
-        {segments.map((s, si) => (
-          <span key={si} style={{ display: "inline-flex", alignItems: "center" }}>
-            <span data-swatch style={{ display: "inline-block", width: 9, height: 9, background: s.color, marginRight: 6, ...shapeOf(si) }} />
-            {s.label} <b style={{ color: "var(--fl-ink)", fontWeight: 800, marginLeft: 5 }}>{formatMoney(s.value)}</b>
-          </span>
-        ))}
-      </div>
+      <Legend
+        gap={18}
+        items={segments.map((s, si) => ({ label: s.label, color: s.color, total: s.value, shape: shapeAt(si) }))}
+      />
     </div>
   );
 }

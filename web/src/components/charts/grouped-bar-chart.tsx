@@ -1,5 +1,6 @@
 import { formatMoney } from "@/components/money";
 import { barPct, categoryColor } from "./_svg";
+import { Legend } from "./legend";
 
 export type GroupedRow = { name: string; a: number; b: number };
 
@@ -28,9 +29,8 @@ export function GroupedBarChart({
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 16, fontSize: 11.5, color: "var(--fl-muted)", marginBottom: 12 }}>
-        <Swatch color={colorA} label={labelA} />
-        <Swatch color={colorB} label={labelB} />
+      <div style={{ marginBottom: 12 }}>
+        <Legend items={[{ label: labelA, color: colorA, shape: "square" }, { label: labelB, color: colorB, shape: "square" }]} />
       </div>
       <div style={{ display: "grid", gap: 12 }}>
         {rows.map((r) => (
@@ -42,15 +42,6 @@ export function GroupedBarChart({
         ))}
       </div>
     </div>
-  );
-}
-
-function Swatch({ color, label }: { color: string; label: string }) {
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-      <span style={{ width: 9, height: 9, borderRadius: 3, background: color }} />
-      {label}
-    </span>
   );
 }
 

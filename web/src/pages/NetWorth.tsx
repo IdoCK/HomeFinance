@@ -4,7 +4,7 @@ import { getNetWorth, addAccount, updateAccountBalance, deleteAccount, getReconc
 import { usePersona } from "@/lib/persona";
 import { useCurrency } from "@/lib/currency";
 import { Money, formatMoney } from "@/components/money";
-import { AreaChart } from "@/components/charts/area-chart";
+import { Sparkline } from "@/components/charts/sparkline";
 import { Loading } from "@/components/loading";
 
 const KINDS = ["checking", "savings", "investment", "property", "credit_card", "loan", "other"];
@@ -39,7 +39,7 @@ function AccountRow({ a, onSave, onRemove, onChanged }: {
         </span>
         {history && history.length >= 2 && (
           <span style={{ width: 110, height: 28, flex: "none" }}>
-            <AreaChart points={history.map((s) => ({ value: s.balance }))} area={false} mode="linear" height={28} accent={asset ? "var(--pos)" : "var(--neg)"} ariaLabel={`${a.name} balance history`} />
+            <Sparkline values={history.map((s) => s.balance)} height={28} accent={asset ? "var(--pos)" : "var(--neg)"} ariaLabel={`${a.name} balance history`} />
           </span>
         )}
         <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
@@ -204,9 +204,12 @@ export default function NetWorth() {
             <div><Money value={summary.liabilities} /> liabilities</div>
           </div>
         </div>
-        {trend.length >= 2
-          ? <AreaChart points={trend.map((p) => ({ value: p.net }))} area={false} mode="linear" height={64} accent="var(--persona-solid)" ariaLabel="Net worth trend" />
-          : <div style={{ color: "var(--fl-muted)", fontSize: 13 }}>Add a second snapshot to see a trend.</div>}
+        <Sparkline
+          values={trend.map((p) => p.net)}
+          height={64}
+          ariaLabel="Net worth trend"
+          emptyLabel="Add a second snapshot to see a trend."
+        />
       </section>
 
       {personId == null && split && split.length > 0 && (
