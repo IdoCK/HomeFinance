@@ -107,6 +107,14 @@ export type TransferPair = {
   days_apart: number;
   cross_person: boolean;
   both_included: boolean;
+  /** Original currency of the outflow leg (e.g. "ILS", "USD"). */
+  out_currency?: string;
+  /** Original currency of the inflow leg (e.g. "ILS", "USD"). */
+  in_currency?: string;
+  /** Original amount of the outflow leg in its own currency. */
+  out_amount?: number;
+  /** Original amount of the inflow leg in its own currency. */
+  in_amount?: number;
 };
 
 export const getTransferPairs = (personId?: number) =>

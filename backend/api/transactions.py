@@ -31,7 +31,11 @@ def list_transactions(person_id: Optional[int] = None, display: str = "USD"):
 def transfer_pairs(person_id: Optional[int] = None):
     """Detected internal-transfer pairs (an outflow matched to an equal inflow).
     Joint (person_id omitted) catches cross-person moves; a person scope catches
-    their own-account transfers. The UI can exclude both sides of a pair."""
+    their own-account transfers. The UI can exclude both sides of a pair.
+
+    Matching is currency-aware via `amount_base` (USD pivot) on each transaction
+    row — a ₪370 outflow will not pair with a $370 inflow. Each pair dict carries
+    `out_currency`, `in_currency`, `out_amount`, and `in_amount` for the UI."""
     return analytics.find_transfer_pairs(db.get_transactions(person_id))
 
 

@@ -216,34 +216,64 @@ def find_transfer_pairs(txns, *, days=3):
     where both sides are on a spend feed (credit_card/amazon) are skipped, since
     those are a purchase and its refund (already handled by refund-netting).
 
+    Matching is currency-aware: the canonical pivot is USD (`amount_base`).
+    Two legs match only when their USD base amounts are equal within a small
+    tolerance (0.02 USD). This prevents a ₪370 outflow from pairing with a
+    $370 inflow just because the raw numbers happen to be equal. If
+    `amount_base` is absent on a row, the raw `amount` is used as a fallback
+    so behaviour degrades gracefully on un-enriched data.
+
     Returns a list (largest amount first) of dicts: amount, out_id, in_id,
     out_date, in_date, out_desc, in_desc, out_person, in_person, days_apart,
-    cross_person, both_included."""
+    cross_person, both_included, out_currency, in_currency."""
     from collections import defaultdict
+
+    # Tolerance for USD-base comparison (covers floating-point drift; 2 cents).
+    _BASE_TOL = 0.02
+
+    def _base_key(t):
+        """USD base for bucketing — falls back to raw amount if not enriched."""
+        base = t.get("amount_base")
+        amt = float(t["amount"])
+        if base is not None:
+            return float(base)
+        return amt
+
     outs, ins = defaultdict(list), defaultdict(list)
     for t in txns:
         amt = float(t["amount"])
-        key = round(abs(amt), 2)
-        if key == 0:
+        base = _base_key(t)
+        if round(abs(base), 2) == 0:
             continue
-        rec = {"t": t, "date": pd.to_datetime(t["date"])}
-        (outs if amt < 0 else ins)[key].append(rec)
+        rec = {"t": t, "date": pd.to_datetime(t["date"]), "base": base}
+        (outs if amt < 0 else ins)[round(abs(base), 2)].append(rec)
 
     pairs = []
     for key, olist in outs.items():
-        ilist = ins.get(key)
-        if not ilist:
+        # Collect all inflow buckets whose rounded base is close enough.
+        candidate_items = []
+        for ikey, ilist in ins.items():
+            if abs(ikey - key) <= _BASE_TOL:
+                candidate_items.extend((j_offset, rec)
+                                       for j_offset, rec in enumerate(ilist))
+
+        if not candidate_items:
             continue
+
+        # Re-sort olist and build indexed access for the matched inflow pool.
         olist.sort(key=lambda r: r["date"])
-        ilist.sort(key=lambda r: r["date"])
-        used = set()
+
+        # Build an indexed list of all inflow candidates (deduped by their
+        # original position within ins).  We track which global indices are used.
+        # Simpler: just work with the flat candidate list + a used set on t["id"].
+        used_ids = set()
         for o in olist:
             ot = o["t"]
-            best = None
-            for j, i in enumerate(ilist):
-                if j in used:
-                    continue
+            best = None  # (rec, gap)
+            for _, i in candidate_items:
                 it = i["t"]
+                if it.get("id") in used_ids:
+                    continue
                 gap = abs((i["date"] - o["date"]).days)
                 if gap > days:
                     continue
@@ -255,21 +285,27 @@ def find_transfer_pairs(txns, *, days=3):
                         or _looks_transfer(it.get("description"))):
                     continue
                 if best is None or gap < best[1]:
-                    best = (j, gap)
+                    best = (i, gap)
             if best is None:
                 continue
-            j = best[0]
-            used.add(j)
-            it = ilist[j]["t"]
+            i_rec, gap = best
+            it = i_rec["t"]
+            used_ids.add(it.get("id"))
             pairs.append({
-                "amount": key, "out_id": ot.get("id"), "in_id": it.get("id"),
+                "amount": key,
+                "out_id": ot.get("id"), "in_id": it.get("id"),
                 "out_date": ot["date"], "in_date": it["date"],
                 "out_desc": ot.get("description", ""),
                 "in_desc": it.get("description", ""),
                 "out_person": ot.get("person_id"), "in_person": it.get("person_id"),
-                "days_apart": best[1],
+                "days_apart": gap,
                 "cross_person": ot.get("person_id") != it.get("person_id"),
                 "both_included": bool(ot.get("included", 1)) and bool(it.get("included", 1)),
+                "out_currency": ot.get("currency", "USD"),
+                "in_currency": it.get("currency", "USD"),
+                # Original leg amounts in each leg's own currency (for UI display).
+                "out_amount": abs(float(ot["amount"])),
+                "in_amount": abs(float(it["amount"])),
             })
     pairs.sort(key=lambda p: p["amount"], reverse=True)
     return pairs
