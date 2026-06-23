@@ -422,8 +422,14 @@ export const getOverlap = (p: { filters?: AnalysisFilters } = {}) =>
 
 export const getEvents = (personId?: number) =>
   apiGet<FinanceEvent[]>("/events", { person_id: personId });
-export const createEvent = (e: { personId?: number; name: string; kind: string }) =>
-  apiSend<{ id: number }>("POST", "/events", { person_id: e.personId, name: e.name, kind: e.kind });
+export const createEvent = (e: {
+  personId?: number; name: string; kind: string;
+  startDate?: string; endDate?: string; rule?: Record<string, unknown>;
+}) =>
+  apiSend<{ id: number }>("POST", "/events", {
+    person_id: e.personId, name: e.name, kind: e.kind,
+    start_date: e.startDate, end_date: e.endDate, rule: e.rule,
+  });
 export const deleteEvent = (id: number) =>
   apiSend<{ ok: boolean }>("DELETE", `/events/${id}`);
 export const getEventTransactions = (id: number) =>

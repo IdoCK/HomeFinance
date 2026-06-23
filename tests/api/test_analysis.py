@@ -183,6 +183,26 @@ def test_filters_and_together_dow_and_category(client, seeded):
     assert by == {"Groceries": 300.0}  # Housing excluded by category, May excluded by dow
 
 
+def test_window_event_auto_includes_in_range(client, seeded):
+    # A date-window event (no manual tags) should scope the analysis to April only.
+    from modules import database as db
+    eid = db.create_event(seeded, "April", "window", "2026-04-01", "2026-04-30", None)
+    d = client.get("/api/analysis/drill",
+                   params={"person_id": seeded, "level": "category", "event_id": eid}).json()
+    by = {i["name"]: i["value"] for i in d["items"]}
+    assert by == {"Housing": 2000.0, "Groceries": 300.0}  # Apr 5 + Apr 12, no May rows
+
+
+def test_recurring_event_auto_includes_by_dow(client, seeded):
+    # A recurring Sundays rule selects the two April Sunday rows.
+    from modules import database as db
+    eid = db.create_event(seeded, "Sundays", "recurring", None, None, {"dow": [6]})
+    d = client.get("/api/analysis/drill",
+                   params={"person_id": seeded, "level": "category", "event_id": eid}).json()
+    by = {i["name"]: i["value"] for i in d["items"]}
+    assert by == {"Housing": 2000.0, "Groceries": 300.0}
+
+
 def test_overlap_respects_category_filter(client, seeded_joint):
     d = client.get("/api/analysis/overlap", params={"categories": ["Groceries"]}).json()
     cats = [r["category"] for r in d["rows"]]

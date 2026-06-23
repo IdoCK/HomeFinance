@@ -49,12 +49,38 @@ test("lists events with their tagged totals", async () => {
   expect(screen.getByText(/2 transactions/i)).toBeInTheDocument();
 });
 
-test("creating an event calls createEvent", async () => {
+test("creating a manual event calls createEvent", async () => {
   render(<Events />);
   await waitFor(() => expect(screen.getByText("Hawaii")).toBeInTheDocument());
   await userEvent.type(screen.getByPlaceholderText(/event name/i), "Wedding");
   await userEvent.click(screen.getByRole("button", { name: /add event/i }));
-  expect(createEvent).toHaveBeenCalledWith({ personId: 1, name: "Wedding", kind: expect.any(String) });
+  expect(createEvent).toHaveBeenCalledWith({ personId: 1, name: "Wedding", kind: "tagged" });
+});
+
+test("creating a date-window event sends start/end dates", async () => {
+  render(<Events />);
+  await waitFor(() => expect(screen.getByText("Hawaii")).toBeInTheDocument());
+  await userEvent.type(screen.getByPlaceholderText(/event name/i), "Trip");
+  await userEvent.selectOptions(screen.getByLabelText("Membership"), "window");
+  await userEvent.type(screen.getByLabelText("Start date"), "2026-04-01");
+  await userEvent.type(screen.getByLabelText("End date"), "2026-04-30");
+  await userEvent.click(screen.getByRole("button", { name: /add event/i }));
+  expect(createEvent).toHaveBeenCalledWith(
+    expect.objectContaining({ name: "Trip", kind: "window", startDate: "2026-04-01", endDate: "2026-04-30" }),
+  );
+});
+
+test("creating a recurring event sends a dow rule", async () => {
+  render(<Events />);
+  await waitFor(() => expect(screen.getByText("Hawaii")).toBeInTheDocument());
+  await userEvent.type(screen.getByPlaceholderText(/event name/i), "Weekends");
+  await userEvent.selectOptions(screen.getByLabelText("Membership"), "recurring");
+  await userEvent.click(screen.getByLabelText("Day Sa"));
+  await userEvent.click(screen.getByLabelText("Day Su"));
+  await userEvent.click(screen.getByRole("button", { name: /add event/i }));
+  expect(createEvent).toHaveBeenCalledWith(
+    expect.objectContaining({ name: "Weekends", kind: "recurring", rule: { dow: [5, 6] } }),
+  );
 });
 
 test("tagging transactions to an event calls setEventTags", async () => {
