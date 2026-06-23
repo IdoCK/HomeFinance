@@ -167,6 +167,22 @@ def test_overlap_per_category_split(client, seeded_joint):
     assert d["rows"][0]["category"] == "Housing"
 
 
+def test_dow_filter_selects_specific_weekdays(client, seeded):
+    # Apr 5 & Apr 12 are Sundays (dow=6); May rows are weekdays. Sunday-only → April.
+    d = client.get("/api/analysis/category-trend",
+                   params={"person_id": seeded, "dow": [6]}).json()
+    assert d["months"] == ["2026-04"]
+
+
+def test_filters_and_together_dow_and_category(client, seeded):
+    # dow=6 (Sundays) AND categories=Groceries → just the Apr 12 grocery run.
+    d = client.get("/api/analysis/drill",
+                   params={"person_id": seeded, "level": "category",
+                           "dow": [6], "categories": ["Groceries"]}).json()
+    by = {i["name"]: i["value"] for i in d["items"]}
+    assert by == {"Groceries": 300.0}  # Housing excluded by category, May excluded by dow
+
+
 def test_overlap_respects_category_filter(client, seeded_joint):
     d = client.get("/api/analysis/overlap", params={"categories": ["Groceries"]}).json()
     cats = [r["category"] for r in d["rows"]]

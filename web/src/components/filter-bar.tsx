@@ -2,6 +2,13 @@ import { Pill } from "@/components/ui/pill";
 import { SectionTitle } from "@/components/kpi";
 import type { AnalysisFilters, FilterOptions } from "@/lib/api";
 
+// Engine weekday indexing is Monday=0 .. Sunday=6 (pandas .dt.dayofweek), so the
+// filter values match filter_transactions' `dow` directly.
+const DOW = [
+  { d: 0, label: "Mo" }, { d: 1, label: "Tu" }, { d: 2, label: "We" },
+  { d: 3, label: "Th" }, { d: 4, label: "Fr" }, { d: 5, label: "Sa" }, { d: 6, label: "Su" },
+];
+
 /** Shared deep-dive filter bar (the old Analysis filter row). Controlled: holds
  *  no state of its own — parent owns the AnalysisFilters and re-fetches on change.
  *  All conditions AND together in the engine's filter_transactions. */
@@ -20,6 +27,12 @@ export function FilterBar({
     const cur = value[key] ?? [];
     const next = cur.includes(item) ? cur.filter((x) => x !== item) : [...cur, item];
     set({ [key]: next.length ? next : undefined });
+  };
+
+  const toggleDow = (d: number) => {
+    const cur = value.dow ?? [];
+    const next = cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d];
+    set({ dow: next.length ? next : undefined });
   };
 
   const dirty =
@@ -70,6 +83,15 @@ export function FilterBar({
         {dirty && (
           <Pill onClick={() => onChange({})} style={{ marginLeft: "auto" }} aria-label="Clear filters">Clear</Pill>
         )}
+      </div>
+
+      <div style={{ display: "grid", gap: 6 }}>
+        <SectionTitle>Days of week</SectionTitle>
+        <div role="group" aria-label="Days of week" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {DOW.map(({ d, label }) => (
+            <Pill key={d} active={(value.dow ?? []).includes(d)} onClick={() => toggleDow(d)} aria-label={`Day ${label}`}>{label}</Pill>
+          ))}
+        </div>
       </div>
 
       {options.months.length > 1 && (
