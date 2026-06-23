@@ -596,6 +596,14 @@ def add_account(person_id, name, kind, is_asset, balance):
         return aid
 
 
+def get_account(account_id):
+    """One account row (dict) or None — used to resolve an account's owner before
+    populating its history from that person's imported statements."""
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM accounts WHERE id=?", (account_id,)).fetchone()
+        return dict(row) if row else None
+
+
 def list_accounts(person_id="all"):
     """person_id: int for one person, None for shared, 'all' for the household."""
     with get_conn() as conn:

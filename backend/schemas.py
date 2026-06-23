@@ -47,6 +47,15 @@ class AccountBalanceUpdate(BaseModel):
     balance: float
 
 
+class AccountSnapshotCreate(BaseModel):
+    date: str
+    balance: float
+
+
+class PopulateFromStatements(BaseModel):
+    file_hashes: list[str]
+
+
 class CategoryUpsert(BaseModel):
     person_id: int
     name: str

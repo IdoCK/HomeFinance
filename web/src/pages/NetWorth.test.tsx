@@ -7,6 +7,9 @@ const updateAccountBalance = vi.fn().mockResolvedValue({ ok: true });
 const deleteAccount = vi.fn().mockResolvedValue({ ok: true });
 const getReconciliation = vi.fn().mockResolvedValue({ reconcilable: false });
 const getAccountHistory = vi.fn().mockResolvedValue({ snapshots: [] });
+const getAccountImports = vi.fn().mockResolvedValue({ imports: [] });
+const recordAccountSnapshot = vi.fn().mockResolvedValue({ ok: true });
+const populateFromStatements = vi.fn().mockResolvedValue({ ok: true, recorded: 2 });
 const getNetWorth = vi.fn().mockResolvedValue({
   summary: { assets: 30000, liabilities: 5000, net: 25000 },
   delta: 2000,
@@ -36,11 +39,14 @@ vi.mock("@/lib/api", () => ({
   deleteAccount: (...a: unknown[]) => deleteAccount(...a),
   getReconciliation: (...a: unknown[]) => getReconciliation(...a),
   getAccountHistory: (...a: unknown[]) => getAccountHistory(...a),
+  getAccountImports: (...a: unknown[]) => getAccountImports(...a),
+  recordAccountSnapshot: (...a: unknown[]) => recordAccountSnapshot(...a),
+  populateFromStatements: (...a: unknown[]) => populateFromStatements(...a),
 }));
 
 import NetWorth from "./NetWorth";
 
-afterEach(() => { addAccount.mockClear(); updateAccountBalance.mockClear(); deleteAccount.mockClear(); getReconciliation.mockClear(); getAccountHistory.mockReset(); getAccountHistory.mockResolvedValue({ snapshots: [] }); mockPersonId = 1; });
+afterEach(() => { addAccount.mockClear(); updateAccountBalance.mockClear(); deleteAccount.mockClear(); getReconciliation.mockClear(); getAccountHistory.mockReset(); getAccountHistory.mockResolvedValue({ snapshots: [] }); getAccountImports.mockClear(); recordAccountSnapshot.mockClear(); populateFromStatements.mockClear(); mockPersonId = 1; });
 
 test("renders the net worth total and accounts", async () => {
   render(<NetWorth />);
@@ -59,6 +65,26 @@ test("renders a per-account balance sparkline when history has 2+ snapshots", as
   render(<NetWorth />);
   await waitFor(() => expect(screen.getByText("Vanguard")).toBeInTheDocument());
   expect(await screen.findByLabelText("Vanguard balance history")).toBeInTheDocument();
+});
+
+test("Manage panel records a manual as-of-date snapshot", async () => {
+  render(<NetWorth />);
+  await waitFor(() => expect(screen.getByText("Vanguard")).toBeInTheDocument());
+  await userEvent.click(screen.getByRole("button", { name: "Manage Vanguard" }));
+  await userEvent.type(screen.getByLabelText("Snapshot date for Vanguard"), "2026-03-31");
+  await userEvent.type(screen.getByLabelText("Snapshot balance for Vanguard"), "31000");
+  await userEvent.click(screen.getByRole("button", { name: "Record balance" }));
+  expect(recordAccountSnapshot).toHaveBeenCalledWith(1, "2026-03-31", 31000);
+});
+
+test("Manage panel populates month-end balances from a picked statement", async () => {
+  getAccountImports.mockResolvedValueOnce({ imports: [{ file_hash: "h1", filename: "april.csv", count: 12 }] });
+  render(<NetWorth />);
+  await waitFor(() => expect(screen.getByText("Vanguard")).toBeInTheDocument());
+  await userEvent.click(screen.getByRole("button", { name: "Manage Vanguard" }));
+  await userEvent.click(await screen.findByLabelText("Use april.csv"));
+  await userEvent.click(screen.getByRole("button", { name: "Populate" }));
+  expect(populateFromStatements).toHaveBeenCalledWith(1, ["h1"]);
 });
 
 test("shows the reconciliation panel when statements tie out", async () => {

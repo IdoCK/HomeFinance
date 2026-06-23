@@ -241,6 +241,16 @@ export type AccountSnapshot = { date: string; balance: number };
 export const getAccountHistory = (id: number) =>
   apiGet<{ snapshots: AccountSnapshot[] }>(`/networth/accounts/${id}/history`);
 
+export type StatementImport = { file_hash: string; filename: string; count: number };
+export const getAccountImports = (id: number) =>
+  apiGet<{ imports: StatementImport[] }>(`/networth/accounts/${id}/imports`);
+
+export const recordAccountSnapshot = (id: number, date: string, balance: number) =>
+  apiSend<{ ok: boolean }>("POST", `/networth/accounts/${id}/snapshot`, { date, balance });
+
+export const populateFromStatements = (id: number, fileHashes: string[]) =>
+  apiSend<{ ok: boolean; recorded: number }>("POST", `/networth/accounts/${id}/populate-from-statements`, { file_hashes: fileHashes });
+
 export type Category = { id: number; person_id: number; name: string; keywords: string; parent?: string | null };
 export type Vendor = { id: number; person_id: number; name: string; keywords: string };
 

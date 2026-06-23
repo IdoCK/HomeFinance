@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { pillStyle as pill } from "@/lib/ui";
-import { getNetWorth, addAccount, updateAccountBalance, deleteAccount, getReconciliation, getAccountHistory, type Account, type AccountSnapshot, type NetWorthData, type Reconciliation } from "@/lib/api";
+import { getNetWorth, addAccount, updateAccountBalance, deleteAccount, getReconciliation, getAccountHistory, getAccountImports, recordAccountSnapshot, populateFromStatements, type Account, type AccountSnapshot, type StatementImport, type NetWorthData, type Reconciliation } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { Money, formatMoney } from "@/components/money";
 import { AreaChart } from "@/components/charts/area-chart";
@@ -15,11 +15,12 @@ const badge: CSSProperties = {
   fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--fl-muted)",
 };
 
-function AccountRow({ a, onSave, onRemove }: {
-  a: Account; onSave: (a: Account, v: string) => void; onRemove: (a: Account) => void;
+function AccountRow({ a, onSave, onRemove, onChanged }: {
+  a: Account; onSave: (a: Account, v: string) => void; onRemove: (a: Account) => void; onChanged: () => void;
 }) {
   const asset = !!a.is_asset;
   const [history, setHistory] = useState<AccountSnapshot[] | null>(null);
+  const [managing, setManaging] = useState(false);
   // Refetch when the balance changes — committing a balance writes a new snapshot.
   useEffect(() => {
     let alive = true;
@@ -28,34 +29,112 @@ function AccountRow({ a, onSave, onRemove }: {
   }, [a.id, a.balance]);
 
   return (
-    <section className="frosted-card" style={{ padding: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-      <span style={{ fontWeight: 700 }}>{a.name}</span>
-      <span style={badge}>{a.kind.replace("_", " ")}</span>
-      <span style={{ ...badge, color: asset ? "var(--pos)" : "var(--neg)", borderColor: "currentColor" }}>
-        {asset ? "asset" : "liability"}
-      </span>
-      {history && history.length >= 2 && (
-        <span style={{ width: 110, height: 28, flex: "none" }}>
-          <AreaChart points={history.map((s) => ({ value: s.balance }))} area={false} mode="linear" height={28} accent={asset ? "var(--pos)" : "var(--neg)"} ariaLabel={`${a.name} balance history`} />
+    <section className="frosted-card" style={{ padding: 16, display: "grid", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <span style={{ fontWeight: 700 }}>{a.name}</span>
+        <span style={badge}>{a.kind.replace("_", " ")}</span>
+        <span style={{ ...badge, color: asset ? "var(--pos)" : "var(--neg)", borderColor: "currentColor" }}>
+          {asset ? "asset" : "liability"}
         </span>
-      )}
-      <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
-        <input
-          type="number"
-          defaultValue={a.balance}
-          aria-label={`Balance for ${a.name}`}
-          onBlur={(e) => onSave(a, e.target.value)}
-          style={{ ...pill, width: 130, padding: "4px 10px", textAlign: "right" }}
-        />
-        <button
-          onClick={() => onRemove(a)}
-          aria-label={`Remove ${a.name} account`}
-          style={{ border: "none", background: "none", color: "var(--fl-muted)", cursor: "pointer", fontSize: 16, lineHeight: 1 }}
-        >
-          ✕
-        </button>
-      </span>
+        {history && history.length >= 2 && (
+          <span style={{ width: 110, height: 28, flex: "none" }}>
+            <AreaChart points={history.map((s) => ({ value: s.balance }))} area={false} mode="linear" height={28} accent={asset ? "var(--pos)" : "var(--neg)"} ariaLabel={`${a.name} balance history`} />
+          </span>
+        )}
+        <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          <input
+            type="number"
+            defaultValue={a.balance}
+            aria-label={`Balance for ${a.name}`}
+            onBlur={(e) => onSave(a, e.target.value)}
+            style={{ ...pill, width: 130, padding: "4px 10px", textAlign: "right" }}
+          />
+          <button
+            onClick={() => setManaging((m) => !m)}
+            aria-label={`Manage ${a.name}`}
+            aria-expanded={managing}
+            style={{ ...pill, color: "var(--fl-muted)", padding: "4px 10px" }}
+          >
+            Manage
+          </button>
+          <button
+            onClick={() => onRemove(a)}
+            aria-label={`Remove ${a.name} account`}
+            style={{ border: "none", background: "none", color: "var(--fl-muted)", cursor: "pointer", fontSize: 16, lineHeight: 1 }}
+          >
+            ✕
+          </button>
+        </span>
+      </div>
+      {managing && <ManagePanel a={a} onDone={() => { setManaging(false); onChanged(); }} />}
     </section>
+  );
+}
+
+/** The old per-account "Manage" popover: record a balance as of a date (for
+ *  investments with no statement) and populate month-end balances from imported
+ *  bank statements (using each statement's running-balance column). */
+function ManagePanel({ a, onDone }: { a: Account; onDone: () => void }) {
+  const [snapDate, setSnapDate] = useState("");
+  const [snapBal, setSnapBal] = useState("");
+  const [imports, setImports] = useState<StatementImport[]>([]);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [note, setNote] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    getAccountImports(a.id).then((d) => alive && setImports(d.imports)).catch(() => alive && setImports([]));
+    return () => { alive = false; };
+  }, [a.id]);
+
+  const saveSnapshot = () => {
+    const bal = Number(snapBal);
+    if (snapDate && Number.isFinite(bal)) {
+      recordAccountSnapshot(a.id, snapDate, bal).then(onDone);
+    }
+  };
+  const togglePick = (h: string) =>
+    setPicked((s) => { const n = new Set(s); n.has(h) ? n.delete(h) : n.add(h); return n; });
+  const populate = () => {
+    if (picked.size === 0) return;
+    populateFromStatements(a.id, [...picked]).then((r) => {
+      if (r.recorded === 0) setNote("Those files have no running-balance data. Re-import the bank statement (its balance column powers this).");
+      else onDone();
+    });
+  };
+
+  return (
+    <div style={{ display: "grid", gap: 16, borderTop: "1px solid var(--fl-line)", paddingTop: 12 }}>
+      <div style={{ display: "grid", gap: 8 }}>
+        <span style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--fl-muted)" }}>Record a balance as of a date</span>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <input type="date" aria-label={`Snapshot date for ${a.name}`} value={snapDate} onChange={(e) => setSnapDate(e.target.value)} style={pill} />
+          <input type="number" placeholder="Balance" aria-label={`Snapshot balance for ${a.name}`} value={snapBal} onChange={(e) => setSnapBal(e.target.value)} style={{ ...pill, width: 140 }} />
+          <button onClick={saveSnapshot} style={{ ...pill, fontWeight: 700, color: "var(--persona-solid)" }}>Record balance</button>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gap: 8 }}>
+        <span style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--fl-muted)" }}>Populate month-end balances from statements</span>
+        {imports.length === 0 ? (
+          <span style={{ fontSize: 12.5, color: "var(--fl-muted)" }}>No imported files for this owner yet.</span>
+        ) : (
+          <>
+            <div style={{ display: "grid", gap: 4 }}>
+              {imports.map((im) => (
+                <label key={im.file_hash} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                  <input type="checkbox" checked={picked.has(im.file_hash)} aria-label={`Use ${im.filename}`} onChange={() => togglePick(im.file_hash)} />
+                  <span>{im.filename}</span>
+                  <span style={{ color: "var(--fl-muted)" }}>· {im.count} rows</span>
+                </label>
+              ))}
+            </div>
+            <button onClick={populate} disabled={picked.size === 0} style={{ ...pill, justifySelf: "start", fontWeight: 700, color: "var(--persona-solid)" }}>Populate</button>
+            {note && <span style={{ fontSize: 12, color: "var(--neg)" }}>{note}</span>}
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -173,7 +252,7 @@ export default function NetWorth() {
       )}
 
       <div style={{ display: "grid", gap: 10 }}>
-        {accounts.map((a) => <AccountRow key={a.id} a={a} onSave={commitBalance} onRemove={remove} />)}
+        {accounts.map((a) => <AccountRow key={a.id} a={a} onSave={commitBalance} onRemove={remove} onChanged={load} />)}
       </div>
 
       {adding ? (
