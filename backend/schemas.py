@@ -33,6 +33,10 @@ class GoalSavedUpdate(BaseModel):
     saved_amount: float
 
 
+class GoalNotesUpdate(BaseModel):
+    notes: str
+
+
 class AccountCreate(BaseModel):
     person_id: Optional[int] = None
     name: str
@@ -44,6 +48,15 @@ class AccountCreate(BaseModel):
 
 class AccountBalanceUpdate(BaseModel):
     balance: float
+
+
+class AccountSnapshotCreate(BaseModel):
+    date: str
+    balance: float
+
+
+class PopulateFromStatements(BaseModel):
+    file_hashes: list[str]
 
 
 class CategoryUpsert(BaseModel):

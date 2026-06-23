@@ -2,6 +2,7 @@ import { createBrowserRouter, Outlet, useLocation } from "react-router-dom";
 import { AppSidebar } from "@/components/app-sidebar";
 import Overview from "@/pages/Overview";
 import Transactions from "@/pages/Transactions";
+import Analysis from "@/pages/Analysis";
 import Budgets from "@/pages/Budgets";
 import Recurring from "@/pages/Recurring";
 import Goals from "@/pages/Goals";
@@ -44,6 +45,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Overview /> },
       { path: "transactions", element: <Transactions /> },
+      { path: "analysis", element: <Analysis /> },
       { path: "budgets", element: <Budgets /> },
       { path: "recurring", element: <Recurring /> },
       { path: "goals", element: <Goals /> },

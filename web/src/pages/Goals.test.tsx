@@ -4,6 +4,7 @@ import { afterEach, expect, test, vi } from "vitest";
 
 const addGoal = vi.fn().mockResolvedValue({ ok: true });
 const updateGoalSaved = vi.fn().mockResolvedValue({ ok: true });
+const updateGoalNotes = vi.fn().mockResolvedValue({ ok: true });
 const deleteGoal = vi.fn().mockResolvedValue({ ok: true });
 const getGoals = vi.fn().mockResolvedValue([
   { id: 1, person_id: 1, name: "Emergency fund", target_amount: 10000, saved_amount: 2500, target_date: "2026-12-31", horizon: "short", notes: "", percent: 25, monthly_needed: 1250 },
@@ -23,12 +24,13 @@ vi.mock("@/lib/api", () => ({
   getGoals: (...a: unknown[]) => getGoals(...a),
   addGoal: (...a: unknown[]) => addGoal(...a),
   updateGoalSaved: (...a: unknown[]) => updateGoalSaved(...a),
+  updateGoalNotes: (...a: unknown[]) => updateGoalNotes(...a),
   deleteGoal: (...a: unknown[]) => deleteGoal(...a),
 }));
 
 import Goals from "./Goals";
 
-afterEach(() => { addGoal.mockClear(); updateGoalSaved.mockClear(); deleteGoal.mockClear(); });
+afterEach(() => { addGoal.mockClear(); updateGoalSaved.mockClear(); updateGoalNotes.mockClear(); deleteGoal.mockClear(); });
 
 test("renders goals with progress", async () => {
   render(<Goals />);
@@ -44,6 +46,16 @@ test("editing saved calls updateGoalSaved", async () => {
   await userEvent.type(saved, "3000");
   await userEvent.tab();
   expect(updateGoalSaved).toHaveBeenCalledWith(1, 3000);
+});
+
+test("shows the horizon badge and saves edited notes", async () => {
+  render(<Goals />);
+  await waitFor(() => expect(screen.getByText("Emergency fund")).toBeInTheDocument());
+  expect(screen.getAllByText("short-term").length).toBeGreaterThan(0);
+  const note = screen.getByLabelText("Notes for Emergency fund");
+  await userEvent.type(note, "3 months runway");
+  await userEvent.tab();
+  expect(updateGoalNotes).toHaveBeenCalledWith(1, "3 months runway");
 });
 
 test("removing a goal calls deleteGoal", async () => {

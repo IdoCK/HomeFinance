@@ -1,13 +1,14 @@
+from datetime import date as _date
 from typing import Optional
 
-from fastapi import APIRouter
-
-from datetime import date as _date
+from fastapi import APIRouter, HTTPException
 
 from modules import database as db
 from modules import analytics
 from modules import fx
-from backend.schemas import AccountCreate, AccountBalanceUpdate
+from backend.schemas import (
+    AccountCreate, AccountBalanceUpdate, AccountSnapshotCreate, PopulateFromStatements,
+)
 
 router = APIRouter(prefix="/networth", tags=["networth"])
 
@@ -75,6 +76,58 @@ def reconcile(person_id: Optional[int] = None):
     if result is None:
         return {"reconcilable": False}
     return {"reconcilable": True, **result}
+
+
+@router.get("/accounts/{account_id}/history")
+def account_history(account_id: int):
+    """Balance snapshots for one account, oldest first — the per-account history
+    sparkline on the Net Worth page (the old per-account balance line charts)."""
+    return {"snapshots": db.account_snapshots(account_id)}
+
+
+@router.get("/accounts/{account_id}/imports")
+def account_imports(account_id: int):
+    """Imported statement files for this account's owner — the pick-list for
+    populating month-end balances. Each carries filename + live row count."""
+    acct = db.get_account(account_id)
+    if acct is None:
+        raise HTTPException(404, "Account not found")
+    imports = db.list_imports(acct["person_id"])
+    return {"imports": [{"file_hash": im["file_hash"], "filename": im["filename"],
+                         "count": im.get("live_count", im.get("count", 0))}
+                        for im in imports]}
+
+
+@router.post("/accounts/{account_id}/snapshot")
+def record_snapshot(account_id: int, body: AccountSnapshotCreate):
+    """Record a manual balance as of a date (investments, 401k, HSA…) and make it
+    the current balance — the old 'Record a balance as of a date' action."""
+    if db.get_account(account_id) is None:
+        raise HTTPException(404, "Account not found")
+    db.update_account_balance(account_id, body.balance, snapshot_date=body.date)
+    return {"ok": True}
+
+
+@router.post("/accounts/{account_id}/populate-from-statements")
+def populate_from_statements(account_id: int, body: PopulateFromStatements):
+    """Derive month-end balances from the chosen bank statements' running-balance
+    column and record them as snapshots (the old 'Populate month-end balances from
+    statements'). Current balance is set to the most recent month-end. Returns the
+    number of month-end points recorded; 0 means none of the files carried a
+    running balance (e.g. a credit-card feed)."""
+    acct = db.get_account(account_id)
+    if acct is None:
+        raise HTTPException(404, "Account not found")
+    rows = []
+    for fh in body.file_hashes:
+        rows += db.transactions_for_file(acct["person_id"], fh)
+    points = analytics.month_end_balances(rows)
+    for pt in points:
+        db.write_snapshot(account_id, pt["date"], pt["balance"])
+    if points:
+        last = points[-1]
+        db.update_account_balance(account_id, last["balance"], snapshot_date=last["date"])
+    return {"ok": True, "recorded": len(points)}
 
 
 @router.post("/accounts")

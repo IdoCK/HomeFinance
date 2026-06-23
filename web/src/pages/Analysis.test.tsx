@@ -12,6 +12,12 @@ vi.mock("@/lib/persona", () => ({
 vi.mock("@/lib/api", () => ({
   getFilterOptions: (...a: unknown[]) => getFilterOptions(...a),
   getCategoryTrend: (...a: unknown[]) => getCategoryTrend(...a),
+  getDrill: vi.fn().mockResolvedValue({ level: "category", items: [], rows: [] }),
+  getCompare: vi.fn().mockResolvedValue({
+    preset: "weekdays_weekends", metric: "spend",
+    buckets: [{ label: "Weekdays", total: 0, per_day: 0, n_days: 0 }, { label: "Weekends", total: 0, per_day: 0, n_days: 0 }],
+    labels: { a: "Weekdays", b: "Weekends" }, categories: [],
+  }),
 }));
 
 import Analysis from "./Analysis";

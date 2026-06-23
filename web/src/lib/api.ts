@@ -188,14 +188,17 @@ export type Goal = {
 export const getGoals = (p: { personId?: number; display?: Currency }) =>
   apiGet<Goal[]>("/goals", { person_id: p.personId, display: p.display });
 
-export const addGoal = (g: { personId?: number; name: string; targetAmount: number; targetDate?: string; horizon?: string }) =>
+export const addGoal = (g: { personId?: number; name: string; targetAmount: number; targetDate?: string; horizon?: string; notes?: string }) =>
   apiSend<{ ok: boolean }>("POST", "/goals", {
     person_id: g.personId, name: g.name, target_amount: g.targetAmount,
-    target_date: g.targetDate, horizon: g.horizon ?? "short",
+    target_date: g.targetDate, horizon: g.horizon ?? "short", notes: g.notes ?? "",
   });
 
 export const updateGoalSaved = (id: number, savedAmount: number) =>
   apiSend<{ ok: boolean }>("PATCH", `/goals/${id}`, { saved_amount: savedAmount });
+
+export const updateGoalNotes = (id: number, notes: string) =>
+  apiSend<{ ok: boolean }>("PATCH", `/goals/${id}/notes`, { notes });
 
 export const deleteGoal = (id: number) =>
   apiSend<{ ok: boolean }>("DELETE", `/goals/${id}`);
@@ -247,6 +250,20 @@ export const updateAccountBalance = (id: number, balance: number) =>
 
 export const deleteAccount = (id: number) =>
   apiSend<{ ok: boolean }>("DELETE", `/networth/accounts/${id}`);
+
+export type AccountSnapshot = { date: string; balance: number };
+export const getAccountHistory = (id: number) =>
+  apiGet<{ snapshots: AccountSnapshot[] }>(`/networth/accounts/${id}/history`);
+
+export type StatementImport = { file_hash: string; filename: string; count: number };
+export const getAccountImports = (id: number) =>
+  apiGet<{ imports: StatementImport[] }>(`/networth/accounts/${id}/imports`);
+
+export const recordAccountSnapshot = (id: number, date: string, balance: number) =>
+  apiSend<{ ok: boolean }>("POST", `/networth/accounts/${id}/snapshot`, { date, balance });
+
+export const populateFromStatements = (id: number, fileHashes: string[]) =>
+  apiSend<{ ok: boolean; recorded: number }>("POST", `/networth/accounts/${id}/populate-from-statements`, { file_hashes: fileHashes });
 
 export type Category = { id: number; person_id: number; name: string; keywords: string; parent?: string | null };
 export type Vendor = { id: number; person_id: number; name: string; keywords: string };
@@ -381,10 +398,65 @@ export type CategoryTrend = {
 export const getCategoryTrend = (p: { personId?: number; rollup?: boolean; filters?: AnalysisFilters }) =>
   apiGet<CategoryTrend>(`/analysis/category-trend${analysisQuery(p.personId, p.filters, { rollup: p.rollup ? "true" : undefined })}`);
 
+export type DrillItem = { name: string; value: number };
+export type DrillRow = { date: string; description: string; amount: number; category: string };
+export type DrillResult = { level: "category" | "vendor" | "rows"; items: DrillItem[]; rows: DrillRow[] };
+
+export const getDrill = (p: {
+  personId?: number;
+  level: "category" | "vendor" | "rows";
+  cat?: string;
+  vendor?: string;
+  filters?: AnalysisFilters;
+}) =>
+  apiGet<DrillResult>(
+    `/analysis/drill${analysisQuery(p.personId, p.filters, { level: p.level, cat: p.cat, vendor: p.vendor })}`,
+  );
+
+export type ComparePreset = "weekdays_weekends" | "month_vs_month";
+export type CompareMetric = "spend" | "per_day";
+export type CompareBucket = { label: string; total: number; per_day: number; n_days: number };
+export type CompareResult = {
+  preset: ComparePreset;
+  metric: CompareMetric;
+  buckets: CompareBucket[];
+  labels: { a: string; b: string };
+  categories: { name: string; a: number; b: number }[];
+};
+
+export const getCompare = (p: {
+  personId?: number;
+  preset: ComparePreset;
+  metric: CompareMetric;
+  filters?: AnalysisFilters;
+}) =>
+  apiGet<CompareResult>(
+    `/analysis/compare${analysisQuery(p.personId, p.filters, { preset: p.preset, metric: p.metric })}`,
+  );
+
+export type OverlapPerson = { id: number; name: string; spend: number; categories: number };
+export type OverlapRow = { category: string; a: number; b: number; diff: number; shared: boolean };
+export type OverlapResult = {
+  available: boolean;
+  a: OverlapPerson | null;
+  b: OverlapPerson | null;
+  shared: number;
+  rows: OverlapRow[];
+};
+
+export const getOverlap = (p: { filters?: AnalysisFilters } = {}) =>
+  apiGet<OverlapResult>(`/analysis/overlap${analysisQuery(undefined, p.filters)}`);
+
 export const getEvents = (personId?: number) =>
   apiGet<FinanceEvent[]>("/events", { person_id: personId });
-export const createEvent = (e: { personId?: number; name: string; kind: string }) =>
-  apiSend<{ id: number }>("POST", "/events", { person_id: e.personId, name: e.name, kind: e.kind });
+export const createEvent = (e: {
+  personId?: number; name: string; kind: string;
+  startDate?: string; endDate?: string; rule?: Record<string, unknown>;
+}) =>
+  apiSend<{ id: number }>("POST", "/events", {
+    person_id: e.personId, name: e.name, kind: e.kind,
+    start_date: e.startDate, end_date: e.endDate, rule: e.rule,
+  });
 export const deleteEvent = (id: number) =>
   apiSend<{ ok: boolean }>("DELETE", `/events/${id}`);
 export const getEventTransactions = (id: number) =>

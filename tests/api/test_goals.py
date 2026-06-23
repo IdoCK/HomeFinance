@@ -32,6 +32,27 @@ def test_update_saved_recomputes_percent(client, people):
     assert g["percent"] == 30.0
 
 
+def test_create_goal_persists_horizon_and_notes(client, people):
+    you = people[0]["id"]
+    client.post("/api/goals", json={"person_id": you, "name": "House", "target_amount": 100000,
+                                     "horizon": "long", "notes": "20% down payment"})
+    g = client.get("/api/goals", params={"person_id": you}).json()[0]
+    assert g["horizon"] == "long"
+    assert g["notes"] == "20% down payment"
+
+
+def test_update_goal_notes(client, people):
+    from modules import database as db
+    you = people[0]["id"]
+    db.add_goal(you, "Vacation", 5000.0, 0.0, None, "short", "")
+    gid = client.get("/api/goals", params={"person_id": you}).json()[0]["id"]
+
+    r = client.patch(f"/api/goals/{gid}/notes", json={"notes": "Maldives in spring"})
+    assert r.status_code == 200
+    g = client.get("/api/goals", params={"person_id": you}).json()[0]
+    assert g["notes"] == "Maldives in spring"
+
+
 def test_delete_goal(client, people):
     from modules import database as db
     you = people[0]["id"]

@@ -5,7 +5,7 @@ from fastapi import APIRouter
 from modules import database as db
 from modules import analytics
 from modules import fx
-from backend.schemas import GoalCreate, GoalSavedUpdate
+from backend.schemas import GoalCreate, GoalSavedUpdate, GoalNotesUpdate
 
 router = APIRouter(prefix="/goals", tags=["goals"])
 
@@ -32,6 +32,12 @@ def create_goal(body: GoalCreate):
 @router.patch("/{goal_id}")
 def update_goal(goal_id: int, body: GoalSavedUpdate):
     db.update_goal_saved(goal_id, body.saved_amount)
+    return {"ok": True}
+
+
+@router.patch("/{goal_id}/notes")
+def update_goal_notes(goal_id: int, body: GoalNotesUpdate):
+    db.update_goal_notes(goal_id, body.notes)
     return {"ok": True}
 
 

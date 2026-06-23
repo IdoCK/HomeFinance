@@ -30,6 +30,61 @@ export function layout(values: number[], w: number, h: number, pad = 4): Pt[] {
   }));
 }
 
+/** Lay out several series on ONE shared y-domain, so lines are comparable across
+ *  series (e.g. spend-by-category over the same months). All series must share the
+ *  same length (x positions line up). The domain includes 0 so a baseline reads
+ *  correctly. Returns one Pt[] per input series. */
+export function layoutShared(series: number[][], w: number, h: number, pad = 4): Pt[][] {
+  const all = series.flat();
+  if (all.length === 0) return series.map(() => []);
+  const min = Math.min(0, ...all);
+  const max = Math.max(0, ...all);
+  const inner = h - pad * 2;
+  return series.map((vals) => {
+    const span = vals.length > 1 ? vals.length - 1 : 1;
+    return vals.map((v, i) => ({
+      x: round((i / span) * w),
+      y: round(h - pad - scale(v, min, max, inner)),
+    }));
+  });
+}
+
+/** Categorical color ramp for multi-series charts. Fixed, well-separated hues
+ *  drawn from the brand palette (blue/violet/pink/amber already appear in the
+ *  Frosted Ledger tokens + showpiece gradient). Deliberately NOT persona-relative:
+ *  a category's color must stay stable when you switch persona, and
+ *  --persona-solid collides with --persona-spouse in the spouse view. Wraps when
+ *  there are more series than colors. */
+export const CATEGORY_COLORS = [
+  "#3B82F6", // blue
+  "#A855F7", // violet
+  "#EC4899", // pink
+  "#F59E0B", // amber
+  "#06B6D4", // cyan
+  "#10B981", // emerald
+  "#F43F5E", // rose
+  "#64748B", // slate
+];
+
+export function categoryColor(i: number): string {
+  return CATEGORY_COLORS[i % CATEGORY_COLORS.length];
+}
+
+/** Percentage width [0,100] of `value` against a shared `max` — for the div-based
+ *  grouped/diverging bars. Negative values use their magnitude; clamps to the track. */
+export function barPct(value: number, max: number): number {
+  if (max <= 0) return 0;
+  return round(Math.max(0, Math.min(1, Math.abs(value) / max)) * 100);
+}
+
+/** Split a signed value into the two halves of a diverging (tornado) bar around a
+ *  center axis: negative grows the left half, positive the right, each [0,100] of
+ *  its half-track. Used by the People per-category breakdown. */
+export function divergingWidths(value: number, max: number): { left: number; right: number } {
+  const pct = barPct(value, max);
+  return value < 0 ? { left: pct, right: 0 } : { left: 0, right: pct };
+}
+
 /** SVG path through points. `smooth` uses Catmull-Rom→cubic-bezier for a gentle
  *  curve; otherwise straight segments. */
 export function toPath(points: Pt[], smooth = false): string {
