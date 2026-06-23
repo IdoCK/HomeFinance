@@ -11,6 +11,7 @@ import { FilterBar } from "@/components/filter-bar";
 import { LineChart } from "@/components/charts/line-chart";
 import { DrillDown } from "@/components/analysis/drill-down";
 import { CompareTab } from "@/components/analysis/compare-tab";
+import { PeopleTab } from "@/components/analysis/people-tab";
 import { Loading } from "@/components/loading";
 
 const CARD: React.CSSProperties = { padding: 16 };
@@ -114,7 +115,7 @@ export default function Analysis() {
             </TabsContent>
             <TabsContent value="people" style={{ marginTop: 12 }}>
               {persona === "joint"
-                ? <ComingSoon what="Per-person breakdown and mutual spending — coming next." />
+                ? <PeopleTab filters={filters} />
                 : <ComingSoon what="Switch to the Joint view to compare both people." />}
             </TabsContent>
           </Tabs>

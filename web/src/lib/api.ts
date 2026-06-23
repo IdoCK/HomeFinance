@@ -400,6 +400,19 @@ export const getCompare = (p: {
     `/analysis/compare${analysisQuery(p.personId, p.filters, { preset: p.preset, metric: p.metric })}`,
   );
 
+export type OverlapPerson = { id: number; name: string; spend: number; categories: number };
+export type OverlapRow = { category: string; a: number; b: number; diff: number; shared: boolean };
+export type OverlapResult = {
+  available: boolean;
+  a: OverlapPerson | null;
+  b: OverlapPerson | null;
+  shared: number;
+  rows: OverlapRow[];
+};
+
+export const getOverlap = (p: { filters?: AnalysisFilters } = {}) =>
+  apiGet<OverlapResult>(`/analysis/overlap${analysisQuery(undefined, p.filters)}`);
+
 export const getEvents = (personId?: number) =>
   apiGet<FinanceEvent[]>("/events", { person_id: personId });
 export const createEvent = (e: { personId?: number; name: string; kind: string }) =>

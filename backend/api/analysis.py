@@ -226,3 +226,47 @@ def compare(
     return {"preset": preset, "metric": metric, "buckets": buckets,
             "labels": {"a": group_a["label"], "b": group_b["label"]},
             "categories": categories}
+
+
+@router.get("/overlap")
+def overlap(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    day_type: Optional[str] = None,
+    dow: Optional[list[int]] = Query(None),
+    months: Optional[list[str]] = Query(None),
+    categories: Optional[list[str]] = Query(None),
+    event_id: Optional[int] = None,
+):
+    """Per-category spend for the two people side by side (the old People tab).
+    Inherently household-wide — there is no person_id scope — so it's gated to the
+    Joint view in the UI. Returns each person's total spend / category count, the
+    count of mutually-spent categories, and the per-category rows (a/b spend, the
+    a−b diff that drives the diverging tornado bar, and a `shared` flag)."""
+    people = db.list_people()
+    if len(people) < 2:
+        return {"available": False, "a": None, "b": None, "shared": 0, "rows": []}
+    a_p, b_p = people[0], people[1]
+
+    txns = db.get_transactions(None)  # household; overlap is never person-scoped
+    kw = _filters(date_from=date_from, date_to=date_to, day_type=day_type, dow=dow,
+                  months=months, categories=categories,
+                  event=_event(None, event_id))
+    if kw:
+        txns = analytics.filter_transactions(txns, **kw)
+
+    rows = analytics.user_overlap(txns, a_p["id"], b_p["id"])
+    a_spend = sum(r["a_spend"] for r in rows)
+    b_spend = sum(r["b_spend"] for r in rows)
+    return {
+        "available": True,
+        "a": {"id": a_p["id"], "name": a_p["name"], "spend": round(a_spend, 2),
+              "categories": sum(1 for r in rows if r["a_spend"] > 0)},
+        "b": {"id": b_p["id"], "name": b_p["name"], "spend": round(b_spend, 2),
+              "categories": sum(1 for r in rows if r["b_spend"] > 0)},
+        "shared": sum(1 for r in rows if r["shared"]),
+        "rows": [{"category": r["category"], "a": round(r["a_spend"], 2),
+                  "b": round(r["b_spend"], 2), "diff": round(r["diff"], 2),
+                  "shared": r["shared"]}
+                 for r in rows],
+    }

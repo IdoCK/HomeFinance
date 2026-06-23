@@ -15,6 +15,22 @@ def seeded(client, people):
     return you
 
 
+@pytest.fixture()
+def seeded_joint(client, people):
+    """Both people spend, with one shared category (Groceries) and one each unique."""
+    from modules import database as db
+    a, b = people[0]["id"], people[1]["id"]
+    db.add_transactions(a, [
+        {"date": "2026-05-05", "description": "Rent", "amount": -2000.0, "category": "Housing", "source": "bank"},
+        {"date": "2026-05-12", "description": "Whole Foods", "amount": -300.0, "category": "Groceries", "source": "card"},
+    ])
+    db.add_transactions(b, [
+        {"date": "2026-05-09", "description": "Trader Joes", "amount": -100.0, "category": "Groceries", "source": "card"},
+        {"date": "2026-05-20", "description": "Dinner out", "amount": -50.0, "category": "Dining", "source": "card"},
+    ])
+    return {"a": people[0], "b": people[1]}
+
+
 def test_filter_options_lists_months_and_categories(client, seeded):
     d = client.get("/api/analysis/filter-options", params={"person_id": seeded}).json()
     assert d["months"] == ["2026-04", "2026-05"]
@@ -132,3 +148,27 @@ def test_compare_empty(client, people):
     d = client.get("/api/analysis/compare", params={"person_id": people[0]["id"]}).json()
     assert d["categories"] == []
     assert all(b["total"] == 0 for b in d["buckets"])
+
+
+def test_overlap_per_category_split(client, seeded_joint):
+    d = client.get("/api/analysis/overlap").json()
+    assert d["available"] is True
+    assert d["a"]["name"] == seeded_joint["a"]["name"]
+    assert d["a"]["spend"] == 2300.0   # Housing 2000 + Groceries 300
+    assert d["b"]["spend"] == 150.0    # Groceries 100 + Dining 50
+    rows = {r["category"]: r for r in d["rows"]}
+    # Groceries is the only mutual category
+    assert rows["Groceries"]["shared"] is True
+    assert rows["Groceries"]["a"] == 300.0 and rows["Groceries"]["b"] == 100.0
+    assert rows["Housing"]["shared"] is False
+    assert rows["Dining"]["shared"] is False
+    assert d["shared"] == 1
+    # ranked by combined spend (Housing 2000 biggest)
+    assert d["rows"][0]["category"] == "Housing"
+
+
+def test_overlap_respects_category_filter(client, seeded_joint):
+    d = client.get("/api/analysis/overlap", params={"categories": ["Groceries"]}).json()
+    cats = [r["category"] for r in d["rows"]]
+    assert cats == ["Groceries"]
+    assert d["a"]["spend"] == 300.0 and d["b"]["spend"] == 100.0
