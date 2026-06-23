@@ -32,7 +32,12 @@ export default function Transactions() {
   const [data, setData] = useState<Transaction[]>([]);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("all");
+  // Allow deep-linking a category filter, e.g. /transactions?category=Uncategorized
+  // from the Overview uncategorized badge. Read once at mount (BrowserRouter keeps
+  // window.location in sync after a <Link> navigation).
+  const [category, setCategory] = useState(
+    () => new URLSearchParams(window.location.search).get("category") ?? "all",
+  );
   const [include, setInclude] = useState<IncludeFilter>("all");
   const [ccyFilter, setCcyFilter] = useState<string>("all");
 

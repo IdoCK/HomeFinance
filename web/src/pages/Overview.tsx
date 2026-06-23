@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { getOverview, type Overview as OverviewData } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { useCurrency } from "@/lib/currency";
@@ -111,6 +112,14 @@ export default function Overview() {
       ? `${monthName} is still in progress — day ${now.getDate()} of ${daysInMonth}. These figures will keep changing.`
       : `${monthName} is a partial month — the data doesn't cover the full calendar month, so totals understate it.`;
 
+  // The "are we okay this month?" verdict — promoted from a buried footnote to a
+  // prominent, color+icon status line.
+  const verdict = rate == null
+    ? { tone: "info" as const, icon: "•", text: "Add a full month of data to see where you stand." }
+    : data.net >= 0
+      ? { tone: "good" as const, icon: "✓", text: `You're in the black${!data.complete ? " so far" : ""} — saving ${Math.round(rate * 100)}% of income.` }
+      : { tone: "bad" as const, icon: "!", text: `Spending is outpacing income${!data.complete ? " so far" : ""} this month.` };
+
   // Who-spent-what: Joint → per-person split; single-persona → top category split.
   const segments: Segment[] =
     data.split != null
@@ -129,6 +138,10 @@ export default function Overview() {
           <Pill onClick={() => step(1)} disabled={idx < 0 || idx >= months.length - 1} aria-label="Next month">›</Pill>
         </div>
       </header>
+
+      <Banner tone={verdict.tone} icon={<span style={{ fontWeight: 800, fontSize: 14, lineHeight: 1 }}>{verdict.icon}</span>}>
+        <strong style={{ fontWeight: 700 }}>{verdict.text}</strong>
+      </Banner>
 
       {partialNote && (
         <Banner
@@ -159,6 +172,20 @@ export default function Overview() {
             </div>
           )}
         </section>
+      )}
+
+      {data.uncategorized && data.uncategorized.count > 0 && (
+        <Link
+          to="/transactions?category=Uncategorized"
+          style={{
+            justifySelf: "start", width: "fit-content", display: "inline-flex", alignItems: "center", gap: 6,
+            fontSize: 12.5, fontWeight: 600, textDecoration: "none",
+            padding: "6px 12px", borderRadius: 999, border: "1px solid var(--fl-line)",
+            background: "var(--fl-frame)", color: "var(--fl-ink)",
+          }}
+        >
+          <Money value={data.uncategorized.amount} /> across {data.uncategorized.count} uncategorized →
+        </Link>
       )}
 
       {data.alerts.length > 0 && (
@@ -201,10 +228,6 @@ export default function Overview() {
           {cashView === "net"
             ? <AreaChart points={areaPoints} />
             : <LineChart labels={trendLabels} series={trendSeries} ariaLabel="Income, spending and cumulative savings over time" />}
-          <div style={{ marginTop: 10, border: "1px solid var(--fl-line)", background: "var(--fl-frame)", borderRadius: 11, padding: "9px 11px", fontSize: 12, color: "var(--fl-muted)", display: "flex", alignItems: "center", gap: 8 }}>
-            <span aria-hidden style={{ width: 14, height: 14, borderRadius: 4, background: "var(--showpiece)", flex: "none" }} />
-            {rate == null ? "Add a full month of data to see trends." : `Net ${data.net >= 0 ? "positive" : "negative"} this month — saving ${Math.round(rate * 100)}% of income.`}
-          </div>
         </section>
 
         <section className="frosted-card" style={CARD}>

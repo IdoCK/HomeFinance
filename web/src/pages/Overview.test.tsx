@@ -1,4 +1,5 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, expect, test, vi } from "vitest";
 
 const getOverview = vi.fn();
@@ -69,6 +70,26 @@ test("complete month: shows a trend arrow, no partial banner", async () => {
   render(<Overview />);
   await waitFor(() => expect(screen.getByText(/▲|▼/)).toBeInTheDocument());
   expect(screen.queryByText(/in progress/i)).toBeNull();
+});
+
+test("promotes a prominent monthly verdict", async () => {
+  getOverview.mockResolvedValue(base); // net positive, complete
+  render(<Overview />);
+  await waitFor(() => expect(screen.getByText(/in the black/i)).toBeInTheDocument());
+});
+
+test("negative net shows a warning verdict", async () => {
+  getOverview.mockResolvedValue({ ...base, net: -200 });
+  render(<Overview />);
+  await waitFor(() => expect(screen.getByText(/outpacing income/i)).toBeInTheDocument());
+});
+
+test("shows an uncategorized badge linking to a filtered Transactions view", async () => {
+  getOverview.mockResolvedValue({ ...base, uncategorized: { count: 4, amount: 130 } });
+  render(<Overview />, { wrapper: MemoryRouter });
+  await waitFor(() => expect(screen.getByText(/uncategorized/i)).toBeInTheDocument());
+  const link = screen.getByRole("link", { name: /uncategorized/i });
+  expect(link).toHaveAttribute("href", "/transactions?category=Uncategorized");
 });
 
 test("summarizes bills still due this month when any are pending", async () => {
