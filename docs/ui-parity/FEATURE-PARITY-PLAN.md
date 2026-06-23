@@ -4,6 +4,14 @@
 **Date:** 2026-06-22
 **Scope:** Identify features/charts present in the old Streamlit UI (`app.py` + `modules/`) that were dropped by the React/Vite rewrite (`web/` + `backend/`), and plan their reincorporation.
 
+> **Status — COMPLETE (2026-06-22).** All phases shipped. Analysis surface
+> restored (Explore trend + drill-down, Compare, People), shared filter bar with
+> days-of-week, Overview cash-flow trend overlays (income/spend + cumulative),
+> per-account NetWorth sparklines, statement-driven & manual month-end balances,
+> event window/recurring membership, and goal horizon/notes. Gaps #1–#12 closed
+> (rows 13–18 were already at parity; #19 export remains out of scope / not a
+> regression). 190 backend + 109 frontend tests pass.
+
 ## Key finding
 
 The rewrite achieved good parity on the **operational** surface (Overview, Transactions, Budgets, Recurring, Goals, Net Worth basics, Import, Insights, Settings, transfer detection, reconciliation). The big regression is the entire **Analysis tab** — the old app's analytical deep-dive — plus several individual charts.
