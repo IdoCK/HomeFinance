@@ -33,6 +33,9 @@ test("renders headline numbers and category breakdown", async () => {
   expect(screen.getByText("Housing")).toBeInTheDocument();
   // Safe-to-spend hero leads the page with the present-month answer.
   expect(screen.getByTestId("safe-to-spend")).toHaveTextContent("$4,685.00");
+  // The "This month" spend bar splits committed vs discretionary.
+  expect(screen.getByText("Committed")).toBeInTheDocument();
+  expect(screen.getByText("Discretionary")).toBeInTheDocument();
 });
 
 test("partial month: shows an in-progress banner and guards the MoM delta", async () => {

@@ -74,7 +74,15 @@ export default function Overview() {
   const denom = Math.max(data.income, data.spend, Math.abs(data.net), 1);
   const stackRows = [
     { label: "Income", value: data.income, pct: (data.income / denom) * 100, color: "var(--pos)" },
-    { label: "Spending", value: data.spend, pct: (data.spend / denom) * 100, color: "var(--neg)" },
+    {
+      label: "Spending", value: data.spend, pct: (data.spend / denom) * 100, color: "var(--neg)",
+      // Committed (recurring bills) is the locked-in floor; discretionary is the
+      // part you can actually steer. Solid vs. lightened so the floor reads first.
+      segments: [
+        { label: "Committed", value: data.committed_spent, color: "var(--neg)" },
+        { label: "Discretionary", value: data.discretionary_spent, color: "color-mix(in srgb, var(--neg) 40%, transparent)" },
+      ],
+    },
     { label: "Saved", value: data.net, pct: (Math.abs(data.net) / denom) * 100, color: "var(--saved)" },
   ];
 
