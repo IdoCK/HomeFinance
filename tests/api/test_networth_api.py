@@ -75,6 +75,26 @@ def test_trend_and_delta(client, people):
     assert data["delta"] == 2000.0  # current net 10000 - prior trend date 8000
 
 
+def test_account_history_returns_snapshots_oldest_first(client, people):
+    from modules import database as db
+    you = people[0]["id"]
+    aid = db.add_account(you, "Brokerage", "investment", 1, 10000.0)  # snapshot today
+    db.write_snapshot(aid, "2026-01-01", 8000.0)
+    db.write_snapshot(aid, "2026-03-01", 9000.0)
+
+    d = client.get(f"/api/networth/accounts/{aid}/history").json()
+    snaps = d["snapshots"]
+    assert [s["date"] for s in snaps][:2] == ["2026-01-01", "2026-03-01"]
+    assert snaps[0]["balance"] == 8000.0
+    # the create-time snapshot (today) sorts last
+    assert snaps[-1]["balance"] == 10000.0
+
+
+def test_account_history_empty_for_unknown_account(client, people):
+    d = client.get("/api/networth/accounts/9999/history").json()
+    assert d == {"snapshots": []}
+
+
 def test_networth_joint_split_per_person(client, people):
     from modules import database as db
     ido, aviv = people[0]["id"], people[1]["id"]

@@ -53,6 +53,13 @@ def reconcile(person_id: Optional[int] = None):
     return {"reconcilable": True, **result}
 
 
+@router.get("/accounts/{account_id}/history")
+def account_history(account_id: int):
+    """Balance snapshots for one account, oldest first — the per-account history
+    sparkline on the Net Worth page (the old per-account balance line charts)."""
+    return {"snapshots": db.account_snapshots(account_id)}
+
+
 @router.post("/accounts")
 def create_account(body: AccountCreate):
     aid = db.add_account(body.person_id, body.name, body.kind, body.is_asset, body.balance)

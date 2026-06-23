@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { pillStyle as pill } from "@/lib/ui";
-import { getNetWorth, addAccount, updateAccountBalance, deleteAccount, getReconciliation, type Account, type NetWorthData, type Reconciliation } from "@/lib/api";
+import { getNetWorth, addAccount, updateAccountBalance, deleteAccount, getReconciliation, getAccountHistory, type Account, type AccountSnapshot, type NetWorthData, type Reconciliation } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { Money, formatMoney } from "@/components/money";
 import { AreaChart } from "@/components/charts/area-chart";
@@ -19,6 +19,14 @@ function AccountRow({ a, onSave, onRemove }: {
   a: Account; onSave: (a: Account, v: string) => void; onRemove: (a: Account) => void;
 }) {
   const asset = !!a.is_asset;
+  const [history, setHistory] = useState<AccountSnapshot[] | null>(null);
+  // Refetch when the balance changes — committing a balance writes a new snapshot.
+  useEffect(() => {
+    let alive = true;
+    getAccountHistory(a.id).then((d) => alive && setHistory(d.snapshots)).catch(() => alive && setHistory([]));
+    return () => { alive = false; };
+  }, [a.id, a.balance]);
+
   return (
     <section className="frosted-card" style={{ padding: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
       <span style={{ fontWeight: 700 }}>{a.name}</span>
@@ -26,6 +34,11 @@ function AccountRow({ a, onSave, onRemove }: {
       <span style={{ ...badge, color: asset ? "var(--pos)" : "var(--neg)", borderColor: "currentColor" }}>
         {asset ? "asset" : "liability"}
       </span>
+      {history && history.length >= 2 && (
+        <span style={{ width: 110, height: 28, flex: "none" }}>
+          <AreaChart points={history.map((s) => ({ value: s.balance }))} area={false} mode="linear" height={28} accent={asset ? "var(--pos)" : "var(--neg)"} ariaLabel={`${a.name} balance history`} />
+        </span>
+      )}
       <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
         <input
           type="number"

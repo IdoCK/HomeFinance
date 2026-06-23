@@ -6,6 +6,7 @@ const addAccount = vi.fn().mockResolvedValue({ ok: true, id: 9 });
 const updateAccountBalance = vi.fn().mockResolvedValue({ ok: true });
 const deleteAccount = vi.fn().mockResolvedValue({ ok: true });
 const getReconciliation = vi.fn().mockResolvedValue({ reconcilable: false });
+const getAccountHistory = vi.fn().mockResolvedValue({ snapshots: [] });
 const getNetWorth = vi.fn().mockResolvedValue({
   summary: { assets: 30000, liabilities: 5000, net: 25000 },
   delta: 2000,
@@ -34,17 +35,30 @@ vi.mock("@/lib/api", () => ({
   updateAccountBalance: (...a: unknown[]) => updateAccountBalance(...a),
   deleteAccount: (...a: unknown[]) => deleteAccount(...a),
   getReconciliation: (...a: unknown[]) => getReconciliation(...a),
+  getAccountHistory: (...a: unknown[]) => getAccountHistory(...a),
 }));
 
 import NetWorth from "./NetWorth";
 
-afterEach(() => { addAccount.mockClear(); updateAccountBalance.mockClear(); deleteAccount.mockClear(); getReconciliation.mockClear(); mockPersonId = 1; });
+afterEach(() => { addAccount.mockClear(); updateAccountBalance.mockClear(); deleteAccount.mockClear(); getReconciliation.mockClear(); getAccountHistory.mockReset(); getAccountHistory.mockResolvedValue({ snapshots: [] }); mockPersonId = 1; });
 
 test("renders the net worth total and accounts", async () => {
   render(<NetWorth />);
   await waitFor(() => expect(screen.getByTestId("networth-total")).toHaveTextContent("$25,000.00"));
   expect(screen.getByText("Vanguard")).toBeInTheDocument();
   expect(screen.getByText("Visa")).toBeInTheDocument();
+});
+
+test("renders a per-account balance sparkline when history has 2+ snapshots", async () => {
+  getAccountHistory.mockResolvedValue({
+    snapshots: [
+      { date: "2026-01-01", balance: 28000 },
+      { date: "2026-06-19", balance: 30000 },
+    ],
+  });
+  render(<NetWorth />);
+  await waitFor(() => expect(screen.getByText("Vanguard")).toBeInTheDocument());
+  expect(await screen.findByLabelText("Vanguard balance history")).toBeInTheDocument();
 });
 
 test("shows the reconciliation panel when statements tie out", async () => {

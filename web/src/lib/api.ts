@@ -234,6 +234,10 @@ export const updateAccountBalance = (id: number, balance: number) =>
 export const deleteAccount = (id: number) =>
   apiSend<{ ok: boolean }>("DELETE", `/networth/accounts/${id}`);
 
+export type AccountSnapshot = { date: string; balance: number };
+export const getAccountHistory = (id: number) =>
+  apiGet<{ snapshots: AccountSnapshot[] }>(`/networth/accounts/${id}/history`);
+
 export type Category = { id: number; person_id: number; name: string; keywords: string; parent?: string | null };
 export type Vendor = { id: number; person_id: number; name: string; keywords: string };
 

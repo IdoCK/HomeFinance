@@ -7,6 +7,7 @@ import { Pill } from "@/components/ui/pill";
 import { CardHeaderRow } from "@/components/ui/card";
 import { GradientCard } from "@/components/gradient-card";
 import { AreaChart } from "@/components/charts/area-chart";
+import { LineChart } from "@/components/charts/line-chart";
 import { BarChart } from "@/components/charts/bar-chart";
 import { StackedBars } from "@/components/charts/stacked-bars";
 import { DotMatrix, type Segment } from "@/components/charts/dot-matrix";
@@ -23,6 +24,7 @@ export default function Overview() {
   const { personId, label } = usePersona();
   const [data, setData] = useState<OverviewData | null>(null);
   const [month, setMonth] = useState<string | undefined>(undefined);
+  const [cashView, setCashView] = useState<"net" | "trend">("net");
 
   useEffect(() => {
     let alive = true;
@@ -48,6 +50,17 @@ export default function Overview() {
   const series = data.series ?? [];
   // Cash-flow area = net per month; savings-rate bars = savings_rate % per month.
   const areaPoints = series.map((s) => ({ label: s.month, value: s.net }));
+
+  // Trend view: income vs spend dual line (#9) + cumulative saved (#8). Cumulative
+  // is the running sum of monthly net — the savings trajectory.
+  let run = 0;
+  const cumulative = series.map((s) => (run += s.net));
+  const trendLabels = series.map((s) => s.month);
+  const trendSeries = [
+    { name: "Income", values: series.map((s) => s.income), color: "var(--pos)", total: series.reduce((a, s) => a + s.income, 0) },
+    { name: "Spending", values: series.map((s) => s.spend), color: "var(--neg)", total: series.reduce((a, s) => a + s.spend, 0) },
+    { name: "Saved (cumulative)", values: cumulative, color: "var(--saved)", total: cumulative[cumulative.length - 1] ?? 0 },
+  ];
   const rateBars = series.map((s) => ({
     label: s.month.slice(5),
     value: Math.round((s.savings_rate ?? 0) * 100),
@@ -107,13 +120,24 @@ export default function Overview() {
       {/* Row 1: cash flow (wide) + this month */}
       <div className="fl-row-2">
         <section className="frosted-card" style={CARD}>
-          <CardHeaderRow>Cash flow</CardHeaderRow>
+          <CardHeaderRow
+            action={
+              <div role="group" aria-label="Cash-flow view" style={{ display: "inline-flex", gap: 6 }}>
+                <Pill active={cashView === "net"} onClick={() => setCashView("net")}>Net</Pill>
+                <Pill active={cashView === "trend"} onClick={() => setCashView("trend")}>Trend</Pill>
+              </div>
+            }
+          >
+            Cash flow
+          </CardHeaderRow>
           <div style={{ display: "flex", gap: 26, marginBottom: 8 }}>
             <Kpi label="In" testId="income"><Money value={data.income} /></Kpi>
             <Kpi label="Out" testId="spend"><Money value={data.spend} /></Kpi>
             <Kpi label="Net" testId="net" big><Money value={data.net} colored /></Kpi>
           </div>
-          <AreaChart points={areaPoints} />
+          {cashView === "net"
+            ? <AreaChart points={areaPoints} />
+            : <LineChart labels={trendLabels} series={trendSeries} ariaLabel="Income, spending and cumulative savings over time" />}
           <div style={{ marginTop: 10, border: "1px solid var(--fl-line)", background: "var(--fl-frame)", borderRadius: 11, padding: "9px 11px", fontSize: 12, color: "var(--fl-muted)", display: "flex", alignItems: "center", gap: 8 }}>
             <span aria-hidden style={{ width: 14, height: 14, borderRadius: 4, background: "var(--showpiece)", flex: "none" }} />
             {rate == null ? "Add a full month of data to see trends." : `Net ${data.net >= 0 ? "positive" : "negative"} this month — saving ${Math.round(rate * 100)}% of income.`}
