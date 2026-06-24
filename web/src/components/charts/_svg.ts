@@ -1,7 +1,8 @@
-// Tiny shared helpers for the hand-rolled SVG chart primitives. No deps —
-// data volumes are tiny (≤~12 months, a handful of categories), so a charting
-// library would cost bundle size and still not draw the bespoke visuals
-// (45° hatch fill, proportional dot-matrix). See docs/ui-fix-plan/02-frontend.md §4.
+// Shared helpers for the remaining hand-rolled visuals — the div-based bars
+// (grouped/diverging) and the proportional dot-matrix, which a charting library
+// doesn't draw well. The time-series charts (line/area/sparkline) have moved to
+// Recharts; see docs/chart-platform/. Some path/scale helpers here are retained
+// for their unit tests and any future bespoke SVG.
 
 export type Pt = { x: number; y: number };
 

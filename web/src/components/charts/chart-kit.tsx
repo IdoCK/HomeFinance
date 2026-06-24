@@ -7,7 +7,10 @@
 //   - persona-safe category colours + formatMoney passthrough
 import type { ReactNode } from "react";
 import { categoryColor } from "./_svg";
-import type { LineSeries } from "./line-chart";
+
+/** One named line/area series on a shared y-domain. `total` drives the bold
+ *  legend figure; `color` defaults to the persona-excluding category ramp. */
+export type LineSeries = { name: string; values: number[]; color?: string; total?: number };
 
 /** Resolve each series' colour, defaulting to the persona-excluding category ramp
  *  so a generic category can never render in a person's hue. */
@@ -51,6 +54,14 @@ export function toRows(
   });
 }
 
+/** Compact money for axis/milestone labels: $1.2M / $250k / $80. */
+export function kCompact(n: number): string {
+  const a = Math.abs(n);
+  if (a >= 1_000_000) return `$${Math.round(n / 100_000) / 10}M`;
+  if (a >= 1000) return `$${Math.round(n / 1000)}k`;
+  return `$${Math.round(n)}`;
+}
+
 /** "2026-03" → "Mar 2026"; anything else passes through unchanged. */
 export function monthLabel(raw: string): string {
   const m = /^(\d{4})-(\d{2})$/.exec(raw);
@@ -84,8 +95,9 @@ export function LedgerTooltip({
 
   const seen = new Map<string, SlipRow>();
   for (const p of payload) {
-    if (p.value == null || !p.name) continue;
-    if (!seen.has(p.name)) seen.set(p.name, { name: p.name, color: p.color ?? "var(--fl-ink)", value: p.value });
+    if (p.value == null) continue;
+    const key = p.name || "__value";
+    if (!seen.has(key)) seen.set(key, { name: p.name ?? "", color: p.color ?? "var(--fl-ink)", value: p.value });
   }
   const rows = [...seen.values()].sort((a, b) => b.value - a.value);
   if (rows.length === 0) return null;
@@ -127,10 +139,10 @@ export function LedgerTooltip({
       <div style={{ height: 1, background: "var(--fl-line)", margin: "0 -11px 7px" }} />
       <div style={{ display: "grid", gap: 4 }}>
         {rows.map((r) => (
-          <div key={r.name} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div key={r.name || "value"} style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ width: 8, height: 8, borderRadius: "50%", background: r.color, flex: "none" }} />
-            <span style={{ flex: 1, color: "var(--fl-ink)", whiteSpace: "nowrap" }}>{r.name}</span>
-            <span style={{ fontWeight: 800, fontVariantNumeric: "tabular-nums", color: "var(--fl-ink)" }}>
+            {r.name && <span style={{ flex: 1, color: "var(--fl-ink)", whiteSpace: "nowrap" }}>{r.name}</span>}
+            <span style={{ flex: r.name ? "none" : 1, textAlign: r.name ? "right" : "left", fontWeight: 800, fontVariantNumeric: "tabular-nums", color: "var(--fl-ink)" }}>
               {valueFormat(r.value)}
             </span>
           </div>

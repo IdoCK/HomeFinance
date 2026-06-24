@@ -11,7 +11,6 @@ import {
 import { Fragment } from "react";
 import { formatMoney } from "@/components/money";
 import { Legend } from "./legend";
-import type { LineSeries } from "./line-chart";
 import {
   LedgerTooltip,
   SrDataTable,
@@ -19,6 +18,7 @@ import {
   monthLabel,
   toRows,
   zeroBaselineDomain,
+  type LineSeries,
 } from "./chart-kit";
 
 /** Recharts replacement for the hand-rolled LineChart. Same props, but with real

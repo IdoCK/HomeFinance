@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { AreaChart } from "./area-chart";
+import { AreaChart } from "./r-area-chart";
 
 /** A bare trend line — the AreaChart in line-only mode — with a built-in
  *  ≥2-point gate (a single point is a dot, not a trend, and reads as a flat lie).
@@ -33,6 +33,8 @@ export function Sparkline({
       height={height}
       accent={accent}
       ariaLabel={ariaLabel}
+      showAxis={false}
+      interactive={false}
     />
   );
 }

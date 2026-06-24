@@ -8,8 +8,8 @@ import { Kpi } from "@/components/kpi";
 import { Pill } from "@/components/ui/pill";
 import { CardHeaderRow } from "@/components/ui/card";
 import { GradientCard } from "@/components/gradient-card";
-import { AreaChart } from "@/components/charts/area-chart";
-import { LineChart } from "@/components/charts/line-chart";
+import { AreaChart } from "@/components/charts/r-area-chart";
+import { LineChart } from "@/components/charts/r-line-chart";
 import { StackedBars } from "@/components/charts/stacked-bars";
 import { DotMatrix, type Segment } from "@/components/charts/dot-matrix";
 import { Banner } from "@/components/ui/banner";
@@ -306,7 +306,7 @@ export default function Overview() {
           </div>
           {cashView === "net" ? (
             <>
-              <AreaChart points={areaPoints} xLabels={areaXLabels} partial={areaPartial} ariaLabel="Net saved per month" />
+              <AreaChart points={areaPoints} xLabels={areaXLabels} partial={areaPartial} seriesName="Net saved" ariaLabel="Net saved per month" />
               <div style={{ marginTop: 6, fontSize: 12, color: "var(--fl-muted)" }}>
                 Net saved each month (income − spending). Above the line is a surplus; below, a shortfall.
               </div>
