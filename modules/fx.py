@@ -18,6 +18,10 @@ PIVOT = "USD"
 
 FRANKFURTER_BASE = "https://api.frankfurter.dev/v1"
 
+# Number of days a nearest-prior fallback rate may be older than the requested
+# date before it is considered stale (used by get_rate_with_age).
+STALE_RATE_DAYS = 7
+
 
 def upsert_rate(rate_date, base, quote, rate, source="manual"):
     """Insert/replace one rate row (PK = rate_date, base, quote)."""
@@ -40,6 +44,51 @@ def _lookup(rate_date, base, quote):
             "SELECT rate FROM fx_rates WHERE base=? AND quote=? AND rate_date<=? "
             "ORDER BY rate_date DESC LIMIT 1", (base, quote, rate_date)).fetchone()
         return row[0] if row else None
+
+
+def _lookup_with_date(rate_date, base, quote):
+    """Like _lookup but also returns the actual rate_date stored.
+    Returns (rate, actual_rate_date) or (None, None)."""
+    with db.get_conn() as conn:
+        row = conn.execute(
+            "SELECT rate, rate_date FROM fx_rates WHERE base=? AND quote=? AND rate_date<=? "
+            "ORDER BY rate_date DESC LIMIT 1", (base, quote, rate_date)).fetchone()
+        if row is None:
+            return None, None
+        return row[0], row[1]
+
+
+def get_rate_with_age(rate_date, base, quote):
+    """Like get_rate but also returns the age in days between the requested
+    date and the rate_date actually used, plus a boolean indicating whether
+    that age exceeds STALE_RATE_DAYS.
+
+    Returns a 3-tuple: (rate, age_days, rate_stale_age).
+    - If base == quote: (1.0, 0, False).
+    - If no rate found:  (None, None, None).
+    - age_days == 0 means the exact requested date was found.
+    - rate_stale_age is True when age_days > STALE_RATE_DAYS.
+
+    DB-only, offline-safe — never touches the network.
+    """
+    from datetime import date as _date_cls
+    if base == quote:
+        return 1.0, 0, False
+
+    rate, actual_date = _lookup_with_date(rate_date, base, quote)
+    if rate is None:
+        # Try the inverse pair
+        rate, actual_date = _lookup_with_date(rate_date, quote, base)
+        if rate is not None:
+            rate = 1.0 / rate
+        else:
+            return None, None, None
+
+    # Compute age in calendar days
+    req = _date_cls.fromisoformat(rate_date)
+    used = _date_cls.fromisoformat(actual_date)
+    age_days = (req - used).days
+    return rate, age_days, age_days > STALE_RATE_DAYS
 
 
 def get_rate(rate_date, base, quote):

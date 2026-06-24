@@ -32,7 +32,12 @@ export default function Transactions() {
   const [data, setData] = useState<Transaction[]>([]);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("all");
+  // Allow deep-linking a category filter, e.g. /transactions?category=Uncategorized
+  // from the Overview uncategorized badge. Read once at mount (BrowserRouter keeps
+  // window.location in sync after a <Link> navigation).
+  const [category, setCategory] = useState(
+    () => new URLSearchParams(window.location.search).get("category") ?? "all",
+  );
   const [include, setInclude] = useState<IncludeFilter>("all");
   const [ccyFilter, setCcyFilter] = useState<string>("all");
 
@@ -218,7 +223,19 @@ export default function Transactions() {
           </div>
           {openPairs.map((p, i) => (
             <div key={`${p.out_id}-${p.in_id}-${i}`} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 13 }}>
-              <span style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}><Money value={p.amount} /></span>
+              <span style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+                <Money
+                  value={-(p.out_amount ?? p.amount)}
+                  currency={(p.out_currency as import("@/lib/currency").Currency) ?? "USD"}
+                  colored
+                />
+                {" → "}
+                <Money
+                  value={p.in_amount ?? p.amount}
+                  currency={(p.in_currency as import("@/lib/currency").Currency) ?? "USD"}
+                  colored
+                />
+              </span>
               <span style={{ color: "var(--fl-muted)" }}>{p.out_desc} → {p.in_desc}</span>
               {p.cross_person && <span style={{ ...pill, padding: "2px 8px", fontSize: 11 }}>cross-person</span>}
               <button onClick={() => excludePair(p)} style={{ ...pill, marginLeft: "auto", fontWeight: 700, color: "var(--persona-solid)" }}>

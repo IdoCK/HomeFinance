@@ -68,14 +68,131 @@ def get_networth(person_id: Optional[int] = None, display: str = "USD"):
             "trend": trend, "split": split}
 
 
+@router.get("/projection")
+def projection(person_id: Optional[int] = None, display: str = "USD",
+               annual_return: float = 0.07, years: int = 10):
+    """Project net worth forward at an assumed annual return. `linear` ignores
+    returns (principal + average monthly savings); `compounding` grows at the
+    assumed rate. Average monthly savings is taken over complete months. Returns
+    no points when there's nothing to project (no net worth and no savings)."""
+    scope = _scope(person_id)
+    accounts = _accounts_to_base(db.list_accounts(scope))   # USD base
+    current_net = analytics.net_worth(accounts)["net"]
+
+    sav = analytics.monthly_savings(fx.base_txns(db.get_transactions(person_id)))
+    if sav.empty:
+        avg = 0.0
+    else:
+        complete = sav[sav["complete"]]
+        base = complete if not complete.empty else sav
+        avg = float(base["savings"].mean())
+
+    f = fx.display_factor(display) or 1.0
+    if current_net == 0 and avg <= 0:
+        points = []
+    else:
+        points = [
+            {"month": p["month"], "linear": round(p["linear"] * f, 2),
+             "compounding": round(p["compounding"] * f, 2)}
+            for p in analytics.net_worth_projection(current_net, avg, annual_return, months=years * 12)
+        ]
+    return {
+        "annual_return": annual_return,
+        "monthly_savings": round(avg * f, 2),
+        "current_net": round(current_net * f, 2),
+        "points": points,
+    }
+
+
+@router.get("/growth")
+def growth(person_id: Optional[int] = None, display: str = "USD"):
+    """Wealth-building stats: trailing-12-month change, CAGR over the snapshot
+    span, the FIRE number (25× annual expenses) with progress toward it, and a
+    runway (net worth ÷ committed monthly bills). Money fields are scaled to the
+    display currency; ratios (percentages, CAGR, pct-to-FIRE) are currency-
+    invariant and pass through unscaled."""
+    scope = _scope(person_id)
+    accounts = _accounts_to_base(db.list_accounts(scope))           # USD base
+    current_net = analytics.net_worth(accounts)["net"]              # USD
+
+    trend_df = analytics.net_worth_trend(db.get_snapshots(scope))   # USD
+    trend = [] if trend_df.empty else trend_df.to_dict(orient="records")
+    g = analytics.net_worth_growth(trend)
+
+    # Annual expenses = average monthly spend over complete months × 12.
+    txns = fx.base_txns(db.get_transactions(person_id))
+    sav = analytics.monthly_savings(txns)
+    if sav.empty:
+        avg_spend = 0.0
+    else:
+        complete = sav[sav["complete"]]
+        base = complete if not complete.empty else sav
+        avg_spend = float(base["spend"].mean())
+    annual_expenses = avg_spend * 12
+
+    committed = analytics.committed_monthly(analytics.recurring_charges(txns))["total"]
+    fire = analytics.fire_metrics(current_net, annual_expenses, committed)
+
+    f = fx.display_factor(display) or 1.0
+
+    def _money(v):
+        return None if v is None else round(v * f, 2)
+
+    return {
+        "current_net": _money(current_net),
+        "trailing_abs": _money(g["trailing_abs"]) if g else None,
+        "trailing_pct": g["trailing_pct"] if g else None,
+        "cagr": g["cagr"] if g else None,
+        "span_years": g["span_years"] if g else None,
+        "fire_number": _money(fire["fire_number"]),
+        "pct_to_fire": fire["pct_to_fire"],
+        "runway_months": fire["runway_months"],
+        "monthly_expenses": _money(avg_spend),
+        "monthly_committed": _money(committed),
+    }
+
+
 @router.get("/reconcile")
 def reconcile(person_id: Optional[int] = None):
-    """Tie a person's bank statements out against their running-balance column.
-    Joint (person_id omitted) reconciles all transactions together."""
-    result = analytics.reconcile(db.get_transactions(person_id))
-    if result is None:
-        return {"reconcilable": False}
-    return {"reconcilable": True, **result}
+    """Tie each bank statement out against its own running-balance column.
+
+    Groups transactions by (person_id, file_hash) so that statements in
+    different accounts or currencies are reconciled independently. Each result
+    carries the statement's own currency (raw, not converted to any display
+    currency). Returns { statements: [{ filename, currency, begin, end,
+    computed_end, discrepancy, n, chain_breaks, ok }] }.
+    """
+    # Collect all import records for the scope so we can look up filenames.
+    imports = db.list_imports(person_id)
+    filename_by_hash: dict = {im["file_hash"]: im["filename"] for im in imports}
+
+    # Group transactions by (person_id, file_hash) so each statement is
+    # reconciled independently.
+    scope_txns = db.get_transactions(person_id)
+    by_statement: dict = {}
+    for txn in scope_txns:
+        key = (txn.get("person_id"), txn.get("file_hash"))
+        by_statement.setdefault(key, []).append(txn)
+
+    statements = []
+    for (pid, fh), rows in by_statement.items():
+        if fh is None:
+            continue  # skip transactions with no associated import file
+        # Derive the statement currency from the first row that has one.
+        # If no row carries a currency the statement cannot be labeled — skip it
+        # rather than silently mislabeling it as USD.
+        currency = next(
+            (r.get("currency") for r in rows if r.get("currency")), None
+        )
+        if currency is None:
+            continue
+        result = analytics.reconcile(rows, currency=currency)
+        if result is None:
+            continue  # no running-balance data — not reconcilable
+        filename = filename_by_hash.get(fh, fh)
+        statements.append({"filename": filename, **result})
+
+    return {"statements": statements}
 
 
 @router.get("/accounts/{account_id}/history")

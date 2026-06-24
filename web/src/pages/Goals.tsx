@@ -10,6 +10,19 @@ const horizonBadge: React.CSSProperties = {
   fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--fl-muted)",
 };
 
+const GOAL_STATUS: Record<"ahead" | "on_track" | "behind" | "overdue", { label: string; color: string }> = {
+  ahead: { label: "ahead", color: "var(--pos)" },
+  on_track: { label: "on track", color: "var(--persona-solid)" },
+  behind: { label: "behind", color: "#F59E0B" },
+  overdue: { label: "overdue", color: "var(--neg)" },
+};
+
+/** ISO date -> "Mon YYYY" (local-parsed to avoid a UTC off-by-one). */
+const monthYear = (iso: string) => {
+  const [y, m] = iso.split("-").map(Number);
+  return new Date(y, (m || 1) - 1, 1).toLocaleDateString(undefined, { month: "short", year: "numeric" });
+};
+
 function GoalCard({ g, onSave, onSaveNotes, onRemove }: {
   g: Goal; onSave: (g: Goal, v: string) => void; onSaveNotes: (g: Goal, v: string) => void; onRemove: (g: Goal) => void;
 }) {
@@ -20,6 +33,11 @@ function GoalCard({ g, onSave, onSaveNotes, onRemove }: {
       <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
         <span style={{ fontWeight: 700 }}>{g.name}</span>
         <span style={horizonBadge}>{g.horizon === "long" ? "long-term" : "short-term"}</span>
+        {!done && g.status && (
+          <span data-testid="goal-status" style={{ ...horizonBadge, color: GOAL_STATUS[g.status].color, borderColor: "currentColor" }}>
+            {GOAL_STATUS[g.status].label}
+          </span>
+        )}
         {g.target_date && <span style={{ color: "var(--fl-muted)", fontSize: 12 }}>by {g.target_date}</span>}
         <span style={{ marginLeft: "auto", fontVariantNumeric: "tabular-nums" }}>
           <input
@@ -48,6 +66,9 @@ function GoalCard({ g, onSave, onSaveNotes, onRemove }: {
         </span>
         {!done && g.monthly_needed != null && (
           <span>· {formatMoney(g.monthly_needed)}/mo to stay on track</span>
+        )}
+        {!done && g.projected_completion && (
+          <span>· projected {monthYear(g.projected_completion)}</span>
         )}
       </div>
       <input

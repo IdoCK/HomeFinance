@@ -176,6 +176,38 @@ def budget_status(transactions, budgets, parents=None, as_of=None):
     return out
 
 
+def budget_summary(transactions, budgets, parents=None, as_of=None):
+    """Household roll-up for the current calendar month: total budgeted (sum of
+    caps), total spent on budgeted categories, and unbudgeted spend (this month's
+    spend in categories with no budget — leaf category or its parent)."""
+    import calendar  # noqa: F401  (kept parallel with budget_status)
+    parents = parents or {}
+    rows = budget_status(transactions, budgets, parents, as_of)
+    total_budgeted = sum(float(r.get("budget") or 0) for r in rows)
+
+    today = as_of or date.today()
+    month = today.strftime("%Y-%m")
+    df = _df(transactions)
+    spend_by_cat = {}
+    if not df.empty:
+        cur = _split(df[df["month"] == month])
+        if not cur.empty:
+            spend_by_cat = cur.groupby("category")["spend"].sum().to_dict()
+
+    budget_cats = {b["category"] for b in budgets}
+
+    def _covered(cat):
+        return cat in budget_cats or (parents.get(cat) or "").strip() in budget_cats
+
+    budgeted_spend = sum(v for k, v in spend_by_cat.items() if v > 0 and _covered(k))
+    month_spend = sum(v for v in spend_by_cat.values() if v > 0)
+    return {
+        "total_budgeted": round(total_budgeted, 2),
+        "total_spent": round(budgeted_spend, 2),
+        "unbudgeted_spent": round(max(0.0, month_spend - budgeted_spend), 2),
+    }
+
+
 def month_over_month_change(transactions):
     """Per-category % change from the previous month to the latest month."""
     pivot = spending_by_category_over_time(transactions)
@@ -216,34 +248,64 @@ def find_transfer_pairs(txns, *, days=3):
     where both sides are on a spend feed (credit_card/amazon) are skipped, since
     those are a purchase and its refund (already handled by refund-netting).
 
+    Matching is currency-aware: the canonical pivot is USD (`amount_base`).
+    Two legs match only when their USD base amounts are equal within a small
+    tolerance (0.02 USD). This prevents a ₪370 outflow from pairing with a
+    $370 inflow just because the raw numbers happen to be equal. If
+    `amount_base` is absent on a row, the raw `amount` is used as a fallback
+    so behaviour degrades gracefully on un-enriched data.
+
     Returns a list (largest amount first) of dicts: amount, out_id, in_id,
     out_date, in_date, out_desc, in_desc, out_person, in_person, days_apart,
-    cross_person, both_included."""
+    cross_person, both_included, out_currency, in_currency."""
     from collections import defaultdict
+
+    # Tolerance for USD-base comparison (covers floating-point drift; 2 cents).
+    _BASE_TOL = 0.02
+
+    def _base_key(t):
+        """USD base for bucketing — falls back to raw amount if not enriched."""
+        base = t.get("amount_base")
+        amt = float(t["amount"])
+        if base is not None:
+            return float(base)
+        return amt
+
     outs, ins = defaultdict(list), defaultdict(list)
     for t in txns:
         amt = float(t["amount"])
-        key = round(abs(amt), 2)
-        if key == 0:
+        base = _base_key(t)
+        if round(abs(base), 2) == 0:
             continue
-        rec = {"t": t, "date": pd.to_datetime(t["date"])}
-        (outs if amt < 0 else ins)[key].append(rec)
+        rec = {"t": t, "date": pd.to_datetime(t["date"]), "base": base}
+        (outs if amt < 0 else ins)[round(abs(base), 2)].append(rec)
 
     pairs = []
     for key, olist in outs.items():
-        ilist = ins.get(key)
-        if not ilist:
+        # Collect all inflow buckets whose rounded base is close enough.
+        candidate_items = []
+        for ikey, ilist in ins.items():
+            if abs(ikey - key) <= _BASE_TOL:
+                candidate_items.extend((j_offset, rec)
+                                       for j_offset, rec in enumerate(ilist))
+
+        if not candidate_items:
             continue
+
+        # Re-sort olist and build indexed access for the matched inflow pool.
         olist.sort(key=lambda r: r["date"])
-        ilist.sort(key=lambda r: r["date"])
-        used = set()
+
+        # Build an indexed list of all inflow candidates (deduped by their
+        # original position within ins).  We track which global indices are used.
+        # Simpler: just work with the flat candidate list + a used set on t["id"].
+        used_ids = set()
         for o in olist:
             ot = o["t"]
-            best = None
-            for j, i in enumerate(ilist):
-                if j in used:
-                    continue
+            best = None  # (rec, gap)
+            for _, i in candidate_items:
                 it = i["t"]
+                if it.get("id") in used_ids:
+                    continue
                 gap = abs((i["date"] - o["date"]).days)
                 if gap > days:
                     continue
@@ -255,21 +317,27 @@ def find_transfer_pairs(txns, *, days=3):
                         or _looks_transfer(it.get("description"))):
                     continue
                 if best is None or gap < best[1]:
-                    best = (j, gap)
+                    best = (i, gap)
             if best is None:
                 continue
-            j = best[0]
-            used.add(j)
-            it = ilist[j]["t"]
+            i_rec, gap = best
+            it = i_rec["t"]
+            used_ids.add(it.get("id"))
             pairs.append({
-                "amount": key, "out_id": ot.get("id"), "in_id": it.get("id"),
+                "amount": key,
+                "out_id": ot.get("id"), "in_id": it.get("id"),
                 "out_date": ot["date"], "in_date": it["date"],
                 "out_desc": ot.get("description", ""),
                 "in_desc": it.get("description", ""),
                 "out_person": ot.get("person_id"), "in_person": it.get("person_id"),
-                "days_apart": best[1],
+                "days_apart": gap,
                 "cross_person": ot.get("person_id") != it.get("person_id"),
                 "both_included": bool(ot.get("included", 1)) and bool(it.get("included", 1)),
+                "out_currency": ot.get("currency", "USD"),
+                "in_currency": it.get("currency", "USD"),
+                # Original leg amounts in each leg's own currency (for UI display).
+                "out_amount": abs(float(ot["amount"])),
+                "in_amount": abs(float(it["amount"])),
             })
     pairs.sort(key=lambda p: p["amount"], reverse=True)
     return pairs
@@ -371,7 +439,7 @@ def month_end_balances(transactions):
             for m in sorted(bymonth)]
 
 
-def reconcile(rows):
+def reconcile(rows, currency=None):
     """Tie out a bank statement against its running-balance column.
 
     `rows` are transaction dicts carrying 'amount' and (for bank feeds) a running
@@ -380,9 +448,13 @@ def reconcile(rows):
     opening + Σ(all amounts) lands on the last row's balance. Σ is order-
     independent, so this is robust to forward- or reverse-chronological exports.
 
+    `currency` is the statement's own currency code (e.g. "USD", "ILS"). When
+    supplied it is included verbatim in the returned dict — raw, not converted.
+
     Returns None when fewer than two rows carry a balance (e.g. a credit-card
     feed has no running balance to reconcile). Otherwise a dict:
-    {ok, begin, end, sum_amounts, computed_end, discrepancy, n, chain_breaks}."""
+    {ok, begin, end, sum_amounts, computed_end, discrepancy, n, chain_breaks}
+    plus `currency` when provided."""
     bal = [r for r in rows
            if r.get("balance") is not None and r.get("amount") is not None]
     if len(bal) < 2:
@@ -400,10 +472,89 @@ def reconcile(rows):
     chain_breaks = sum(
         1 for i in range(1, len(bal))
         if abs(balances[i] - (balances[i - 1] + amounts[i])) >= 0.01)
-    return {"ok": abs(discrepancy) < 0.01, "begin": round(begin, 2),
-            "end": round(end, 2), "sum_amounts": round(total, 2),
-            "computed_end": round(computed_end, 2), "discrepancy": discrepancy,
-            "n": len(bal), "chain_breaks": chain_breaks}
+    result = {"ok": abs(discrepancy) < 0.01, "begin": round(begin, 2),
+              "end": round(end, 2), "sum_amounts": round(total, 2),
+              "computed_end": round(computed_end, 2), "discrepancy": discrepancy,
+              "n": len(bal), "chain_breaks": chain_breaks}
+    if currency is not None:
+        result["currency"] = currency
+    return result
+
+
+def net_worth_projection(current_net, monthly_savings, annual_return, months=120):
+    """Project net worth forward `months`, contributing `monthly_savings` each
+    month. Returns [{month, linear, compounding}] (month = 1-based offset):
+    `linear` ignores investment returns (principal + contributions); `compounding`
+    grows the balance at a monthly rate derived from the nominal `annual_return`
+    and adds each month's contribution at month end."""
+    r = (1 + annual_return) ** (1 / 12) - 1
+    out = []
+    comp = float(current_net)
+    for m in range(1, months + 1):
+        comp = comp * (1 + r) + monthly_savings
+        linear = current_net + monthly_savings * m
+        out.append({"month": m, "linear": round(linear, 2), "compounding": round(comp, 2)})
+    return out
+
+
+def net_worth_growth(trend):
+    """Trailing-12-month change and CAGR from a net-worth trend.
+
+    `trend` is a list of {date (ISO), net} dicts in any order. Returns None with
+    fewer than two points. Otherwise a dict:
+        {trailing_abs, trailing_pct, cagr, span_years, start_net, end_net}
+
+    trailing_abs/pct compare the latest net worth to the snapshot on or before
+    one year earlier. When no snapshot is a full year old (history under a year)
+    a true trailing-12m figure is unknowable, so both are None.
+
+    cagr is the compound annual growth rate over the full snapshot span:
+    (end/start)**(1/years) - 1. It is None when the span is under ~a month or
+    the starting net worth is not positive (a growth ratio across zero/negative
+    net worth is meaningless)."""
+    pts = sorted(
+        ({"date": pd.to_datetime(p["date"]).date(), "net": float(p["net"])} for p in trend),
+        key=lambda p: p["date"],
+    )
+    if len(pts) < 2:
+        return None
+    start, end = pts[0], pts[-1]
+    start_net, end_net = start["net"], end["net"]
+
+    # Trailing 12 months: the snapshot on or before (latest date − 1 year).
+    cutoff = end["date"] - timedelta(days=365)
+    prior = [p for p in pts if p["date"] <= cutoff]
+    if prior:
+        base = prior[-1]["net"]
+        trailing_abs = round(end_net - base, 2)
+        trailing_pct = round((end_net - base) / abs(base) * 100, 1) if base != 0 else None
+    else:
+        trailing_abs = trailing_pct = None
+
+    span_days = (end["date"] - start["date"]).days
+    span_years = span_days / 365.25
+    if span_years >= 1 / 12 and start_net > 0 and end_net > 0:
+        cagr = round((end_net / start_net) ** (1 / span_years) - 1, 4)
+    else:
+        cagr = None
+
+    return {"trailing_abs": trailing_abs, "trailing_pct": trailing_pct,
+            "cagr": cagr, "span_years": round(span_years, 2),
+            "start_net": round(start_net, 2), "end_net": round(end_net, 2)}
+
+
+def fire_metrics(net_worth, annual_expenses, monthly_burn):
+    """FIRE target (25× annual expenses — the 4% rule) and runway.
+
+    Returns {fire_number, pct_to_fire, runway_months}. fire_number is None when
+    expenses are unknown/zero. pct_to_fire is net worth as a share of that target
+    (0..1+, may exceed 1 once financially independent). runway_months is how many
+    months net worth covers the monthly burn, None when burn is not positive."""
+    fire_number = round(25 * annual_expenses, 2) if annual_expenses and annual_expenses > 0 else None
+    pct_to_fire = round(net_worth / fire_number, 4) if fire_number else None
+    runway_months = round(net_worth / monthly_burn, 1) if monthly_burn and monthly_burn > 0 else None
+    return {"fire_number": fire_number, "pct_to_fire": pct_to_fire,
+            "runway_months": runway_months}
 
 
 def net_worth_trend(snapshots):
@@ -427,26 +578,124 @@ def net_worth_trend(snapshots):
     return pd.DataFrame(out)
 
 
-def goal_progress(goals):
-    """Attach percent-complete and a simple monthly-needed estimate to each goal."""
+def goal_progress(goals, actual_monthly_savings=None, assumed_annual_return=0.07):
+    """Attach percent-complete, monthly-needed, pace status, and projected completion.
+
+    Parameters
+    ----------
+    goals : list of dicts  —  raw goal rows from the DB.
+    actual_monthly_savings : float | None
+        The household's average monthly savings in USD (base currency).  When
+        provided, each goal receives a ``status`` of "ahead" / "on_track" /
+        "behind" / "overdue".  When None, ``status`` is None for goals that
+        need pace info (no pace info available).
+    assumed_annual_return : float
+        Nominal annual return assumed for *long-horizon* goals.  Those goals
+        earn returns while you save, so ``monthly_needed`` is solved with
+        future-value annuity math rather than flat ``remaining / months_left``.
+        Short/other horizons ignore it (flat division).  A 0% return collapses
+        the annuity back to flat division.
+
+    Returns
+    -------
+    List of goal dicts with added keys:
+        percent               – float, 0-100
+        monthly_needed        – float | None  (None when no target_date)
+        status                – "ahead" | "on_track" | "behind" | "overdue" | None
+        projected_completion  – ISO date str | None
+
+    Decisions / design notes
+    ------------------------
+    * on_track tolerance band: ±10 % of monthly_needed.  A goal is "on_track"
+      when actual savings fall within [0.90 * monthly_needed, 1.10 * monthly_needed].
+      This is a narrow but sensible band; callers can document it for users.
+    * overdue: months_left == 0 AND remaining > 0.  This fixes the pre-existing
+      bug that silently set monthly_needed = remaining instead of flagging it.
+    * status is None when: no target_date AND no actual_monthly_savings that
+      would let us derive pace.  For goals without a target_date, status is
+      also None (we can't compare against a monthly_needed we don't have), but
+      projected_completion IS still computed when actual_monthly_savings > 0.
+    * projected_completion: ceil(remaining / actual_monthly_savings) months from
+      today, as an ISO date (first day of the projected completion month).
+      None when savings <= 0, unknown, or goal already complete.
+    """
+    import math as _math
+
+    ON_TRACK_TOLERANCE = 0.10  # ±10 % of monthly_needed
+
+    def _required_monthly(target, saved, remaining, months, horizon):
+        """Monthly contribution needed to reach the target in `months`.
+
+        Long-horizon goals invest while you save, so we solve the future-value
+        annuity target = saved·(1+r)^n + PMT·((1+r)^n − 1)/r for PMT (clamped at
+        0 — if the existing balance compounds past the target on its own, no
+        contribution is required). All other horizons (and a 0% assumed return)
+        use flat division, remaining / months."""
+        if months <= 0:
+            return None
+        r = (1 + assumed_annual_return) ** (1 / 12) - 1
+        if horizon != "long" or r <= 0:
+            return remaining / months
+        growth = (1 + r) ** months
+        pmt = (target - saved * growth) * r / (growth - 1)
+        return max(0.0, pmt)
+
     out = []
     today = date.today()
     for g in goals:
         target = g["target_amount"] or 0
         saved = g["saved_amount"] or 0
         pct = (saved / target * 100) if target else 0
+        remaining = max(target - saved, 0)
         monthly_needed = None
+        status = None
+        projected_completion = None
+
+        # ── target-date branch ──────────────────────────────────────────────
         if g.get("target_date"):
             try:
                 td = pd.to_datetime(g["target_date"]).date()
-                months_left = max(
-                    (td.year - today.year) * 12 + (td.month - today.month), 0
-                )
-                remaining = max(target - saved, 0)
-                monthly_needed = remaining / months_left if months_left else remaining
+                months_left = (td.year - today.year) * 12 + (td.month - today.month)
+
+                if months_left <= 0 and remaining > 0:
+                    # Overdue: deadline is this month or past and goal is unmet.
+                    status = "overdue"
+                    # monthly_needed stays None — no forward-looking figure is meaningful.
+                else:
+                    months_left = max(months_left, 0)
+                    if months_left > 0:
+                        monthly_needed = _required_monthly(
+                            target, saved, remaining, months_left, g.get("horizon"))
+
+                    # Pace status (requires actual_monthly_savings)
+                    if actual_monthly_savings is not None and monthly_needed is not None and remaining > 0:
+                        lo = monthly_needed * (1 - ON_TRACK_TOLERANCE)
+                        hi = monthly_needed * (1 + ON_TRACK_TOLERANCE)
+                        if actual_monthly_savings < lo:
+                            status = "behind"
+                        elif actual_monthly_savings > hi:
+                            status = "ahead"
+                        else:
+                            status = "on_track"
             except Exception:
                 pass
-        out.append({**g, "percent": round(pct, 1), "monthly_needed": monthly_needed})
+
+        # ── projected_completion ─────────────────────────────────────────────
+        # Computed whenever actual_monthly_savings > 0 and goal is not yet met.
+        if actual_monthly_savings is not None and actual_monthly_savings > 0 and remaining > 0:
+            months_needed = _math.ceil(remaining / actual_monthly_savings)
+            # Advance today by months_needed calendar months.
+            proj_year = today.year + (today.month + months_needed - 1) // 12
+            proj_month = (today.month + months_needed - 1) % 12 + 1
+            projected_completion = date(proj_year, proj_month, 1).isoformat()
+
+        out.append({
+            **g,
+            "percent": round(pct, 1),
+            "monthly_needed": monthly_needed,
+            "status": status,
+            "projected_completion": projected_completion,
+        })
     return out
 
 
@@ -783,6 +1032,23 @@ def recurring_charges(txns, vendor_rules=None):
         })
     out.sort(key=lambda r: (r["confidence"], r["monthly_cost"]), reverse=True)
     return out
+
+
+def bills_due_this_month(recurring, as_of=None):
+    """Recurring charges whose NEXT expected date falls between today and the end
+    of the current calendar month — the bills still to hit before month-end.
+    Returns {count, amount}, amount summing each due charge's typical amount.
+    Bounds are inclusive of both today and the last day of the month."""
+    import calendar
+    today = pd.to_datetime(as_of).date() if as_of else date.today()
+    last_day = calendar.monthrange(today.year, today.month)[1]
+    month_end = date(today.year, today.month, last_day)
+    due = [
+        r for r in recurring
+        if r.get("next_expected") and today <= date.fromisoformat(r["next_expected"]) <= month_end
+    ]
+    amount = sum(r.get("typical_amount", 0.0) for r in due)
+    return {"count": len(due), "amount": round(amount, 2)}
 
 
 def committed_monthly(recurring):

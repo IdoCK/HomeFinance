@@ -4,6 +4,7 @@ import {
   type AnalysisFilters, type FilterOptions, type CategoryTrend,
 } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
+import { useCurrency } from "@/lib/currency";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Pill } from "@/components/ui/pill";
 import { CardHeaderRow } from "@/components/ui/card";
@@ -18,17 +19,18 @@ const CARD: React.CSSProperties = { padding: 16 };
 const MAX_LINES = 8; // one per palette color; busier than this is unreadable
 
 function ExploreTab({ personId, filters }: { personId?: number; filters: AnalysisFilters }) {
+  const { currency } = useCurrency();
   const [rollup, setRollup] = useState(false);
   const [trend, setTrend] = useState<CategoryTrend | null>(null);
 
   useEffect(() => {
     let alive = true;
     setTrend(null);
-    getCategoryTrend({ personId, rollup, filters })
+    getCategoryTrend({ personId, rollup, filters, display: currency })
       .then((d) => alive && setTrend(d))
       .catch(() => alive && setTrend({ months: [], series: [] }));
     return () => { alive = false; };
-  }, [personId, rollup, filters]);
+  }, [personId, rollup, filters, currency]);
 
   return (
     <div style={{ display: "grid", gap: 14 }}>

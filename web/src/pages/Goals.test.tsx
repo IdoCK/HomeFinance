@@ -7,7 +7,7 @@ const updateGoalSaved = vi.fn().mockResolvedValue({ ok: true });
 const updateGoalNotes = vi.fn().mockResolvedValue({ ok: true });
 const deleteGoal = vi.fn().mockResolvedValue({ ok: true });
 const getGoals = vi.fn().mockResolvedValue([
-  { id: 1, person_id: 1, name: "Emergency fund", target_amount: 10000, saved_amount: 2500, target_date: "2026-12-31", horizon: "short", notes: "", percent: 25, monthly_needed: 1250 },
+  { id: 1, person_id: 1, name: "Emergency fund", target_amount: 10000, saved_amount: 2500, target_date: "2026-12-31", horizon: "short", notes: "", percent: 25, monthly_needed: 1250, status: "behind", projected_completion: "2027-03-15" },
   { id: 2, person_id: 1, name: "Vacation", target_amount: 5000, saved_amount: 5000, target_date: null, horizon: "short", notes: "", percent: 100, monthly_needed: null },
 ]);
 
@@ -36,6 +36,13 @@ test("renders goals with progress", async () => {
   render(<Goals />);
   await waitFor(() => expect(screen.getByText("Emergency fund")).toBeInTheDocument());
   expect(screen.getByText("Vacation")).toBeInTheDocument();
+});
+
+test("shows a pace badge and projected completion for an off-track goal", async () => {
+  render(<Goals />);
+  await waitFor(() => expect(screen.getByTestId("goal-status")).toBeInTheDocument());
+  expect(screen.getByTestId("goal-status")).toHaveTextContent("behind");
+  expect(screen.getByText(/projected Mar 2027/i)).toBeInTheDocument();
 });
 
 test("editing saved calls updateGoalSaved", async () => {

@@ -59,6 +59,18 @@ export type Overview = {
   series: OverviewSeriesPoint[];
   /** Joint-only per-person spend for the selected month; null in single-persona view. */
   split: PersonSpend[] | null;
+  /** Expense rows whose category is Uncategorized for the selected month. */
+  uncategorized: { count: number; amount: number };
+  /** Income − expected committed obligations − discretionary already spent. */
+  safe_to_spend: number;
+  /** Expected monthly committed (recurring) obligations. */
+  committed: number;
+  /** This month's spend on recurring vendors (committed portion). */
+  committed_spent: number;
+  /** This month's spend that is not on recurring vendors. */
+  discretionary_spent: number;
+  /** Recurring bills whose next charge falls before month-end. */
+  bills_due: { count: number; amount: number };
 };
 
 export type FxRatesInfo = {
@@ -107,6 +119,14 @@ export type TransferPair = {
   days_apart: number;
   cross_person: boolean;
   both_included: boolean;
+  /** Original currency of the outflow leg (e.g. "ILS", "USD"). */
+  out_currency?: string;
+  /** Original currency of the inflow leg (e.g. "ILS", "USD"). */
+  in_currency?: string;
+  /** Original amount of the outflow leg in its own currency. */
+  out_amount?: number;
+  /** Original amount of the inflow leg in its own currency. */
+  in_amount?: number;
 };
 
 export const getTransferPairs = (personId?: number) =>
@@ -133,6 +153,10 @@ export const setBudget = (b: { personId?: number; category: string; amount: numb
 
 export const deleteBudget = (id: number) =>
   apiSend<{ ok: boolean }>("DELETE", `/budgets/${id}`);
+
+export type BudgetSummary = { total_budgeted: number; total_spent: number; unbudgeted_spent: number };
+export const getBudgetSummary = (p: { personId?: number; display?: Currency }) =>
+  apiGet<BudgetSummary>("/budgets/summary", { person_id: p.personId, display: p.display });
 
 export type RecurringCharge = {
   vendor: string;
@@ -167,6 +191,7 @@ export type RecurringData = {
   charges: RecurringCharge[];
   committed: Committed;
   anomalies: RecurringAnomaly[];
+  bills_due: { count: number; amount: number };
 };
 
 export const getRecurring = (p: { personId?: number; display?: Currency }) =>
@@ -183,6 +208,10 @@ export type Goal = {
   notes: string;
   percent: number;
   monthly_needed: number | null;
+  /** Pace status computed from avg monthly savings vs monthly_needed. Null when no pace info available. */
+  status: "ahead" | "on_track" | "behind" | "overdue" | null;
+  /** ISO date string: projected month of goal completion based on current savings rate. Null when unknown or already complete. */
+  projected_completion: string | null;
 };
 
 export const getGoals = (p: { personId?: number; display?: Currency }) =>
@@ -229,16 +258,58 @@ export type NetWorthData = {
 export const getNetWorth = (p: { personId?: number; display?: Currency }) =>
   apiGet<NetWorthData>("/networth", { person_id: p.personId, display: p.display });
 
-export type Reconciliation =
-  | { reconcilable: false }
-  | {
-      reconcilable: true; ok: boolean; begin: number; end: number;
-      sum_amounts: number; computed_end: number; discrepancy: number;
-      n: number; chain_breaks: number;
-    };
+export type ProjectionPoint = { month: number; linear: number; compounding: number };
+export type NetWorthProjection = {
+  annual_return: number;
+  monthly_savings: number;
+  current_net: number;
+  points: ProjectionPoint[];
+};
+export const getNetWorthProjection = (p: { personId?: number; display?: Currency; annualReturn?: number; years?: number }) =>
+  apiGet<NetWorthProjection>("/networth/projection", {
+    person_id: p.personId, display: p.display, annual_return: p.annualReturn, years: p.years,
+  });
+
+export type NetWorthGrowth = {
+  current_net: number;
+  /** Net-worth change over the trailing 12 months (abs + %). Null without a year of history. */
+  trailing_abs: number | null;
+  trailing_pct: number | null;
+  /** Compound annual growth rate over the full snapshot span (fraction). Null when unknowable. */
+  cagr: number | null;
+  span_years: number | null;
+  /** 25x annual expenses (the 4% rule). Null when expenses are unknown. */
+  fire_number: number | null;
+  /** Net worth as a share of the FIRE number (fraction, may exceed 1). */
+  pct_to_fire: number | null;
+  /** Months net worth covers committed bills. Null when there are no committed bills. */
+  runway_months: number | null;
+  monthly_expenses: number;
+  monthly_committed: number;
+};
+
+export const getNetWorthGrowth = (p: { personId?: number; display?: Currency }) =>
+  apiGet<NetWorthGrowth>("/networth/growth", { person_id: p.personId, display: p.display });
+
+export type StatementReconciliation = {
+  filename: string;
+  currency: Currency;
+  ok: boolean;
+  begin: number;
+  end: number;
+  sum_amounts: number;
+  computed_end: number;
+  discrepancy: number;
+  n: number;
+  chain_breaks: number;
+};
+
+export type ReconciliationResult = {
+  statements: StatementReconciliation[];
+};
 
 export const getReconciliation = (personId?: number) =>
-  apiGet<Reconciliation>("/networth/reconcile", { person_id: personId });
+  apiGet<ReconciliationResult>("/networth/reconcile", { person_id: personId });
 
 export const addAccount = (a: { personId?: number; name: string; kind: string; isAsset: boolean; balance: number }) =>
   apiSend<{ ok: boolean; id: number }>("POST", "/networth/accounts", {
@@ -307,6 +378,10 @@ export type ImportParseResult = {
 };
 
 export const getOllamaStatus = () => apiGet<OllamaStatus>("/import/status");
+
+export type UntrackedCount = { count: number };
+export const getUntrackedCount = (personId?: number) =>
+  apiGet<UntrackedCount>("/import/untracked-count", { person_id: personId });
 
 // Multipart upload — let the browser set the Content-Type boundary, so this
 // doesn't go through apiSend (which sends JSON).
@@ -395,8 +470,8 @@ export type CategoryTrend = {
   series: { name: string; values: number[]; total: number }[];
 };
 
-export const getCategoryTrend = (p: { personId?: number; rollup?: boolean; filters?: AnalysisFilters }) =>
-  apiGet<CategoryTrend>(`/analysis/category-trend${analysisQuery(p.personId, p.filters, { rollup: p.rollup ? "true" : undefined })}`);
+export const getCategoryTrend = (p: { personId?: number; rollup?: boolean; filters?: AnalysisFilters; display?: Currency }) =>
+  apiGet<CategoryTrend>(`/analysis/category-trend${analysisQuery(p.personId, p.filters, { rollup: p.rollup ? "true" : undefined, display: p.display })}`);
 
 export type DrillItem = { name: string; value: number };
 export type DrillRow = { date: string; description: string; amount: number; category: string };
@@ -408,9 +483,10 @@ export const getDrill = (p: {
   cat?: string;
   vendor?: string;
   filters?: AnalysisFilters;
+  display?: Currency;
 }) =>
   apiGet<DrillResult>(
-    `/analysis/drill${analysisQuery(p.personId, p.filters, { level: p.level, cat: p.cat, vendor: p.vendor })}`,
+    `/analysis/drill${analysisQuery(p.personId, p.filters, { level: p.level, cat: p.cat, vendor: p.vendor, display: p.display })}`,
   );
 
 export type ComparePreset = "weekdays_weekends" | "month_vs_month";
@@ -429,9 +505,10 @@ export const getCompare = (p: {
   preset: ComparePreset;
   metric: CompareMetric;
   filters?: AnalysisFilters;
+  display?: Currency;
 }) =>
   apiGet<CompareResult>(
-    `/analysis/compare${analysisQuery(p.personId, p.filters, { preset: p.preset, metric: p.metric })}`,
+    `/analysis/compare${analysisQuery(p.personId, p.filters, { preset: p.preset, metric: p.metric, display: p.display })}`,
   );
 
 export type OverlapPerson = { id: number; name: string; spend: number; categories: number };
@@ -444,8 +521,8 @@ export type OverlapResult = {
   rows: OverlapRow[];
 };
 
-export const getOverlap = (p: { filters?: AnalysisFilters } = {}) =>
-  apiGet<OverlapResult>(`/analysis/overlap${analysisQuery(undefined, p.filters)}`);
+export const getOverlap = (p: { filters?: AnalysisFilters; display?: Currency } = {}) =>
+  apiGet<OverlapResult>(`/analysis/overlap${analysisQuery(undefined, p.filters, { display: p.display })}`);
 
 export const getEvents = (personId?: number) =>
   apiGet<FinanceEvent[]>("/events", { person_id: personId });

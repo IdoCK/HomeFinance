@@ -26,14 +26,18 @@ def upsert_rate(body: FxRateUpsert):
 
 @router.post("/refresh")
 def refresh(body: FxRefresh):
-    """Explicit, user-initiated fetch. Sends only date+currency pair per date."""
+    """Explicit, user-initiated fetch. Sends only date+currency pair per date.
+    After fetching, immediately recomputes amount_base for all stale rows so
+    freshly-fetched rates backfill the ledger without a separate call."""
     fetched = failed = 0
     for d in body.dates:
         if fxmod.fetch_rate(d, body.base, body.quote) is not None:
             fetched += 1
         else:
             failed += 1
-    return {"fetched": fetched, "failed": failed}
+    updated, stale = db.recompute_amount_base()
+    return {"fetched": fetched, "failed": failed,
+            "recomputed": {"updated": updated, "stale": stale}}
 
 
 @router.post("/recompute")

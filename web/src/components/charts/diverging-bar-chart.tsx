@@ -1,5 +1,6 @@
 import { formatMoney } from "@/components/money";
 import { barPct } from "./_svg";
+import { Legend } from "./legend";
 
 export type DivergingRow = { category: string; a: number; b: number; shared?: boolean };
 
@@ -17,8 +18,8 @@ export function DivergingBarChart({
   labelB: string;
   format?: (n: number) => string;
 }) {
-  const colorA = "#3B82F6"; // Ido-blue
-  const colorB = "#EC4899"; // Aviv-pink
+  const colorA = "var(--persona-you)"; // you / blue
+  const colorB = "var(--persona-spouse)"; // spouse / pink
   const max = Math.max(1, ...rows.flatMap((r) => [Math.abs(r.a), Math.abs(r.b)]));
 
   if (rows.length === 0) {
@@ -27,9 +28,12 @@ export function DivergingBarChart({
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "center", gap: 18, fontSize: 11.5, color: "var(--fl-muted)", marginBottom: 12 }}>
-        <Swatch color={colorA} label={labelA} />
-        <Swatch color={colorB} label={labelB} />
+      <div style={{ marginBottom: 12 }}>
+        <Legend
+          justify="center"
+          gap={18}
+          items={[{ label: labelA, color: colorA, shape: "square" }, { label: labelB, color: colorB, shape: "dot" }]}
+        />
       </div>
       <div style={{ display: "grid", gap: 10 }}>
         {rows.map((r) => (
@@ -60,14 +64,5 @@ export function DivergingBarChart({
         ))}
       </div>
     </div>
-  );
-}
-
-function Swatch({ color, label }: { color: string; label: string }) {
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-      <span style={{ width: 9, height: 9, borderRadius: 3, background: color }} />
-      {label}
-    </span>
   );
 }

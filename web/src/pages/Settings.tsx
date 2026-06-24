@@ -4,11 +4,13 @@ import {
   getPeople, renamePerson,
   getCategories, upsertCategory, deleteCategory,
   getVendors, upsertVendor, deleteVendor,
-  getFxRates,
+  getFxRates, getUntrackedCount,
   type Person, type Category, type Vendor, type FxRatesInfo,
 } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { useCurrency, type Currency } from "@/lib/currency";
+import { getAssumedReturn, setAssumedReturn } from "@/lib/prefs";
+import { Banner } from "@/components/ui/banner";
 
 const h2: CSSProperties = { fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--fl-muted)", margin: 0 };
 
@@ -78,6 +80,12 @@ export default function Settings() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [fx, setFx] = useState<FxRatesInfo | null>(null);
   useEffect(() => { getFxRates().then(setFx).catch(() => setFx(null)); }, []);
+  // Legacy rows imported before file-tracking can't be tied to a statement and
+  // may hide whole-file duplicates — surface the count as an audit banner.
+  const [untracked, setUntracked] = useState(0);
+  useEffect(() => {
+    getUntrackedCount(activePersonId ?? undefined).then((r) => setUntracked(r.count)).catch(() => setUntracked(0));
+  }, [activePersonId]);
   const CUR: { key: Currency; label: string }[] = [{ key: "USD", label: "$ USD" }, { key: "ILS", label: "₪ ILS" }];
 
   const loadPeople = useCallback(() => getPeople().then(setPeople).catch(() => setPeople([])), []);
@@ -106,6 +114,12 @@ export default function Settings() {
         <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", fontSize: 24, margin: 0 }}>Settings</h1>
         <span style={{ color: "var(--fl-muted)", fontSize: 13 }}>people, categories & vendor groups</span>
       </header>
+
+      {untracked > 0 && (
+        <Banner tone="warn" icon={<span style={{ fontWeight: 800 }}>!</span>}>
+          <strong style={{ fontWeight: 700 }}>{untracked.toLocaleString()}</strong> {untracked === 1 ? "transaction predates" : "transactions predate"} file tracking and aren't tied to a statement — they may include duplicates. Re-import those statements to track and de-duplicate them.
+        </Banner>
+      )}
 
       <section className="frosted-card" style={{ padding: 20, display: "grid", gap: 10 }}>
         <h2 style={h2}>People</h2>
@@ -138,6 +152,20 @@ export default function Settings() {
           {fx && fx.count > 0
             ? `Rates: ${fx.source ?? "—"}, last fetched ${fx.last_fetched ?? "never"} · ${fx.count} cached`
             : "No exchange rates cached yet. Importing a non-USD statement fetches the rate it needs."}
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", borderTop: "1px solid var(--fl-line)", paddingTop: 12 }}>
+          <span style={{ fontSize: 13, color: "var(--fl-muted)" }}>Assumed annual return (net-worth projection)</span>
+          <input
+            type="number"
+            aria-label="Assumed annual return percent"
+            defaultValue={Math.round(getAssumedReturn() * 100)}
+            onBlur={(e) => {
+              const pct = Number(e.target.value);
+              if (Number.isFinite(pct) && pct >= 0) setAssumedReturn(pct / 100);
+            }}
+            style={{ ...pill, width: 80, textAlign: "right" }}
+          />
+          <span style={{ fontSize: 13, color: "var(--fl-muted)" }}>% · an estimate, not a guarantee</span>
         </div>
       </section>
 

@@ -15,6 +15,24 @@ type PersonaCtx = {
 
 const Ctx = createContext<PersonaCtx | null>(null);
 
+/** The fill for a persona — a real color for single people, the blue→pink
+ *  GRADIENT for Joint. Use only as a `background` (a gradient is not a valid
+ *  color value for text/stroke/border). Joint NEVER resolves to blue. */
+export function personaFill(persona: PersonaKey): string {
+  return persona === "spouse" ? "var(--persona-spouse)"
+    : persona === "joint" ? "var(--persona-joint)"
+    : "var(--persona-you)";
+}
+
+/** A guaranteed-solid companion color for a persona (text/stroke/border/SVG).
+ *  Joint uses the violet mid-point stand-in (`--persona-joint-solid`), never the
+ *  blue "you" ink. */
+export function personaSolid(persona: PersonaKey): string {
+  return persona === "spouse" ? "var(--persona-spouse)"
+    : persona === "joint" ? "var(--persona-joint-solid)"
+    : "var(--persona-you)";
+}
+
 // Canonical household identity: Ido is the primary persona ("you" / blue),
 // Aviv the secondary ("spouse" / pink). We resolve each persona to its person
 // by NAME, not by row position: the live DB orders people by id as
@@ -42,16 +60,8 @@ export function PersonaProvider({ children }: { children: React.ReactNode }) {
     el.dataset.persona = persona;
     // Three-way swap. --persona is a fill (may be the Joint gradient);
     // --persona-solid is its always-a-color companion for text/border/SVG.
-    const fill =
-      persona === "spouse" ? "var(--persona-spouse)"
-      : persona === "joint" ? "var(--persona-joint)"
-      : "var(--persona-you)";
-    const solid =
-      persona === "spouse" ? "var(--persona-spouse)"
-      : persona === "joint" ? "var(--persona-joint-solid)"
-      : "var(--persona-you)";
-    el.style.setProperty("--persona", fill);
-    el.style.setProperty("--persona-solid", solid);
+    el.style.setProperty("--persona", personaFill(persona));
+    el.style.setProperty("--persona-solid", personaSolid(persona));
   }, [persona]);
 
   const youPerson = resolvePerson(people, "you");

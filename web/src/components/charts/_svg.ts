@@ -50,15 +50,13 @@ export function layoutShared(series: number[][], w: number, h: number, pad = 4):
 }
 
 /** Categorical color ramp for multi-series charts. Fixed, well-separated hues
- *  drawn from the brand palette (blue/violet/pink/amber already appear in the
- *  Frosted Ledger tokens + showpiece gradient). Deliberately NOT persona-relative:
- *  a category's color must stay stable when you switch persona, and
- *  --persona-solid collides with --persona-spouse in the spouse view. Wraps when
- *  there are more series than colors. */
+ *  drawn from the brand palette. Deliberately NOT persona-relative: a category's
+ *  color must stay stable when you switch persona. The two PERSONA hues
+ *  (#3B82F6 blue = you, #EC4899 pink = spouse) are intentionally EXCLUDED so a
+ *  generic category can never masquerade as a person in a chart. Wraps when there
+ *  are more series than colors. */
 export const CATEGORY_COLORS = [
-  "#3B82F6", // blue
   "#A855F7", // violet
-  "#EC4899", // pink
   "#F59E0B", // amber
   "#06B6D4", // cyan
   "#10B981", // emerald
@@ -105,6 +103,32 @@ export function toPath(points: Pt[], smooth = false): string {
     d.push(`C ${round(c1x)} ${round(c1y)}, ${round(c2x)} ${round(c2y)}, ${round(p2.x)} ${round(p2.y)}`);
   }
   return d.join(" ");
+}
+
+/** Return the y-axis tick values to label: always includes min, max, and 0 when
+ *  it falls within the domain. Deduplicates so min===0 or max===0 don't double-
+ *  emit zero. Returns values sorted ascending. */
+export function axisTicks(min: number, max: number): number[] {
+  if (min === max) return [min];
+  const set = new Set<number>([min, max]);
+  if (0 >= min && 0 <= max) set.add(0);
+  return Array.from(set).sort((a, b) => a - b);
+}
+
+/** Split a points path into the settled (complete) prefix and the in-progress
+ *  (partial) suffix, for the dashed "month still in progress" treatment. A point
+ *  flagged partial marks the segment ARRIVING at it as in-progress; the suffix
+ *  therefore starts one point earlier so the dashed segment connects to the solid
+ *  line with no gap. With no flags (or none true) everything is solid. */
+export function splitPartialPath(
+  pts: Pt[],
+  partial?: boolean[],
+): { solid: Pt[]; partial: Pt[] } {
+  if (!partial || pts.length === 0) return { solid: pts, partial: [] };
+  const first = partial.findIndex(Boolean);
+  if (first === -1) return { solid: pts, partial: [] };
+  if (first === 0) return { solid: [], partial: pts };
+  return { solid: pts.slice(0, first), partial: pts.slice(first - 1) };
 }
 
 /** Largest-remainder apportionment: split `dots` across `values` proportionally,

@@ -1,11 +1,124 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { pillStyle as pill } from "@/lib/ui";
-import { getNetWorth, addAccount, updateAccountBalance, deleteAccount, getReconciliation, getAccountHistory, getAccountImports, recordAccountSnapshot, populateFromStatements, type Account, type AccountSnapshot, type StatementImport, type NetWorthData, type Reconciliation } from "@/lib/api";
+import { getNetWorth, getNetWorthProjection, getNetWorthGrowth, addAccount, updateAccountBalance, deleteAccount, getReconciliation, getAccountHistory, getAccountImports, recordAccountSnapshot, populateFromStatements, type Account, type AccountSnapshot, type StatementImport, type NetWorthData, type NetWorthProjection, type NetWorthGrowth, type ReconciliationResult, type StatementReconciliation } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { useCurrency } from "@/lib/currency";
+import { getAssumedReturn } from "@/lib/prefs";
 import { Money, formatMoney } from "@/components/money";
+import { Sparkline } from "@/components/charts/sparkline";
 import { AreaChart } from "@/components/charts/area-chart";
+import { LineChart } from "@/components/charts/line-chart";
 import { Loading } from "@/components/loading";
+
+const NET_WORTH_MILESTONES = [100_000, 250_000, 500_000, 1_000_000];
+const monthLabel = (iso: string) => {
+  const [y, m] = iso.split("-").map(Number);
+  return new Date(y, (m || 1) - 1, 1).toLocaleDateString(undefined, { month: "short" });
+};
+const kfmt = (n: number) => (Math.abs(n) >= 1000 ? `$${Math.round(n / 1000)}k` : `$${Math.round(n)}`);
+
+/** One wealth-stat block: a quiet uppercase label, a bold tabular figure, and a
+ *  muted one-line gloss. The grid of these is the page's "are we building
+ *  wealth?" read-out. */
+function Stat({ label, value, sub, accent }: { label: string; value: React.ReactNode; sub?: React.ReactNode; accent?: string }) {
+  return (
+    <div style={{ display: "grid", gap: 3, minWidth: 0 }}>
+      <span style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--fl-muted)", fontWeight: 700 }}>{label}</span>
+      <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums", color: accent ?? "var(--fl-ink)" }}>{value}</span>
+      {sub && <span style={{ fontSize: 11.5, color: "var(--fl-muted)" }}>{sub}</span>}
+    </div>
+  );
+}
+
+/** "Are we building wealth?" — trailing-12-month growth, CAGR, progress to a
+ *  25× FIRE number, and a runway in months. Renders only the stats it can
+ *  compute; nothing when there's no history or expense data yet. */
+function WealthStats({ g }: { g: NetWorthGrowth }) {
+  const hasTrailing = g.trailing_abs != null && g.trailing_pct != null;
+  const hasCagr = g.cagr != null;
+  const hasFire = g.fire_number != null && g.pct_to_fire != null;
+  const hasRunway = g.runway_months != null;
+  if (!hasTrailing && !hasCagr && !hasFire && !hasRunway) return null;
+
+  const signColor = (n: number) => (n >= 0 ? "var(--pos)" : "var(--neg)");
+  const signed = (n: number) => `${n >= 0 ? "+" : "−"}${formatMoney(Math.abs(n))}`;
+
+  return (
+    <section className="frosted-card" aria-label="Wealth stats"
+      style={{ padding: 20, display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
+      {hasTrailing && (
+        <Stat
+          label="Past 12 months"
+          value={<span style={{ color: signColor(g.trailing_abs!) }}>{signed(g.trailing_abs!)}</span>}
+          sub={<span style={{ color: signColor(g.trailing_pct!) }}>{g.trailing_pct! >= 0 ? "+" : "−"}{Math.abs(g.trailing_pct!)}% net worth</span>}
+        />
+      )}
+      {hasCagr && (
+        <Stat
+          label="Annual growth"
+          value={`${Math.round(g.cagr! * 100)}%`}
+          sub={`CAGR${g.span_years ? ` over ${g.span_years}y` : ""}`}
+        />
+      )}
+      {hasFire && (
+        <Stat
+          label="Progress to FIRE"
+          value={`${Math.round(g.pct_to_fire! * 100)}%`}
+          accent="var(--persona-solid)"
+          sub={<>25× <Money value={g.monthly_expenses * 12} />/yr = <Money value={g.fire_number!} /></>}
+        />
+      )}
+      {hasRunway && (
+        <Stat
+          label="Runway"
+          value={`${Math.round(g.runway_months!)} mo`}
+          sub="net worth ÷ committed bills"
+        />
+      )}
+    </section>
+  );
+}
+
+/** "Where you're headed": today's net worth + average monthly savings projected
+ *  forward, with returns (compounding) vs contributions only (linear). Yearly
+ *  resolution so the x-axis stays legible; milestone reference lines for context. */
+function ProjectionCard({ p }: { p: NetWorthProjection }) {
+  const yearly = p.points.filter((pt) => pt.month % 12 === 0);
+  if (yearly.length === 0) return null;
+  const labels = ["now", ...yearly.map((pt) => `${pt.month / 12}y`)];
+  const comp = [p.current_net, ...yearly.map((pt) => pt.compounding)];
+  const lin = [p.current_net, ...yearly.map((pt) => pt.linear)];
+  const finalComp = comp[comp.length - 1];
+  const years = yearly[yearly.length - 1].month / 12;
+  const ratePct = Math.round(p.annual_return * 100);
+  return (
+    <section className="frosted-card" aria-label="Net worth projection" style={{ padding: 20, display: "grid", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fl-muted)" }}>Projection</span>
+        <span data-testid="projection-headline" style={{ fontSize: 13, color: "var(--fl-ink)" }}>
+          ~<Money value={finalComp} /> in {years} years
+        </span>
+        <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--fl-muted)" }}>
+          {formatMoney(p.monthly_savings)}/mo · {ratePct}% assumed return
+        </span>
+      </div>
+      <LineChart
+        labels={labels}
+        series={[
+          { name: `with ~${ratePct}% returns`, values: comp, color: "var(--persona-solid)" },
+          { name: "contributions only", values: lin, color: "var(--fl-muted)" },
+        ]}
+        refLines={NET_WORTH_MILESTONES.map((m) => ({ value: m, label: kfmt(m), color: "var(--saved)" }))}
+        valueFormat={kfmt}
+        height={150}
+        ariaLabel="Projected net worth — with returns vs contributions only"
+      />
+      <span style={{ fontSize: 11.5, color: "var(--fl-muted)" }}>
+        Assumes a {ratePct}% annual return on today's balance and your average monthly savings — an estimate, editable in Settings.
+      </span>
+    </section>
+  );
+}
 
 const KINDS = ["checking", "savings", "investment", "property", "credit_card", "loan", "other"];
 const LIABILITY_KINDS = new Set(["credit_card", "loan"]);
@@ -39,7 +152,7 @@ function AccountRow({ a, onSave, onRemove, onChanged }: {
         </span>
         {history && history.length >= 2 && (
           <span style={{ width: 110, height: 28, flex: "none" }}>
-            <AreaChart points={history.map((s) => ({ value: s.balance }))} area={false} mode="linear" height={28} accent={asset ? "var(--pos)" : "var(--neg)"} ariaLabel={`${a.name} balance history`} />
+            <Sparkline values={history.map((s) => s.balance)} height={28} accent={asset ? "var(--pos)" : "var(--neg)"} ariaLabel={`${a.name} balance history`} />
           </span>
         )}
         <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
@@ -143,7 +256,9 @@ export default function NetWorth() {
   const { personId, label } = usePersona();
   const { currency } = useCurrency();
   const [data, setData] = useState<NetWorthData | null>(null);
-  const [recon, setRecon] = useState<Reconciliation | null>(null);
+  const [proj, setProj] = useState<NetWorthProjection | null>(null);
+  const [growth, setGrowth] = useState<NetWorthGrowth | null>(null);
+  const [recon, setRecon] = useState<ReconciliationResult | null>(null);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [kind, setKind] = useState("checking");
@@ -157,6 +272,13 @@ export default function NetWorth() {
   useEffect(() => {
     getReconciliation(personId).then(setRecon).catch(() => setRecon(null));
   }, [personId]);
+  useEffect(() => {
+    getNetWorthProjection({ personId, display: currency, annualReturn: getAssumedReturn() })
+      .then(setProj).catch(() => setProj(null));
+  }, [personId, currency]);
+  useEffect(() => {
+    getNetWorthGrowth({ personId, display: currency }).then(setGrowth).catch(() => setGrowth(null));
+  }, [personId, currency]);
 
   const commitBalance = (a: Account, value: string) => {
     const next = Number(value);
@@ -204,10 +326,22 @@ export default function NetWorth() {
             <div><Money value={summary.liabilities} /> liabilities</div>
           </div>
         </div>
-        {trend.length >= 2
-          ? <AreaChart points={trend.map((p) => ({ value: p.net }))} area={false} mode="linear" height={64} accent="var(--persona-solid)" ariaLabel="Net worth trend" />
-          : <div style={{ color: "var(--fl-muted)", fontSize: 13 }}>Add a second snapshot to see a trend.</div>}
+        {trend.length >= 2 ? (
+          <AreaChart
+            points={trend.map((p) => ({ value: p.net }))}
+            xLabels={trend.map((p) => monthLabel(p.date))}
+            milestones={NET_WORTH_MILESTONES}
+            height={140}
+            ariaLabel="Net worth trend"
+          />
+        ) : (
+          <div style={{ color: "var(--fl-muted)", fontSize: 13 }}>Add a second snapshot to see a trend.</div>
+        )}
       </section>
+
+      {growth && <WealthStats g={growth} />}
+
+      {proj && proj.points.length > 0 && <ProjectionCard p={proj} />}
 
       {personId == null && split && split.length > 0 && (
         <section className="frosted-card" aria-label="Household breakdown" style={{ padding: 20, display: "grid", gap: 10 }}>
@@ -227,25 +361,25 @@ export default function NetWorth() {
         </section>
       )}
 
-      {recon && recon.reconcilable && (
-        <section className="frosted-card" aria-label="Statement reconciliation" style={{ padding: 20, display: "grid", gap: 8 }}>
+      {recon && recon.statements.length > 0 && recon.statements.map((stmt: StatementReconciliation) => (
+        <section key={stmt.filename} className="frosted-card" aria-label={`Statement reconciliation: ${stmt.filename}`} style={{ padding: 20, display: "grid", gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <span style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--fl-muted)" }}>
-              Statement reconciliation
+              Statement reconciliation · {stmt.filename}
             </span>
             <span style={{
               fontWeight: 700, fontSize: 13,
-              color: recon.ok ? "#22C55E" : "#EF4444",
+              color: stmt.ok ? "#22C55E" : "#EF4444",
             }}>
-              {recon.ok ? "✓ Statements tie out" : `⚠ Off by ${formatMoney(Math.abs(recon.discrepancy))}`}
+              {stmt.ok ? "✓ Ties out" : <><span>⚠ Off by </span><Money value={Math.abs(stmt.discrepancy)} currency={stmt.currency} /></>}
             </span>
           </div>
           <div style={{ color: "var(--fl-muted)", fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
-            {formatMoney(recon.begin)} opening → {formatMoney(recon.end)} ending across {recon.n} rows
-            {recon.chain_breaks > 0 && `; ${recon.chain_breaks} balance break${recon.chain_breaks === 1 ? "" : "s"}`}
+            <Money value={stmt.begin} currency={stmt.currency} /> opening → <Money value={stmt.end} currency={stmt.currency} /> ending across {stmt.n} rows
+            {stmt.chain_breaks > 0 && `; ${stmt.chain_breaks} balance break${stmt.chain_breaks === 1 ? "" : "s"}`}
           </div>
         </section>
-      )}
+      ))}
 
       {accounts.length === 0 && !adding && (
         <section className="frosted-card" style={{ padding: 32, textAlign: "center", color: "var(--fl-muted)" }}>

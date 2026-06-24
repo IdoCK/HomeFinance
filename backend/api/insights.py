@@ -11,6 +11,7 @@ from fastapi import APIRouter
 from modules import database as db
 from modules import analytics
 from modules import ai_insights
+from modules import fx
 from backend.schemas import InsightsRequest
 
 router = APIRouter(prefix="/insights", tags=["insights"])
@@ -19,7 +20,7 @@ router = APIRouter(prefix="/insights", tags=["insights"])
 def _summaries(person_id: Optional[int]):
     """Build the anonymized summary list for the active persona."""
     if person_id is not None:
-        txns = db.get_transactions(person_id)
+        txns = fx.base_txns(db.get_transactions(person_id))  # summarize in USD base
         goals = db.get_goals(person_id)
         return [ai_insights.build_anonymized_summary("Person A", txns, goals, analytics)]
 
@@ -28,9 +29,9 @@ def _summaries(person_id: Optional[int]):
     for i, p in enumerate(db.list_people()):
         label = f"Person {chr(65 + i)}"  # Person A, Person B, ...
         summaries.append(ai_insights.build_anonymized_summary(
-            label, db.get_transactions(p["id"]), db.get_goals(p["id"]), analytics))
+            label, fx.base_txns(db.get_transactions(p["id"])), db.get_goals(p["id"]), analytics))
     summaries.append(ai_insights.build_anonymized_summary(
-        "Household (shared goals)", db.get_transactions(), db.get_goals(None), analytics))
+        "Household (shared goals)", fx.base_txns(db.get_transactions()), db.get_goals(None), analytics))
     return summaries
 
 

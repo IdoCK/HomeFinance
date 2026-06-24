@@ -8,6 +8,7 @@ const getRecurring = vi.fn().mockResolvedValue({
   ],
   committed: { fixed: 15.99, variable: 89, total: 104.99 },
   anomalies: [{ vendor: "Comcast", type: "price_change", detail: "85.00 -> 102.00", pct: 20 }],
+  bills_due: { count: 2, amount: 104.99 },
 });
 
 vi.mock("@/lib/currency", () => ({
@@ -37,4 +38,18 @@ test("surfaces a price-change anomaly", async () => {
   render(<Recurring />);
   await waitFor(() => expect(screen.getByText("Netflix")).toBeInTheDocument());
   expect(screen.getByText(/price change/i)).toBeInTheDocument();
+});
+
+test("summarizes bills still due this month", async () => {
+  render(<Recurring />);
+  await waitFor(() => expect(screen.getByTestId("bills-due")).toBeInTheDocument());
+  expect(screen.getByTestId("bills-due")).toHaveTextContent("2 due this month");
+});
+
+test("does not surface the internal confidence metric", async () => {
+  render(<Recurring />);
+  await waitFor(() => expect(screen.getByText("Netflix")).toBeInTheDocument());
+  // Confidence is a model-internal score; it orders the list but is never shown.
+  expect(screen.queryByTitle(/confidence/i)).toBeNull();
+  expect(screen.queryByText(/confidence/i)).toBeNull();
 });

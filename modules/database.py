@@ -414,10 +414,17 @@ def delete_import(person_id, file_hash):
         return cur.rowcount
 
 
-def count_untracked_transactions(person_id):
+def count_untracked_transactions(person_id=None):
     """Rows imported before file-tracking existed (no file_hash). These can't be
-    tied to a file in the UI and may contain whole-file duplicates."""
+    tied to a file in the UI and may contain whole-file duplicates.
+
+    person_id=None (household/Joint) returns the count across ALL people.
+    """
     with get_conn() as conn:
+        if person_id is None:
+            return conn.execute(
+                "SELECT COUNT(*) FROM transactions WHERE file_hash IS NULL",
+            ).fetchone()[0]
         return conn.execute(
             "SELECT COUNT(*) FROM transactions WHERE person_id=? AND file_hash IS NULL",
             (person_id,),

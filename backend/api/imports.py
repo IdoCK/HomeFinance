@@ -8,7 +8,9 @@ content hash so the same export can't be imported twice.
 import hashlib
 from datetime import datetime
 
-from fastapi import APIRouter, File, Form, UploadFile
+from typing import Optional
+
+from fastapi import APIRouter, File, Form, Query, UploadFile
 
 from modules import database as db
 from modules import parsing
@@ -22,6 +24,15 @@ router = APIRouter(prefix="/import", tags=["import"])
 def _category_rules(person_id: int):
     return [(c["name"], (c["keywords"] or "").split(","))
             for c in db.get_categories(person_id)]
+
+
+@router.get("/untracked-count")
+def untracked_count(person_id: Optional[int] = Query(None)):
+    """Return the count of transactions with no file_hash (legacy/untracked rows).
+
+    person_id omitted (None) = household view: counts across all people.
+    """
+    return {"count": db.count_untracked_transactions(person_id)}
 
 
 @router.get("/status")

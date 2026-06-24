@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-import { getOverview, type Overview as OverviewData } from "@/lib/api";
+import { Link } from "react-router-dom";
+import { getOverview, getNetWorth, type Overview as OverviewData, type NetWorthData } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { useCurrency } from "@/lib/currency";
-import { Money } from "@/components/money";
+import { Money, formatMoney } from "@/components/money";
 import { Kpi } from "@/components/kpi";
 import { Pill } from "@/components/ui/pill";
 import { CardHeaderRow } from "@/components/ui/card";
 import { GradientCard } from "@/components/gradient-card";
 import { AreaChart } from "@/components/charts/area-chart";
 import { LineChart } from "@/components/charts/line-chart";
-import { BarChart } from "@/components/charts/bar-chart";
 import { StackedBars } from "@/components/charts/stacked-bars";
 import { DotMatrix, type Segment } from "@/components/charts/dot-matrix";
+import { Banner } from "@/components/ui/banner";
 import { Loading } from "@/components/loading";
 
 const CARD: React.CSSProperties = { padding: 16 };
@@ -25,6 +26,7 @@ export default function Overview() {
   const { personId, label } = usePersona();
   const { currency } = useCurrency();
   const [data, setData] = useState<OverviewData | null>(null);
+  const [nw, setNw] = useState<NetWorthData | null>(null);
   const [month, setMonth] = useState<string | undefined>(undefined);
   const [cashView, setCashView] = useState<"net" | "trend">("net");
 
@@ -33,6 +35,14 @@ export default function Overview() {
     getOverview({ personId, month, display: currency }).then((d) => alive && setData(d)).catch(() => alive && setData(null));
     return () => { alive = false; };
   }, [personId, month, currency]);
+
+  // Net-worth trend powers the Trend view's contributions-vs-net-worth overlay.
+  // Independent of the selected month — it's a whole-history wealth line.
+  useEffect(() => {
+    let alive = true;
+    getNetWorth({ personId, display: currency }).then((d) => alive && setNw(d)).catch(() => alive && setNw(null));
+    return () => { alive = false; };
+  }, [personId, currency]);
 
   const cats = useMemo(
     () => Object.entries(data?.by_category ?? {}).sort((a, b) => b[1] - a[1]),
@@ -63,29 +73,126 @@ export default function Overview() {
     { name: "Spending", values: series.map((s) => s.spend), color: "var(--neg)", total: series.reduce((a, s) => a + s.spend, 0) },
     { name: "Saved (cumulative)", values: cumulative, color: "var(--saved)", total: cumulative[cumulative.length - 1] ?? 0 },
   ];
-  const rateBars = series.map((s) => ({
-    label: s.month.slice(5),
-    value: Math.round((s.savings_rate ?? 0) * 100),
-    highlight: s.month === data.month,
-  }));
+  // Savings-rate trajectory: a rolling 3-month average smooths statement-cycle
+  // noise, read against the 20% (solid) and 50% (FIRE) benchmarks.
+  const ratePct = series.map((s) => Math.round((s.savings_rate ?? 0) * 100));
+  const rolling3 = ratePct.map((_, i) => {
+    const window = ratePct.slice(Math.max(0, i - 2), i + 1);
+    return Math.round(window.reduce((a, b) => a + b, 0) / window.length);
+  });
+  // Contributions vs. net worth (growth lens). Anchor both lines at the net
+  // worth on your first snapshot, then add monthly contributions to one and
+  // track real net worth on the other. The gap that opens is returns &
+  // appreciation. Forward-fill net worth across months between snapshots; the
+  // line only renders once there are ≥2 distinct snapshots to draw a trend.
+  const nwByMonth = new Map<string, number>();
+  for (const p of nw?.trend ?? []) nwByMonth.set(p.date.slice(0, 7), p.net); // sorted asc → last wins
+  let carriedNw: number | null = null;
+  const nwAligned = series.map((s) => {
+    if (nwByMonth.has(s.month)) carriedNw = nwByMonth.get(s.month)!;
+    return carriedNw; // null for months before the first snapshot
+  });
+  const overlapIdx = series.map((_, i) => i).filter((i) => nwAligned[i] != null);
+  const wealthOverlay =
+    nwByMonth.size >= 2 && overlapIdx.length >= 2
+      ? (() => {
+          const base = overlapIdx[0];
+          const baseNet = nwAligned[base] as number;
+          const baseCum = cumulative[base];
+          return {
+            labels: overlapIdx.map((i) => series[i].month),
+            contrib: overlapIdx.map((i) => baseNet + (cumulative[i] - baseCum)),
+            netWorth: overlapIdx.map((i) => nwAligned[i] as number),
+          };
+        })()
+      : null;
+  const wealthGap = wealthOverlay
+    ? wealthOverlay.netWorth[wealthOverlay.netWorth.length - 1] - wealthOverlay.contrib[wealthOverlay.contrib.length - 1]
+    : 0;
+
+  const latestRoll = rolling3.length ? rolling3[rolling3.length - 1] : null;
+  const savingsVerdict =
+    latestRoll == null ? null
+    : latestRoll >= 50 ? "FIRE pace — saving about half your income."
+    : latestRoll >= 20 ? "Above the 20% savings guideline."
+    : latestRoll >= 0 ? "Below the 20% savings guideline."
+    : "Spending more than you earn.";
 
   // This-month stacked rows (Income / Spending / Saved), scaled to the largest.
   const denom = Math.max(data.income, data.spend, Math.abs(data.net), 1);
   const stackRows = [
     { label: "Income", value: data.income, pct: (data.income / denom) * 100, color: "var(--pos)" },
-    { label: "Spending", value: data.spend, pct: (data.spend / denom) * 100, color: "var(--neg)" },
+    {
+      label: "Spending", value: data.spend, pct: (data.spend / denom) * 100, color: "var(--neg)",
+      // Committed (recurring bills) is the locked-in floor; discretionary is the
+      // part you can actually steer. Solid vs. lightened so the floor reads first.
+      segments: [
+        { label: "Committed", value: data.committed_spent, color: "var(--neg)" },
+        { label: "Discretionary", value: data.discretionary_spent, color: "color-mix(in srgb, var(--neg) 40%, transparent)" },
+      ],
+    },
     { label: "Saved", value: data.net, pct: (Math.abs(data.net) / denom) * 100, color: "var(--saved)" },
   ];
 
-  // Delta vs previous month's net (for the "this month" headline).
-  const prevNet = idx > 0 ? series.find((s) => s.month === months[idx - 1])?.net : undefined;
+  // Delta vs previous month's net (for the "this month" headline). A MoM delta is
+  // only trustworthy when BOTH months are complete — comparing a partial month to
+  // a full one (or two partials) is misleading, so we show "(partial)" instead.
+  const prevPoint = idx > 0 ? series.find((s) => s.month === months[idx - 1]) : undefined;
+  const prevNet = prevPoint?.net;
   const delta = prevNet != null ? data.net - prevNet : undefined;
+  const deltaTrustworthy = delta != null && data.complete && !!prevPoint?.complete;
 
-  // Who-spent-what: Joint → per-person split; single-persona → top category split.
-  const segments: Segment[] =
+  // Partial-month notice: the month still in progress (current calendar month) or
+  // a month whose data simply doesn't span the full calendar (statement cycles).
+  const now = new Date();
+  const ym = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  // Parse as a LOCAL date (y, m-1, 1) — `new Date("2026-05-01")` is UTC midnight
+  // and shifts to the previous month in timezones behind UTC.
+  const [mY, mM] = (data.month ?? "").split("-").map(Number);
+  const monthName = data.month
+    ? new Date(mY, mM - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" })
+    : "This month";
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const partialNote = data.complete
+    ? null
+    : data.month === ym(now)
+      ? `${monthName} is still in progress — day ${now.getDate()} of ${daysInMonth}. These figures will keep changing.`
+      : `${monthName} is a partial month — the data doesn't cover the full calendar month, so totals understate it.`;
+
+  // The "are we okay this month?" verdict — promoted from a buried footnote to a
+  // prominent, color+icon status line.
+  const verdict = rate == null
+    ? { tone: "info" as const, icon: "•", text: "Add a full month of data to see where you stand." }
+    : data.net >= 0
+      ? { tone: "good" as const, icon: "✓", text: `You're in the black${!data.complete ? " so far" : ""} — saving ${Math.round(rate * 100)}% of income.` }
+      : { tone: "bad" as const, icon: "!", text: `Spending is outpacing income${!data.complete ? " so far" : ""} this month.` };
+
+  // Who-spent-what is a Joint-only question: the dot-matrix splits the month's
+  // spend by person. In a single-persona view there's no "who", so we show a
+  // compact ranked bar of that person's top categories instead (and leave the
+  // category-over-time drill-down to Analysis).
+  const personaSegments: Segment[] =
     data.split != null
       ? data.split.map((s) => ({ value: s.spend, color: personColor(s.name), label: s.name }))
-      : cats.slice(0, 4).map(([name, value], i) => ({ value, color: CAT_PALETTE[i % CAT_PALETTE.length], label: name }));
+      : [];
+  const maxCat = cats[0]?.[1] ?? 1;
+  const catRows = cats.slice(0, 5).map(([name, value], i) => ({
+    label: name, value, pct: (value / maxCat) * 100, color: CAT_PALETTE[i % CAT_PALETTE.length],
+  }));
+
+  // AI-Insights teaser: lead with a genuine insight (the month's biggest spending
+  // shift, else the top category) rather than a third copy of the net number.
+  const topAlert = data.alerts[0];
+  const topCat = cats[0];
+  const aiHeadline = topAlert?.category ?? (topCat ? topCat[0] : undefined);
+  const aiBody =
+    rate == null
+      ? "Import a full month to unlock insights. Only anonymized aggregates ever leave this device."
+      : topAlert
+        ? `${topAlert.category} is ${topAlert.direction === "up" ? "up" : "down"}${topAlert.pct != null ? ` ${Math.abs(topAlert.pct)}%` : ""} versus your usual — your biggest shift this month. Tap AI Insights for the anonymized breakdown.`
+        : topCat
+          ? `${topCat[0]} led your spending at ${formatMoney(topCat[1])} this month. Tap AI Insights for the anonymized breakdown.`
+          : `You saved ${Math.round(rate * 100)}% of income this month. Tap AI Insights to see the anonymized breakdown before sending.`;
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
@@ -99,6 +206,55 @@ export default function Overview() {
           <Pill onClick={() => step(1)} disabled={idx < 0 || idx >= months.length - 1} aria-label="Next month">›</Pill>
         </div>
       </header>
+
+      <Banner tone={verdict.tone} icon={<span style={{ fontWeight: 800, fontSize: 14, lineHeight: 1 }}>{verdict.icon}</span>}>
+        <strong style={{ fontWeight: 700 }}>{verdict.text}</strong>
+      </Banner>
+
+      {partialNote && (
+        <Banner
+          tone="warn"
+          dashed
+          icon={<span style={{ width: 12, height: 12, borderRadius: 3, border: "1.5px dashed currentColor", display: "inline-block" }} />}
+        >
+          {partialNote}
+        </Banner>
+      )}
+
+      {data.safe_to_spend != null && (
+        <section className="frosted-card" aria-label="Safe to spend" style={{ padding: 18, display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "6px 20px" }}>
+          <div style={{ display: "grid", gap: 2 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fl-muted)" }}>
+              Safe to spend{!data.complete ? " (so far)" : ""}
+            </span>
+            <span data-testid="safe-to-spend" style={{ fontSize: 44, fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1 }}>
+              <Money value={data.safe_to_spend} colored />
+            </span>
+          </div>
+          <span style={{ fontSize: 12.5, color: "var(--fl-muted)", marginLeft: "auto" }}>
+            <Money value={data.income} /> in − <Money value={data.committed} /> committed − <Money value={data.discretionary_spent} /> spent
+          </span>
+          {data.bills_due && data.bills_due.count > 0 && (
+            <div style={{ flexBasis: "100%", fontSize: 12, color: "var(--fl-muted)" }}>
+              {data.bills_due.count} {data.bills_due.count === 1 ? "bill" : "bills"} (~<Money value={data.bills_due.amount} />) still due this month
+            </div>
+          )}
+        </section>
+      )}
+
+      {data.uncategorized && data.uncategorized.count > 0 && (
+        <Link
+          to="/transactions?category=Uncategorized"
+          style={{
+            justifySelf: "start", width: "fit-content", display: "inline-flex", alignItems: "center", gap: 6,
+            fontSize: 12.5, fontWeight: 600, textDecoration: "none",
+            padding: "6px 12px", borderRadius: 999, border: "1px solid var(--fl-line)",
+            background: "var(--fl-frame)", color: "var(--fl-ink)",
+          }}
+        >
+          <Money value={data.uncategorized.amount} /> across {data.uncategorized.count} uncategorized →
+        </Link>
+      )}
 
       {data.alerts.length > 0 && (
         <section aria-label="Spending alerts" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -135,28 +291,58 @@ export default function Overview() {
           <div style={{ display: "flex", gap: 26, marginBottom: 8 }}>
             <Kpi label="In" testId="income"><Money value={data.income} /></Kpi>
             <Kpi label="Out" testId="spend"><Money value={data.spend} /></Kpi>
-            <Kpi label="Net" testId="net" big><Money value={data.net} colored /></Kpi>
           </div>
-          {cashView === "net"
-            ? <AreaChart points={areaPoints} />
-            : <LineChart labels={trendLabels} series={trendSeries} ariaLabel="Income, spending and cumulative savings over time" />}
-          <div style={{ marginTop: 10, border: "1px solid var(--fl-line)", background: "var(--fl-frame)", borderRadius: 11, padding: "9px 11px", fontSize: 12, color: "var(--fl-muted)", display: "flex", alignItems: "center", gap: 8 }}>
-            <span aria-hidden style={{ width: 14, height: 14, borderRadius: 4, background: "var(--showpiece)", flex: "none" }} />
-            {rate == null ? "Add a full month of data to see trends." : `Net ${data.net >= 0 ? "positive" : "negative"} this month — saving ${Math.round(rate * 100)}% of income.`}
-          </div>
+          {cashView === "net" ? (
+            <AreaChart points={areaPoints} />
+          ) : (
+            <>
+              <LineChart labels={trendLabels} series={trendSeries} ariaLabel="Income, spending and cumulative savings over time" />
+              {wealthOverlay && (
+                <div aria-label="Contributions vs. net worth" style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--fl-line)" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--fl-muted)", marginBottom: 6 }}>
+                    Contributions vs. net worth
+                  </div>
+                  <LineChart
+                    labels={wealthOverlay.labels}
+                    series={[
+                      { name: "Net worth", values: wealthOverlay.netWorth, color: "var(--persona-solid)" },
+                      { name: "Contributions", values: wealthOverlay.contrib, color: "var(--saved)" },
+                    ]}
+                    valueFormat={(n) => formatMoney(n)}
+                    height={120}
+                    ariaLabel="Net worth versus cumulative contributions since your first snapshot"
+                  />
+                  <div style={{ marginTop: 8, fontSize: 12, color: "var(--fl-muted)" }}>
+                    {wealthGap >= 0
+                      ? <><strong style={{ color: "var(--saved)", fontWeight: 700 }}>{formatMoney(wealthGap)}</strong> of returns & appreciation — net worth has outgrown what you set aside.</>
+                      : <><strong style={{ color: "var(--neg)", fontWeight: 700 }}>{formatMoney(-wealthGap)}</strong> below your contributions — market drag since your first snapshot.</>}
+                  </div>
+                </div>
+              )}
+              {/* Overview owns "this month"; deeper multi-month/category trends
+                  live in Analysis. Redirect rather than duplicate that surface. */}
+              <Link to="/analysis" style={{ display: "inline-block", marginTop: 12, fontSize: 12, fontWeight: 600, color: "var(--persona-solid)", textDecoration: "none" }}>
+                Compare months & categories in Analysis →
+              </Link>
+            </>
+          )}
         </section>
 
         <section className="frosted-card" style={CARD}>
           <CardHeaderRow>This month</CardHeaderRow>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "2px 0 6px" }}>
-            <span style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1 }}>
+            <span data-testid="net" style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1 }}>
               <Money value={data.net} colored />
             </span>
-            {delta != null && (
+            {delta != null && (deltaTrustworthy ? (
               <span style={{ fontSize: 11, fontWeight: 700, color: delta >= 0 ? "var(--pos)" : "var(--neg)", background: `color-mix(in srgb, ${delta >= 0 ? "var(--pos)" : "var(--neg)"} 12%, transparent)`, padding: "2px 7px", borderRadius: 999 }}>
                 {delta >= 0 ? "▲" : "▼"} {Math.abs(Math.round(delta)).toLocaleString()}
               </span>
-            )}
+            ) : (
+              <span title="A month in this comparison is incomplete" style={{ fontSize: 11, fontWeight: 700, color: "var(--fl-muted)", background: "var(--fl-frame)", padding: "2px 7px", borderRadius: 999, border: "1px dashed var(--fl-line)" }}>
+                vs last month (partial)
+              </span>
+            ))}
           </div>
           <StackedBars rows={stackRows} />
         </section>
@@ -168,25 +354,44 @@ export default function Overview() {
           <CardHeaderRow action={<span style={{ fontSize: 18, fontWeight: 800 }}>{rate == null ? "—" : `${Math.round(rate * 100)}%`}</span>}>
             Savings rate
           </CardHeaderRow>
-          {rateBars.length > 0
-            ? <BarChart series={rateBars} color="var(--persona-spouse)" highlightColor="var(--persona-spouse)" />
-            : <div style={{ fontSize: 12, color: "var(--fl-muted)" }}>No history yet.</div>}
+          {rolling3.length > 0 ? (
+            <>
+              <LineChart
+                labels={trendLabels}
+                series={[{ name: "3-mo avg", values: rolling3, color: "var(--persona-spouse)" }]}
+                refLines={[
+                  { value: 20, label: "20%", color: "var(--fl-muted)" },
+                  { value: 50, label: "50% FIRE", color: "var(--saved)" },
+                ]}
+                valueFormat={(n) => `${Math.round(n)}%`}
+                legend={false}
+                height={120}
+                ariaLabel="Savings-rate trajectory (3-month average) against 20% and 50% benchmarks"
+              />
+              {savingsVerdict && <div style={{ marginTop: 8, fontSize: 12, color: "var(--fl-muted)" }}>{savingsVerdict}</div>}
+            </>
+          ) : (
+            <div style={{ fontSize: 12, color: "var(--fl-muted)" }}>No history yet.</div>
+          )}
         </section>
 
         <section className="frosted-card" style={CARD}>
           <CardHeaderRow>{data.split != null ? "Who spent what" : "Top categories"}</CardHeaderRow>
-          {segments.length > 0
-            ? <DotMatrix segments={segments} />
-            : <div style={{ fontSize: 12, color: "var(--fl-muted)" }}>No spending yet.</div>}
+          {data.split != null
+            ? (personaSegments.length > 0
+                ? <DotMatrix segments={personaSegments} />
+                : <div style={{ fontSize: 12, color: "var(--fl-muted)" }}>No spending yet.</div>)
+            : (catRows.length > 0
+                ? <StackedBars rows={catRows} />
+                : <div style={{ fontSize: 12, color: "var(--fl-muted)" }}>No spending yet.</div>)}
         </section>
 
         <GradientCard
+          ariaLabel="AI insights"
           tag={<><span aria-hidden>✦</span> AI Insights</>}
-          headline={<Money value={data.net} />}
+          headline={aiHeadline}
         >
-          {rate == null
-            ? "Import a full month to unlock insights. Only anonymized aggregates ever leave this device."
-            : `You saved ${Math.round(rate * 100)}% of income this month. Tap AI Insights to see the anonymized breakdown before sending.`}
+          {aiBody}
         </GradientCard>
       </div>
     </div>

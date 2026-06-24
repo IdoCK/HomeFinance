@@ -6,6 +6,7 @@ import {
 import { Pill } from "@/components/ui/pill";
 import { Kpi } from "@/components/kpi";
 import { formatMoney } from "@/components/money";
+import { useCurrency } from "@/lib/currency";
 import { GroupedBarChart } from "@/components/charts/grouped-bar-chart";
 import { Loading } from "@/components/loading";
 
@@ -14,6 +15,7 @@ import { Loading } from "@/components/loading";
  *  toggle switches between bucket totals and per-day normalization, which makes
  *  windows of unequal length comparable (the old Compare tab's two controls). */
 export function CompareTab({ personId, filters }: { personId?: number; filters: AnalysisFilters }) {
+  const { currency } = useCurrency();
   const [preset, setPreset] = useState<ComparePreset>("weekdays_weekends");
   const [metric, setMetric] = useState<CompareMetric>("spend");
   const [data, setData] = useState<CompareResult | null>(null);
@@ -21,11 +23,11 @@ export function CompareTab({ personId, filters }: { personId?: number; filters: 
   useEffect(() => {
     let alive = true;
     setData(null);
-    getCompare({ personId, preset, metric, filters })
+    getCompare({ personId, preset, metric, filters, display: currency })
       .then((d) => alive && setData(d))
       .catch(() => alive && setData(null));
     return () => { alive = false; };
-  }, [personId, filters, preset, metric]);
+  }, [personId, filters, preset, metric, currency]);
 
   const bucketValue = (b: { total: number; per_day: number }) => (metric === "per_day" ? b.per_day : b.total);
 

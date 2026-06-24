@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { allocateDots, barPct, categoryColor, divergingWidths, layout, layoutShared, scale, toPath } from "./_svg";
+import { allocateDots, axisTicks, barPct, categoryColor, divergingWidths, layout, layoutShared, scale, splitPartialPath, toPath } from "./_svg";
 
 test("scale maps value within range onto pixel size", () => {
   expect(scale(0, 0, 10, 100)).toBe(0);
@@ -45,10 +45,14 @@ test("layoutShared handles empty input", () => {
   expect(layoutShared([], 600, 100)).toEqual([]);
 });
 
-test("categoryColor cycles through the palette and is persona-independent", () => {
-  expect(categoryColor(0)).toBe("#3B82F6");
+test("categoryColor cycles through the palette and excludes persona hues", () => {
+  expect(categoryColor(0)).toBe("#A855F7"); // violet, not the persona blue
   expect(categoryColor(1)).not.toBe(categoryColor(0)); // adjacent series differ
-  expect(categoryColor(8)).toBe(categoryColor(0)); // wraps
+  expect(categoryColor(6)).toBe(categoryColor(0)); // wraps at 6 (persona blue+pink dropped)
+  // The generic ramp must never collide with the two-person persona signal.
+  for (let i = 0; i < 12; i++) {
+    expect(["#3B82F6", "#EC4899"]).not.toContain(categoryColor(i));
+  }
 });
 
 test("allocateDots apportions proportionally and sums to total", () => {
@@ -73,4 +77,71 @@ test("divergingWidths grows the correct half around the center axis", () => {
   expect(divergingWidths(40, 100)).toEqual({ left: 0, right: 40 });
   expect(divergingWidths(-40, 100)).toEqual({ left: 40, right: 0 });
   expect(divergingWidths(0, 100)).toEqual({ left: 0, right: 0 });
+});
+
+// axisTicks tests
+test("axisTicks includes min, max and zero when within domain", () => {
+  const ticks = axisTicks(-100, 200);
+  expect(ticks).toContain(-100);
+  expect(ticks).toContain(200);
+  expect(ticks).toContain(0);
+});
+
+test("axisTicks all-positive domain still includes 0 as min", () => {
+  const ticks = axisTicks(0, 500);
+  expect(ticks).toContain(0);
+  expect(ticks).toContain(500);
+});
+
+test("axisTicks degenerate domain (min === max) returns single element", () => {
+  const ticks = axisTicks(42, 42);
+  expect(ticks).toContain(42);
+  expect(ticks.length).toBeGreaterThan(0);
+});
+
+test("axisTicks returns sorted ascending values", () => {
+  const ticks = axisTicks(-50, 150);
+  for (let i = 1; i < ticks.length; i++) {
+    expect(ticks[i]).toBeGreaterThan(ticks[i - 1]);
+  }
+});
+
+test("axisTicks all-negative domain returns sorted values including 0 as max boundary", () => {
+  const ticks = axisTicks(-300, 0);
+  // 0 is the max and should be included; -300 is the min; no duplicates
+  expect(ticks).toContain(-300);
+  expect(ticks).toContain(0);
+  // Sorted ascending, no duplicates
+  expect(ticks).toEqual([-300, 0]);
+});
+
+// splitPartialPath tests
+test("splitPartialPath returns all-solid when no partial flags given", () => {
+  const pts = [{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 2 }];
+  const { solid, partial } = splitPartialPath(pts);
+  expect(solid).toEqual(pts);
+  expect(partial).toEqual([]);
+});
+
+test("splitPartialPath splits at the first partial point, overlapping one to connect", () => {
+  const pts = [{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 2 }];
+  const { solid, partial } = splitPartialPath(pts, [false, false, true]);
+  // solid runs up to the last complete point …
+  expect(solid).toEqual([{ x: 0, y: 0 }, { x: 1, y: 1 }]);
+  // … and the partial suffix starts one point earlier so the dashed segment connects
+  expect(partial).toEqual([{ x: 1, y: 1 }, { x: 2, y: 2 }]);
+});
+
+test("splitPartialPath all-partial returns an empty solid prefix", () => {
+  const pts = [{ x: 0, y: 0 }, { x: 1, y: 1 }];
+  const { solid, partial } = splitPartialPath(pts, [true, true]);
+  expect(solid).toEqual([]);
+  expect(partial).toEqual(pts);
+});
+
+test("splitPartialPath with no partial=true flags is all-solid", () => {
+  const pts = [{ x: 0, y: 0 }, { x: 1, y: 1 }];
+  const { solid, partial } = splitPartialPath(pts, [false, false]);
+  expect(solid).toEqual(pts);
+  expect(partial).toEqual([]);
 });

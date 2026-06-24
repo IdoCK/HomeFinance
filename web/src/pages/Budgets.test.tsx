@@ -8,6 +8,7 @@ const getBudgets = vi.fn().mockResolvedValue([
   { id: 1, person_id: 1, category: "Groceries", amount: 400, budget: 400, spent: 312, expected_to_date: 252, projected_eom: 480, pct: 0.78, status: "ahead" },
   { id: 2, person_id: 1, category: "Rent", amount: 2000, budget: 2000, spent: 2000, expected_to_date: 1260, projected_eom: 2000, pct: 1.0, status: "over" },
 ]);
+const getBudgetSummary = vi.fn().mockResolvedValue({ total_budgeted: 2400, total_spent: 2312, unbudgeted_spent: 175 });
 
 vi.mock("@/lib/currency", () => ({
   useCurrency: () => ({ currency: "USD", setCurrency: () => {}, symbol: "$", format: (n: number) => `$${n}` }),
@@ -20,6 +21,7 @@ vi.mock("@/lib/persona", () => ({
 }));
 vi.mock("@/lib/api", () => ({
   getBudgets: (...a: unknown[]) => getBudgets(...a),
+  getBudgetSummary: (...a: unknown[]) => getBudgetSummary(...a),
   setBudget: (...a: unknown[]) => setBudget(...a),
   deleteBudget: (...a: unknown[]) => deleteBudget(...a),
 }));
@@ -32,6 +34,14 @@ test("renders budgeted categories", async () => {
   render(<Budgets />);
   await waitFor(() => expect(screen.getByText("Groceries")).toBeInTheDocument());
   expect(screen.getByText("Rent")).toBeInTheDocument();
+});
+
+test("shows the household roll-up hero with budgeted vs spent and unbudgeted", async () => {
+  render(<Budgets />);
+  await waitFor(() => expect(screen.getByTestId("budget-rollup")).toBeInTheDocument());
+  expect(screen.getByTestId("budget-rollup")).toHaveTextContent("$2,312.00");
+  expect(screen.getByTestId("budget-rollup")).toHaveTextContent("$2,400.00");
+  expect(screen.getByText(/unbudgeted/i)).toBeInTheDocument();
 });
 
 test("editing a cap calls setBudget", async () => {

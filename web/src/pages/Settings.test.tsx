@@ -11,6 +11,7 @@ const deleteVendor = vi.fn().mockResolvedValue({ ok: true });
 const getCategories = vi.fn().mockResolvedValue([{ id: 10, person_id: 1, name: "Groceries", keywords: "whole foods" }]);
 const getVendors = vi.fn().mockResolvedValue([{ id: 20, person_id: 1, name: "Amazon", keywords: "amazon,amzn" }]);
 const getFxRates = vi.fn().mockResolvedValue({ source: null, last_fetched: null, count: 0, rates: [] });
+const getUntrackedCount = vi.fn().mockResolvedValue({ count: 0 });
 
 vi.mock("@/lib/currency", () => ({
   useCurrency: () => ({ currency: "USD", setCurrency: () => {}, symbol: "$", format: (n: number) => `$${n}` }),
@@ -31,13 +32,37 @@ vi.mock("@/lib/api", () => ({
   upsertVendor: (...a: unknown[]) => upsertVendor(...a),
   deleteVendor: (...a: unknown[]) => deleteVendor(...a),
   getFxRates: (...a: unknown[]) => getFxRates(...a),
+  getUntrackedCount: (...a: unknown[]) => getUntrackedCount(...a),
 }));
 
 import Settings from "./Settings";
+import { getAssumedReturn } from "@/lib/prefs";
 
 afterEach(() => {
   renamePerson.mockClear(); upsertCategory.mockClear(); deleteCategory.mockClear();
   upsertVendor.mockClear(); deleteVendor.mockClear();
+});
+
+test("editing the assumed annual return persists it for projections", async () => {
+  render(<Settings />);
+  const input = await screen.findByLabelText("Assumed annual return percent");
+  await userEvent.clear(input);
+  await userEvent.type(input, "9");
+  await userEvent.tab();
+  expect(getAssumedReturn()).toBeCloseTo(0.09, 5);
+});
+
+test("surfaces an untracked-row audit banner when legacy rows exist", async () => {
+  getUntrackedCount.mockResolvedValueOnce({ count: 42 });
+  render(<Settings />);
+  expect(await screen.findByText(/predate file tracking/i)).toBeInTheDocument();
+  expect(screen.getByText("42")).toBeInTheDocument();
+});
+
+test("hides the audit banner when there are no untracked rows", async () => {
+  render(<Settings />); // default mock: count 0
+  await waitFor(() => expect(screen.getByText(/Money/i)).toBeInTheDocument());
+  expect(screen.queryByText(/predate file tracking/i)).toBeNull();
 });
 
 test("renders a Money section with a currency control", async () => {

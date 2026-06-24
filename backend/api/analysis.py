@@ -14,8 +14,14 @@ from fastapi import APIRouter, Query
 
 from modules import database as db
 from modules import analytics
+from modules import fx
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
+
+
+def _scale(v, f):
+    """Scale a USD-base money value to the display currency (None passes through)."""
+    return v if v is None else round(v * f, 2)
 
 
 def _vendor_rules(person_id: Optional[int]):
@@ -86,10 +92,13 @@ def category_trend(
     months: Optional[list[str]] = Query(None),
     categories: Optional[list[str]] = Query(None),
     event_id: Optional[int] = None,
+    display: str = "USD",
 ):
     """Spending per category over time (one series per category). `rollup` groups
-    categories under their parent. Series align to the returned `months` order."""
-    txns = db.get_transactions(person_id)
+    categories under their parent. Series align to the returned `months` order.
+    Analytics run on the USD base; money is scaled to `display` last."""
+    txns = fx.base_txns(db.get_transactions(person_id))
+    f = fx.display_factor(display) or 1.0
     kw = _filters(date_from=date_from, date_to=date_to, day_type=day_type, dow=dow,
                   months=months, categories=categories,
                   event=_event(person_id, event_id))
@@ -108,8 +117,8 @@ def category_trend(
 
     month_labels = [str(m) for m in pivot.index]
     series = [
-        {"name": str(col), "values": [float(v) for v in pivot[col].tolist()],
-         "total": float(pivot[col].sum())}
+        {"name": str(col), "values": [_scale(float(v), f) for v in pivot[col].tolist()],
+         "total": _scale(float(pivot[col].sum()), f)}
         for col in pivot.columns
     ]
     # Biggest spenders first — matches the old chart's legend ordering.
@@ -130,14 +139,16 @@ def drill(
     months: Optional[list[str]] = Query(None),
     categories: Optional[list[str]] = Query(None),
     event_id: Optional[int] = None,
+    display: str = "USD",
 ):
     """Drill one hierarchy level of spend (the old Explore drill-down):
     'category' -> ranked categories; 'vendor' (needs cat) -> ranked vendors within
     that category (merchant variants collapsed by the persona's vendor rules);
     'rows' (needs cat + vendor) -> the underlying transactions.
     Returns {level, items:[{name,value}], rows:[...]} — items for category/vendor,
-    rows for the leaf."""
-    txns = db.get_transactions(person_id)
+    rows for the leaf. Analytics run on the USD base, scaled to `display` last."""
+    txns = fx.base_txns(db.get_transactions(person_id))
+    f = fx.display_factor(display) or 1.0
     kw = _filters(date_from=date_from, date_to=date_to, day_type=day_type, dow=dow,
                   months=months, categories=categories,
                   event=_event(person_id, event_id))
@@ -149,7 +160,7 @@ def drill(
         cat_txns = [t for t in txns if t.get("category") == cat]
         rows = analytics.drill(cat_txns, "rows", parent=vendor, vendor_rules=rules)
         rows = [{"date": t.get("date"), "description": t.get("description"),
-                 "amount": float(t.get("amount") or 0.0), "category": t.get("category")}
+                 "amount": _scale(float(t.get("amount") or 0.0), f), "category": t.get("category")}
                 for t in rows]
         rows.sort(key=lambda r: r["date"] or "", reverse=True)
         return {"level": "rows", "items": [], "rows": rows}
@@ -160,7 +171,7 @@ def drill(
         level = "category"
         data = analytics.drill(txns, "category")
 
-    items = [{"name": str(k), "value": float(v)} for k, v in data.items()]
+    items = [{"name": str(k), "value": _scale(float(v), f)} for k, v in data.items()]
     return {"level": level, "items": items, "rows": []}
 
 
@@ -176,6 +187,7 @@ def compare(
     months: Optional[list[str]] = Query(None),
     categories: Optional[list[str]] = Query(None),
     event_id: Optional[int] = None,
+    display: str = "USD",
 ):
     """Two-bucket spend comparison (the old Compare tab). `preset` picks the split:
     'weekdays_weekends' or 'month_vs_month' (the two most recent months in range).
@@ -183,8 +195,10 @@ def compare(
     (totals over the bucket's matching calendar-day count, making unequal windows
     comparable). The shared filter bar narrows the universe first; the preset then
     splits that into bucket A vs B. Returns grouped-bar-ready data:
-    {buckets:[{label,total,per_day,n_days}×2], labels:{a,b}, categories:[{name,a,b}]}."""
-    txns = db.get_transactions(person_id)
+    {buckets:[{label,total,per_day,n_days}×2], labels:{a,b}, categories:[{name,a,b}]}.
+    Analytics run on the USD base, scaled to `display` last."""
+    txns = fx.base_txns(db.get_transactions(person_id))
+    f = fx.display_factor(display) or 1.0
     kw = _filters(date_from=date_from, date_to=date_to, day_type=day_type, dow=dow,
                   months=months, categories=categories,
                   event=_event(person_id, event_id))
@@ -211,8 +225,8 @@ def compare(
         rows = [r for r in records if r["bucket"] == g["label"]]
         total = float(sum(r["total"] for r in rows))
         n_days = int(rows[0]["n_days"]) if rows else 0
-        buckets.append({"label": g["label"], "total": round(total, 2),
-                        "per_day": round(total / n_days, 2) if n_days else 0.0,
+        buckets.append({"label": g["label"], "total": _scale(total, f),
+                        "per_day": _scale(total / n_days, f) if n_days else 0.0,
                         "n_days": n_days})
 
     cats: dict = {}
@@ -221,7 +235,7 @@ def compare(
         c["a" if r["bucket"] == group_a["label"] else "b"] = float(r[val_key])
         c["combined"] += float(r["total"])
     ranked = sorted(cats.values(), key=lambda c: c["combined"], reverse=True)
-    categories = [{"name": c["name"], "a": round(c["a"], 2), "b": round(c["b"], 2)} for c in ranked]
+    categories = [{"name": c["name"], "a": _scale(c["a"], f), "b": _scale(c["b"], f)} for c in ranked]
 
     return {"preset": preset, "metric": metric, "buckets": buckets,
             "labels": {"a": group_a["label"], "b": group_b["label"]},
@@ -237,6 +251,7 @@ def overlap(
     months: Optional[list[str]] = Query(None),
     categories: Optional[list[str]] = Query(None),
     event_id: Optional[int] = None,
+    display: str = "USD",
 ):
     """Per-category spend for the two people side by side (the old People tab).
     Inherently household-wide — there is no person_id scope — so it's gated to the
@@ -248,7 +263,8 @@ def overlap(
         return {"available": False, "a": None, "b": None, "shared": 0, "rows": []}
     a_p, b_p = people[0], people[1]
 
-    txns = db.get_transactions(None)  # household; overlap is never person-scoped
+    txns = fx.base_txns(db.get_transactions(None))  # household; never person-scoped
+    f = fx.display_factor(display) or 1.0
     kw = _filters(date_from=date_from, date_to=date_to, day_type=day_type, dow=dow,
                   months=months, categories=categories,
                   event=_event(None, event_id))
@@ -260,13 +276,13 @@ def overlap(
     b_spend = sum(r["b_spend"] for r in rows)
     return {
         "available": True,
-        "a": {"id": a_p["id"], "name": a_p["name"], "spend": round(a_spend, 2),
+        "a": {"id": a_p["id"], "name": a_p["name"], "spend": _scale(a_spend, f),
               "categories": sum(1 for r in rows if r["a_spend"] > 0)},
-        "b": {"id": b_p["id"], "name": b_p["name"], "spend": round(b_spend, 2),
+        "b": {"id": b_p["id"], "name": b_p["name"], "spend": _scale(b_spend, f),
               "categories": sum(1 for r in rows if r["b_spend"] > 0)},
         "shared": sum(1 for r in rows if r["shared"]),
-        "rows": [{"category": r["category"], "a": round(r["a_spend"], 2),
-                  "b": round(r["b_spend"], 2), "diff": round(r["diff"], 2),
+        "rows": [{"category": r["category"], "a": _scale(r["a_spend"], f),
+                  "b": _scale(r["b_spend"], f), "diff": _scale(r["diff"], f),
                   "shared": r["shared"]}
                  for r in rows],
     }
