@@ -200,24 +200,6 @@ body {
   box-shadow: 0 10px 30px -22px rgba(22, 24, 29, .35);
 }
 
-/* ---- Ledger seam: the signature left-edge accent on the sidebar.
-   you = solid blue · spouse = solid pink · joint = blue→pink gradient.
-   Driven by [data-persona-seam] set in app-sidebar.tsx. ---- */
-[data-persona-seam] {
-  position: relative;
-}
-[data-persona-seam]::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  right: 0;
-  width: 2px;
-  background: var(--persona-you);
-}
-[data-persona-seam="spouse"]::after { background: var(--persona-spouse); }
-[data-persona-seam="joint"]::after  { background: var(--persona-joint); }
-
 /* ---- Overview signature rows — collapse to one column on narrow viewports. ---- */
 .fl-row-2, .fl-row-3 { display: grid; gap: 14px; }
 .fl-row-2 { grid-template-columns: 1.7fr 1fr; }
