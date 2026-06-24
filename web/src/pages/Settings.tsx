@@ -4,8 +4,8 @@ import {
   getPeople, renamePerson,
   getCategories, upsertCategory, deleteCategory,
   getVendors, upsertVendor, deleteVendor,
-  getFxRates, getUntrackedCount,
-  type Person, type Category, type Vendor, type FxRatesInfo,
+  getDisplayRate, setDisplayRate, refreshDisplayRate, getUntrackedCount,
+  type Person, type Category, type Vendor, type DisplayRate,
 } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { useCurrency, type Currency } from "@/lib/currency";
@@ -78,8 +78,25 @@ export default function Settings() {
   const [selected, setSelected] = useState<number | null>(activePersonId ?? null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [fx, setFx] = useState<FxRatesInfo | null>(null);
-  useEffect(() => { getFxRates().then(setFx).catch(() => setFx(null)); }, []);
+  const [rate, setRate] = useState<DisplayRate | null>(null);
+  const [fxMsg, setFxMsg] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const loadRate = useCallback(() => getDisplayRate("ILS").then(setRate).catch(() => setRate(null)), []);
+  useEffect(() => { loadRate(); }, [loadRate]);
+
+  const saveRate = (v: number) => {
+    if (Number.isFinite(v) && v > 0 && v !== rate?.rate) {
+      setDisplayRate("ILS", v).then(() => { setFxMsg(null); loadRate(); }).catch(() => {});
+    }
+  };
+  const refreshRate = () => {
+    setRefreshing(true);
+    setFxMsg(null);
+    refreshDisplayRate("ILS")
+      .then((r) => setFxMsg(r.ok ? "Updated from the internet." : "Couldn't reach the rate service — set the rate manually below."))
+      .catch(() => setFxMsg("Refresh failed — set the rate manually below."))
+      .finally(() => { setRefreshing(false); loadRate(); });
+  };
   // Legacy rows imported before file-tracking can't be tied to a statement and
   // may hide whole-file duplicates — surface the count as an audit banner.
   const [untracked, setUntracked] = useState(0);
@@ -148,10 +165,30 @@ export default function Settings() {
             </button>
           ))}
         </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", borderTop: "1px solid var(--fl-line)", paddingTop: 12 }}>
+          <span style={{ fontSize: 13, color: "var(--fl-muted)" }}>Exchange rate</span>
+          <span style={{ fontSize: 13, fontVariantNumeric: "tabular-nums" }}>1&nbsp;$&nbsp;=</span>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            aria-label="US dollar to shekel exchange rate"
+            key={rate?.rate ?? "none"}
+            defaultValue={rate?.rate ?? ""}
+            placeholder="3.70"
+            onBlur={(e) => saveRate(Number(e.target.value))}
+            style={{ ...pill, width: 90, textAlign: "right" }}
+          />
+          <span style={{ fontSize: 13 }}>₪</span>
+          <button onClick={refreshRate} disabled={refreshing} style={{ ...pill, fontWeight: 600, opacity: refreshing ? 0.6 : 1 }}>
+            {refreshing ? "Refreshing…" : "Refresh from internet"}
+          </button>
+        </div>
         <div style={{ fontSize: 12, color: "var(--fl-muted)" }}>
-          {fx && fx.count > 0
-            ? `Rates: ${fx.source ?? "—"}, last fetched ${fx.last_fetched ?? "never"} · ${fx.count} cached`
-            : "No exchange rates cached yet. Importing a non-USD statement fetches the rate it needs."}
+          {rate?.rate != null
+            ? `Every figure converts at this rate when ₪ is selected · source: ${rate.source ?? "—"}`
+            : "No rate set — enter one so the ₪ view converts."}
+          {fxMsg ? ` · ${fxMsg}` : ""}
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", borderTop: "1px solid var(--fl-line)", paddingTop: 12 }}>
           <span style={{ fontSize: 13, color: "var(--fl-muted)" }}>Assumed annual return (net-worth projection)</span>

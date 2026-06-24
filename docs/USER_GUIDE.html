@@ -197,6 +197,13 @@
     aside nav { flex-flow: row wrap; }
     main { padding: 18px 16px 32px; }
   }
+
+  /* Embedded mode (?embed): the app shows this guide inside its own page with an
+     app-native section sub-menu, so drop the standalone frame + table-of-contents
+     and let the content fill the iframe. */
+  body.embed .frame { max-width: none; margin: 0; border-radius: 0; box-shadow: none; }
+  body.embed aside { display: none; }
+  body.embed main { padding: 8px 28px 40px; }
 </style>
 </head>
 <body>
@@ -521,6 +528,16 @@
       render();
     });
     render();
+  })();
+
+  // When the app embeds this guide in an iframe (?embed), switch to embed mode:
+  // the app supplies its own chrome + section sub-menu, so we hide ours.
+  (function () {
+    try {
+      if (new URLSearchParams(location.search).has("embed")) {
+        document.body.classList.add("embed");
+      }
+    } catch (e) { /* no-op */ }
   })();
 </script>
 </body>

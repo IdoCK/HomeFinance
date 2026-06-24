@@ -7,6 +7,7 @@ const getOverview = vi.fn();
 const getNetWorth = vi.fn();
 vi.mock("@/lib/currency", () => ({
   useCurrency: () => ({ currency: "USD", setCurrency: () => {}, symbol: "$", format: (n: number) => `$${n}` }),
+  getActiveCurrency: () => "USD",
 }));
 vi.mock("@/lib/persona", () => ({
   usePersona: () => ({ persona: "you", personId: 1, label: "Ada", people: [], setPersona: () => {} }),

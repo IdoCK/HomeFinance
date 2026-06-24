@@ -10,6 +10,7 @@ from typing import Optional
 from fastapi import APIRouter
 
 from modules import database as db
+from modules import fx
 from backend.schemas import EventCreate, EventTags
 
 router = APIRouter(prefix="/events", tags=["events"])
@@ -21,13 +22,16 @@ def _scope(person_id: Optional[int]):
 
 
 @router.get("")
-def list_events(person_id: Optional[int] = None):
+def list_events(person_id: Optional[int] = None, display: str = "USD"):
     events = db.list_events(_scope(person_id))
-    amounts = {t["id"]: t["amount"] for t in db.get_transactions()}
+    # Totals computed in USD base then scaled to the display currency, so the
+    # figures track the global currency toggle like every other page.
+    f = fx.display_factor(display) or 1.0
+    amounts = {t["id"]: t["amount"] for t in fx.base_txns(db.get_transactions())}
     out = []
     for e in events:
         ids = db.event_transaction_ids(e["id"])
-        total = round(sum(amounts.get(i, 0.0) for i in ids), 2)
+        total = round(sum(amounts.get(i, 0.0) for i in ids) * f, 2)
         out.append({**e, "txn_count": len(ids), "total": total})
     return out
 

@@ -7,9 +7,7 @@ import { usePersona, type PersonaKey } from "@/lib/persona";
 import { useTheme } from "@/lib/theme";
 import { useCurrency, type Currency } from "@/lib/currency";
 
-// `external: true` renders a plain anchor (opens in a new tab) instead of an
-// in-app react-router NavLink — used for the standalone user guide at /guide.
-type NavItem = { to: string; label: string; Icon: LucideIcon; important?: boolean; external?: boolean };
+type NavItem = { to: string; label: string; Icon: LucideIcon; important?: boolean };
 
 // Two groups matching the reference: the "Money" surfaces, then "Utility".
 const MONEY: NavItem[] = [
@@ -26,7 +24,7 @@ const UTILITY: NavItem[] = [
   { to: "/import", label: "Import", Icon: Plus, important: true },
   { to: "/insights", label: "AI Insights", Icon: Sparkles },
   { to: "/settings", label: "Settings", Icon: SettingsIcon },
-  { to: "/guide", label: "User Guide", Icon: BookOpen, external: true },
+  { to: "/guide", label: "User Guide", Icon: BookOpen },
 ];
 
 const PERSONA_KEYS: { key: PersonaKey; dot: string }[] = [
@@ -48,7 +46,11 @@ export function AppSidebar() {
   return (
     <aside
       data-persona-seam={persona}
-      style={{ width: 224, padding: "18px 14px", display: "flex", flexDirection: "column", gap: 4, flex: "none" }}
+      style={{
+        width: 224, padding: "18px 14px", display: "flex", flexDirection: "column", gap: 4,
+        flex: "none", height: "100vh", overflowY: "auto",
+        background: "var(--fl-frame)",
+      }}
     >
       {/* Brand */}
       <div style={{ display: "flex", alignItems: "center", gap: 9, fontWeight: 800, fontSize: 16, letterSpacing: "-0.02em", padding: "2px 6px 14px" }}>
@@ -123,43 +125,24 @@ function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
         {label}
       </div>
       <nav style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-        {items.map((n) =>
-          n.external ? (
-            // Standalone HTML page (not a react route) — open in a new tab so the
-            // app's persona/currency state isn't lost.
-            <a
-              key={n.to}
-              href={n.to}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: "flex", alignItems: "center", gap: 11, fontSize: 13,
-                padding: "9px 11px", borderRadius: 11, textDecoration: "none",
-                fontWeight: n.important ? 700 : 500, color: "#4B5059",
-              }}
-            >
-              <n.Icon size={16} strokeWidth={2} aria-hidden style={{ flex: "none", opacity: 0.85 }} />
-              {n.label}
-            </a>
-          ) : (
-            <NavLink
-              key={n.to}
-              to={n.to}
-              end={n.to === "/"}
-              style={({ isActive }) => ({
-                display: "flex", alignItems: "center", gap: 11, fontSize: 13,
-                padding: "9px 11px", borderRadius: 11, textDecoration: "none",
-                fontWeight: isActive ? 600 : n.important ? 700 : 500,
-                background: isActive ? "var(--fl-ink)" : "transparent",
-                color: isActive ? "#fff" : n.important ? "var(--persona-you-deep)" : "#4B5059",
-                boxShadow: isActive ? "0 8px 18px -8px rgba(22,24,29,.6)" : "none",
-              })}
-            >
-              <n.Icon size={16} strokeWidth={2} aria-hidden style={{ flex: "none", opacity: 0.85 }} />
-              {n.label}
-            </NavLink>
-          ),
-        )}
+        {items.map((n) => (
+          <NavLink
+            key={n.to}
+            to={n.to}
+            end={n.to === "/"}
+            style={({ isActive }) => ({
+              display: "flex", alignItems: "center", gap: 11, fontSize: 13,
+              padding: "9px 11px", borderRadius: 11, textDecoration: "none",
+              fontWeight: isActive ? 600 : n.important ? 700 : 500,
+              background: isActive ? "var(--fl-ink)" : "transparent",
+              color: isActive ? "#fff" : n.important ? "var(--persona-you-deep)" : "#4B5059",
+              boxShadow: isActive ? "0 8px 18px -8px rgba(22,24,29,.6)" : "none",
+            })}
+          >
+            <n.Icon size={16} strokeWidth={2} aria-hidden style={{ flex: "none", opacity: 0.85 }} />
+            {n.label}
+          </NavLink>
+        ))}
       </nav>
     </>
   );

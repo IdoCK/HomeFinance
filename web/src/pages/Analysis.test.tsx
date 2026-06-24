@@ -5,6 +5,7 @@ const getFilterOptions = vi.fn();
 const getCategoryTrend = vi.fn();
 vi.mock("@/lib/currency", () => ({
   useCurrency: () => ({ currency: "USD", setCurrency: () => {}, symbol: "$", format: (n: number) => `$${n}` }),
+  getActiveCurrency: () => "USD",
 }));
 vi.mock("@/lib/persona", () => ({
   usePersona: () => ({ persona: "you", personId: 1, label: "Ada", people: [], names: { you: "Ada", spouse: "Bo" }, setPersona: () => {} }),

@@ -11,29 +11,24 @@ import Settings from "@/pages/Settings";
 import Insights from "@/pages/Insights";
 import Import from "@/pages/Import";
 import Events from "@/pages/Events";
+import Guide from "@/pages/Guide";
 
 function AppLayout() {
   const loc = useLocation();
   return (
-    <div className="frosted-canvas" style={{ minHeight: "100vh", padding: 16 }}>
-      {/* Rounded floating frame on the canvas (reference .frame). */}
-      <div
-        style={{
-          display: "flex",
-          minHeight: "calc(100vh - 32px)",
-          background: "var(--fl-frame)",
-          borderRadius: 22,
-          overflow: "hidden",
-          boxShadow: "0 24px 60px -34px rgba(22,24,29,.33)",
-        }}
-      >
-        <AppSidebar />
-        <main style={{ flex: 1, minWidth: 0, padding: "18px 24px 28px" }}>
-          <div className="fl-page" key={loc.pathname}>
-            <Outlet />
-          </div>
-        </main>
-      </div>
+    // Full-bleed shell: the app fills the window (no floating card frame). The
+    // sidebar and the main content are independent scroll regions, so scrolling
+    // a long page never moves the nav rail and vice-versa.
+    <div className="frosted-canvas" style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+      <AppSidebar />
+      <main style={{ flex: 1, minWidth: 0, height: "100vh", overflowY: "auto", padding: "18px 24px 28px" }}>
+        {/* minWidth:0 lets wide children (tables) shrink + scroll inside instead
+            of forcing the page wider than the window. maxWidth keeps line lengths
+            sane on very wide monitors. */}
+        <div className="fl-page" key={loc.pathname} style={{ minWidth: 0, maxWidth: 1200, margin: "0 auto" }}>
+          <Outlet />
+        </div>
+      </main>
     </div>
   );
 }
@@ -54,6 +49,7 @@ export const router = createBrowserRouter([
       { path: "import", element: <Import /> },
       { path: "insights", element: <Insights /> },
       { path: "settings", element: <Settings /> },
+      { path: "guide", element: <Guide /> },
     ],
   },
 ]);

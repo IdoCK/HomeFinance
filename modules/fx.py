@@ -183,6 +183,49 @@ def display_factor(display, on_date=None):
     return _rate_or_fetch(on, PIVOT, display)
 
 
+# ---- Global display rate (the USD/ILS toggle is a single display lens) -------
+# The ledger is single-currency (USD). The display rate is modeled as ONE row
+# stored under db.FX_DISPLAY_ANCHOR so the nearest-prior lookup resolves it for
+# every transaction date — all figures convert at the same rate.
+
+def get_display_rate(quote, base=PIVOT):
+    """The current global display rate base->quote (e.g. USD->ILS), with its
+    source. Returns (rate, source) or (None, None) if unset. DB-only/offline."""
+    if quote == base:
+        return 1.0, "identity"
+    with db.get_conn() as conn:
+        row = conn.execute(
+            "SELECT rate, source FROM fx_rates WHERE base=? AND quote=? "
+            "ORDER BY rate_date DESC LIMIT 1", (base, quote)).fetchone()
+        if row is None:
+            return None, None
+        return row[0], row[1]
+
+
+def set_display_rate(quote, rate, base=PIVOT, source="manual"):
+    """Set the global display rate base->quote at the anchor date (overwrites the
+    seed/previous global rate so the whole ledger re-expresses uniformly)."""
+    upsert_rate(db.FX_DISPLAY_ANCHOR, base, quote, float(rate), source=source)
+
+
+def refresh_display_rate(quote, base=PIVOT):
+    """Fetch the latest market base->quote rate and store it as the global
+    display rate (anchor date). The only network path here. Returns the rate or
+    None on failure (offline/unreachable) — never raises."""
+    if quote == base:
+        return 1.0
+    today = _date.today().isoformat()
+    try:
+        data = _http_get_json(frankfurter_url(today, base, quote))
+        rate = data.get("rates", {}).get(quote)
+        if rate is None:
+            return None
+        set_display_rate(quote, float(rate), base=base, source="frankfurter")
+        return float(rate)
+    except Exception:
+        return None
+
+
 def base_txns(txns):
     """Copies with `amount` set to the USD base, so analytics sum one currency."""
     out = []

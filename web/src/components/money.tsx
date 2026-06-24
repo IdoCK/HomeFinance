@@ -1,4 +1,4 @@
-import { useCurrency, type Currency } from "@/lib/currency";
+import { useCurrency, getActiveCurrency, type Currency } from "@/lib/currency";
 
 const FMT_CACHE: Partial<Record<string, Intl.NumberFormat>> = {};
 function fmt(currency: Currency, cents: boolean): Intl.NumberFormat {
@@ -9,8 +9,14 @@ function fmt(currency: Currency, cents: boolean): Intl.NumberFormat {
   }));
 }
 
-export function formatMoney(n: number, currency: Currency = "USD"): string {
-  return fmt(currency, true).format(n);
+/** Format a figure in a currency. Defaults to the active display currency so
+ *  chart labels / aria strings track the USD↔ILS toggle; pass an explicit
+ *  currency to pin a value to a specific one (e.g. a statement's own currency).
+ *  Guards the helper call so unit tests that mock out @/lib/currency still get
+ *  a sane USD default. */
+export function formatMoney(n: number, currency?: Currency): string {
+  const c = currency ?? (typeof getActiveCurrency === "function" ? getActiveCurrency() : "USD");
+  return fmt(c, true).format(n);
 }
 
 /** Ledger figure. `colored` tints by sign; `accent` uses the persona color.

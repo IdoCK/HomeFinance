@@ -109,6 +109,18 @@ class FxRefresh(BaseModel):
     quote: str = "ILS"
 
 
+class FxDisplayRate(BaseModel):
+    """Manual set of the single global display rate (no per-date dimension)."""
+    base: str = "USD"
+    quote: str = "ILS"
+    rate: float
+
+
+class FxDisplayRefresh(BaseModel):
+    base: str = "USD"
+    quote: str = "ILS"
+
+
 class EventCreate(BaseModel):
     person_id: Optional[int] = None
     name: str

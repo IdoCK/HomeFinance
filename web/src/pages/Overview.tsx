@@ -22,6 +22,14 @@ function personColor(name: string): string {
   return name === "Ido" ? "var(--persona-you)" : name === "Aviv" ? "var(--persona-spouse)" : "var(--persona-solid)";
 }
 
+// "2026-03" -> "Mar" for compact x-axis ticks. Parsed as a LOCAL date so it
+// doesn't shift a month in timezones behind UTC.
+function fmtMonth(ym: string): string {
+  const [y, m] = ym.split("-").map(Number);
+  if (!y || !m) return ym;
+  return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: "short" });
+}
+
 export default function Overview() {
   const { personId, label } = usePersona();
   const { currency } = useCurrency();
@@ -60,8 +68,12 @@ export default function Overview() {
   };
 
   const series = data.series ?? [];
-  // Cash-flow area = net per month; savings-rate bars = savings_rate % per month.
+  // Cash-flow area = net saved per month; savings-rate bars = savings_rate % per
+  // month. Month labels on the x-axis and an in-progress dash give the line
+  // meaning at a glance ("each point is one month's net").
   const areaPoints = series.map((s) => ({ label: s.month, value: s.net }));
+  const areaXLabels = series.map((s) => fmtMonth(s.month));
+  const areaPartial = series.map((s) => !s.complete);
 
   // Trend view: income vs spend dual line (#9) + cumulative saved (#8). Cumulative
   // is the running sum of monthly net — the savings trajectory.
@@ -293,7 +305,12 @@ export default function Overview() {
             <Kpi label="Out" testId="spend"><Money value={data.spend} /></Kpi>
           </div>
           {cashView === "net" ? (
-            <AreaChart points={areaPoints} />
+            <>
+              <AreaChart points={areaPoints} xLabels={areaXLabels} partial={areaPartial} ariaLabel="Net saved per month" />
+              <div style={{ marginTop: 6, fontSize: 12, color: "var(--fl-muted)" }}>
+                Net saved each month (income − spending). Above the line is a surplus; below, a shortfall.
+              </div>
+            </>
           ) : (
             <>
               <LineChart labels={trendLabels} series={trendSeries} ariaLabel="Income, spending and cumulative savings over time" />

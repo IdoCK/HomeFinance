@@ -5,6 +5,7 @@ const getCompare = vi.fn();
 vi.mock("@/lib/api", () => ({ getCompare: (...a: unknown[]) => getCompare(...a) }));
 vi.mock("@/lib/currency", () => ({
   useCurrency: () => ({ currency: "USD", setCurrency: () => {}, symbol: "$", format: (n: number) => `$${n}` }),
+  getActiveCurrency: () => "USD",
 }));
 
 import { CompareTab } from "./compare-tab";

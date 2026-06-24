@@ -79,6 +79,16 @@ export type FxRatesInfo = {
 };
 export const getFxRates = () => apiGet<FxRatesInfo>("/fx/rates");
 
+/** The single global display rate (e.g. 1 USD = 3.70 ILS) that the currency
+ *  toggle converts every figure at. `rate` is null when unset. */
+export type DisplayRate = { base: string; quote: string; rate: number | null; source: string | null };
+export const getDisplayRate = (quote: Currency = "ILS") =>
+  apiGet<DisplayRate>("/fx/display-rate", { quote });
+export const setDisplayRate = (quote: Currency, rate: number) =>
+  apiSend<{ ok: boolean; rate: number }>("PUT", "/fx/display-rate", { quote, rate });
+export const refreshDisplayRate = (quote: Currency = "ILS") =>
+  apiSend<{ ok: boolean; rate: number | null }>("POST", "/fx/display-rate/refresh", { quote });
+
 export const getPeople = () => apiGet<Person[]>("/people");
 export const getOverview = (p: { personId?: number; month?: string; display?: Currency }) =>
   apiGet<Overview>("/overview", { person_id: p.personId, month: p.month, display: p.display });
@@ -524,8 +534,8 @@ export type OverlapResult = {
 export const getOverlap = (p: { filters?: AnalysisFilters; display?: Currency } = {}) =>
   apiGet<OverlapResult>(`/analysis/overlap${analysisQuery(undefined, p.filters, { display: p.display })}`);
 
-export const getEvents = (personId?: number) =>
-  apiGet<FinanceEvent[]>("/events", { person_id: personId });
+export const getEvents = (p: { personId?: number; display?: Currency } = {}) =>
+  apiGet<FinanceEvent[]>("/events", { person_id: p.personId, display: p.display });
 export const createEvent = (e: {
   personId?: number; name: string; kind: string;
   startDate?: string; endDate?: string; rule?: Record<string, unknown>;

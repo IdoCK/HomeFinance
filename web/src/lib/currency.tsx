@@ -3,6 +3,17 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 export type Currency = "USD" | "ILS";
 const SYMBOL: Record<Currency, string> = { USD: "$", ILS: "₪" };
 
+// Module-level mirror of the active display currency. The CurrencyProvider keeps
+// this in sync so the non-React `formatMoney` helper (used for chart axis labels,
+// tooltips, aria strings, etc.) can format in the selected currency without
+// every call site threading the currency through. Defaults to the persisted
+// choice, else USD.
+let activeCurrency: Currency =
+  (typeof localStorage !== "undefined" && (localStorage.getItem("hf-currency") as Currency)) || "USD";
+export function getActiveCurrency(): Currency {
+  return activeCurrency;
+}
+
 type Ctx = {
   currency: Currency;
   setCurrency: (c: Currency) => void;
@@ -15,6 +26,9 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const [currency, setCurrency] = useState<Currency>(
     () => (localStorage.getItem("hf-currency") as Currency) || "USD",
   );
+  // Keep the module-level mirror in sync synchronously on render so the first
+  // paint after a toggle already formats labels in the new currency.
+  activeCurrency = currency;
   useEffect(() => {
     localStorage.setItem("hf-currency", currency);
     document.documentElement.dataset.currency = currency;

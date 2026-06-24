@@ -8,5 +8,6 @@ __pycache__/
 !.claude/agents/
 .planning/
 .superpowers/
+node_modules/
 web/node_modules/
 web/dist/
