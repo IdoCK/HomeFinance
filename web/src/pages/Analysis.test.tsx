@@ -47,8 +47,8 @@ test("renders the Explore trend with sub-tabs and a filter bar", async () => {
   expect(screen.getByRole("tab", { name: "Compare" })).toBeInTheDocument();
   expect(screen.getByRole("tab", { name: "People" })).toBeInTheDocument();
   expect(screen.getByLabelText("Filters")).toBeInTheDocument();
-  // legend total from the trend
-  expect(screen.getByText("$4,000.00")).toBeInTheDocument();
+  // legend total from the trend (loaded async, so wait for it)
+  expect(await screen.findByText("$4,000.00")).toBeInTheDocument();
 });
 
 test("rollup toggle refetches with rollup=true", async () => {
