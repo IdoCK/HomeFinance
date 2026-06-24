@@ -83,8 +83,8 @@ function CardHeaderRow({
       className={cn("flex items-center justify-between mb-3", className)}
       {...props}
     >
-      <div className="text-[13px] font-bold text-card-foreground/80">{children}</div>
-      {action ?? <span aria-hidden className="text-fl-muted font-bold tracking-widest text-[13px]">···</span>}
+      <div className="text-[13px] font-bold text-[var(--fl-ink)]">{children}</div>
+      {action ?? <span aria-hidden className="text-[var(--fl-muted)] font-bold tracking-widest text-[13px]">···</span>}
     </div>
   );
 }

@@ -11,10 +11,10 @@ const horizonBadge: React.CSSProperties = {
 };
 
 const GOAL_STATUS: Record<"ahead" | "on_track" | "behind" | "overdue", { label: string; color: string }> = {
-  ahead: { label: "ahead", color: "var(--pos)" },
+  ahead: { label: "ahead", color: "var(--pos-ink)" },
   on_track: { label: "on track", color: "var(--persona-solid)" },
-  behind: { label: "behind", color: "#F59E0B" },
-  overdue: { label: "overdue", color: "var(--neg)" },
+  behind: { label: "behind", color: "#B45309" },
+  overdue: { label: "overdue", color: "var(--neg-ink)" },
 };
 
 /** ISO date -> "Mon YYYY" (local-parsed to avoid a UTC off-by-one). */
@@ -61,7 +61,7 @@ function GoalCard({ g, onSave, onSaveNotes, onRemove }: {
         <div style={{ height: 10, width: `${pct}%`, borderRadius: 999, background: done ? "var(--pos)" : "var(--persona)", transition: "width .4s ease" }} />
       </div>
       <div style={{ display: "flex", gap: 8, fontSize: 12, color: "var(--fl-muted)" }}>
-        <span style={{ fontWeight: 600, color: done ? "var(--pos)" : "var(--persona-solid)" }}>
+        <span style={{ fontWeight: 600, color: done ? "var(--pos-ink)" : "var(--persona-solid)" }}>
           {done ? "reached 🎉" : `${Math.round(g.percent)}%`}
         </span>
         {!done && g.monthly_needed != null && (

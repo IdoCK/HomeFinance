@@ -272,7 +272,7 @@ export default function Overview() {
         <section aria-label="Spending alerts" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {data.alerts.map((a) => {
             const up = a.direction === "up";
-            const color = up ? "var(--neg)" : "var(--pos)";
+            const color = up ? "var(--neg-ink)" : "var(--pos-ink)";
             const detail = a.new ? "new this month" : `${up ? "↑" : "↓"} ${Math.abs(a.pct ?? 0)}% vs usual`;
             return (
               <span key={a.category} style={{
@@ -332,7 +332,7 @@ export default function Overview() {
                   <div style={{ marginTop: 8, fontSize: 12, color: "var(--fl-muted)" }}>
                     {wealthGap >= 0
                       ? <><strong style={{ color: "var(--saved)", fontWeight: 700 }}>{formatMoney(wealthGap)}</strong> of returns & appreciation — net worth has outgrown what you set aside.</>
-                      : <><strong style={{ color: "var(--neg)", fontWeight: 700 }}>{formatMoney(-wealthGap)}</strong> below your contributions — market drag since your first snapshot.</>}
+                      : <><strong style={{ color: "var(--neg-ink)", fontWeight: 700 }}>{formatMoney(-wealthGap)}</strong> below your contributions — market drag since your first snapshot.</>}
                   </div>
                 </div>
               )}
@@ -352,7 +352,7 @@ export default function Overview() {
               <Money value={data.net} colored />
             </span>
             {delta != null && (deltaTrustworthy ? (
-              <span style={{ fontSize: 11, fontWeight: 700, color: delta >= 0 ? "var(--pos)" : "var(--neg)", background: `color-mix(in srgb, ${delta >= 0 ? "var(--pos)" : "var(--neg)"} 12%, transparent)`, padding: "2px 7px", borderRadius: 999 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: delta >= 0 ? "var(--pos-ink)" : "var(--neg-ink)", background: `color-mix(in srgb, ${delta >= 0 ? "var(--pos)" : "var(--neg)"} 12%, transparent)`, padding: "2px 7px", borderRadius: 999 }}>
                 {delta >= 0 ? "▲" : "▼"} {Math.abs(Math.round(delta)).toLocaleString()}
               </span>
             ) : (

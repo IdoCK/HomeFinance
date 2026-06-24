@@ -40,7 +40,7 @@ export function Money({
   const color = accent
     ? "var(--persona-solid)"
     : !colored ? undefined
-      : value > 0 ? "var(--pos)" : value < 0 ? "var(--neg)" : undefined;
+      : value > 0 ? "var(--pos-ink)" : value < 0 ? "var(--neg-ink)" : undefined;
   const showOriginal = original && original.currency !== currency;
   return (
     <span style={{ fontVariantNumeric: "tabular-nums", color }}>
