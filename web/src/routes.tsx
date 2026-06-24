@@ -11,6 +11,7 @@ import Settings from "@/pages/Settings";
 import Insights from "@/pages/Insights";
 import Import from "@/pages/Import";
 import Events from "@/pages/Events";
+import Studio from "@/pages/Studio";
 import Guide from "@/pages/Guide";
 
 function AppLayout() {
@@ -46,6 +47,7 @@ export const router = createBrowserRouter([
       { path: "goals", element: <Goals /> },
       { path: "networth", element: <NetWorth /> },
       { path: "events", element: <Events /> },
+      { path: "studio", element: <Studio /> },
       { path: "import", element: <Import /> },
       { path: "insights", element: <Insights /> },
       { path: "settings", element: <Settings /> },
