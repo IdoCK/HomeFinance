@@ -49,10 +49,11 @@ def create_app() -> FastAPI:
     app.include_router(analysis.router, prefix="/api")
     app.include_router(fx.router, prefix="/api")
 
-    # User guide content (docs/USER_GUIDE.html). Served under /api so the Vite dev
-    # proxy reaches it and so the SPA can own the in-app "/guide" route + section
-    # sub-menu, embedding this HTML in an iframe (with ?embed to hide its own
-    # chrome). Registered BEFORE the catch-all SPA mount at "/" so it wins.
+    # Standalone, portable copy of the user guide (docs/USER_GUIDE.html) — a
+    # self-contained HTML doc viewable directly, even before the SPA is built.
+    # The in-app "/guide" route renders the same content natively (web/src/pages/
+    # Guide.tsx), so it isn't embedded here. Served under /api so the Vite dev
+    # proxy reaches it, and registered BEFORE the catch-all SPA mount so it wins.
     @app.get("/api/guide", include_in_schema=False)
     def guide():
         return FileResponse(GUIDE_FILE, media_type="text/html")
