@@ -578,7 +578,7 @@ def net_worth_trend(snapshots):
     return pd.DataFrame(out)
 
 
-def goal_progress(goals, actual_monthly_savings=None):
+def goal_progress(goals, actual_monthly_savings=None, assumed_annual_return=0.07):
     """Attach percent-complete, monthly-needed, pace status, and projected completion.
 
     Parameters
@@ -589,6 +589,12 @@ def goal_progress(goals, actual_monthly_savings=None):
         provided, each goal receives a ``status`` of "ahead" / "on_track" /
         "behind" / "overdue".  When None, ``status`` is None for goals that
         need pace info (no pace info available).
+    assumed_annual_return : float
+        Nominal annual return assumed for *long-horizon* goals.  Those goals
+        earn returns while you save, so ``monthly_needed`` is solved with
+        future-value annuity math rather than flat ``remaining / months_left``.
+        Short/other horizons ignore it (flat division).  A 0% return collapses
+        the annuity back to flat division.
 
     Returns
     -------
@@ -617,6 +623,23 @@ def goal_progress(goals, actual_monthly_savings=None):
 
     ON_TRACK_TOLERANCE = 0.10  # ±10 % of monthly_needed
 
+    def _required_monthly(target, saved, remaining, months, horizon):
+        """Monthly contribution needed to reach the target in `months`.
+
+        Long-horizon goals invest while you save, so we solve the future-value
+        annuity target = saved·(1+r)^n + PMT·((1+r)^n − 1)/r for PMT (clamped at
+        0 — if the existing balance compounds past the target on its own, no
+        contribution is required). All other horizons (and a 0% assumed return)
+        use flat division, remaining / months."""
+        if months <= 0:
+            return None
+        r = (1 + assumed_annual_return) ** (1 / 12) - 1
+        if horizon != "long" or r <= 0:
+            return remaining / months
+        growth = (1 + r) ** months
+        pmt = (target - saved * growth) * r / (growth - 1)
+        return max(0.0, pmt)
+
     out = []
     today = date.today()
     for g in goals:
@@ -641,7 +664,8 @@ def goal_progress(goals, actual_monthly_savings=None):
                 else:
                     months_left = max(months_left, 0)
                     if months_left > 0:
-                        monthly_needed = remaining / months_left
+                        monthly_needed = _required_monthly(
+                            target, saved, remaining, months_left, g.get("horizon"))
 
                     # Pace status (requires actual_monthly_savings)
                     if actual_monthly_savings is not None and monthly_needed is not None and remaining > 0:

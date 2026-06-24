@@ -33,7 +33,7 @@ def _last_month() -> str:
 # ---------------------------------------------------------------------------
 # Helper: make a minimal goal dict
 # ---------------------------------------------------------------------------
-def _goal(target=10000, saved=2000, target_date=None):
+def _goal(target=10000, saved=2000, target_date=None, horizon="short"):
     return {
         "id": 1,
         "person_id": 1,
@@ -41,7 +41,7 @@ def _goal(target=10000, saved=2000, target_date=None):
         "target_amount": target,
         "saved_amount": saved,
         "target_date": target_date,
-        "horizon": "short",
+        "horizon": horizon,
         "notes": "",
     }
 
@@ -222,3 +222,47 @@ class TestProjectedCompletion:
         g = _goal(target=5000, saved=5000, target_date=_months_from_today(6))
         result = goal_progress([g], actual_monthly_savings=1000)[0]
         assert result["projected_completion"] is None
+
+
+# ===========================================================================
+# (d) Long-horizon goals use future-value annuity math, not flat division.
+# ===========================================================================
+
+class TestLongHorizonCompounding:
+    def test_long_horizon_needs_less_than_flat_division(self):
+        """A long goal earns returns while you save, so the required monthly
+        contribution is below remaining / months_left."""
+        # target=120k, saved=0, 120 months out → flat would be $1000/mo.
+        g = _goal(target=120000, saved=0, target_date=_months_from_today(120), horizon="long")
+        result = goal_progress([g])[0]
+        assert result["monthly_needed"] is not None
+        assert 0 < result["monthly_needed"] < 1000
+
+    def test_long_horizon_matches_annuity_closed_form(self):
+        """monthly_needed solves target = saved·(1+r)^n + PMT·((1+r)^n−1)/r."""
+        target, saved, n, annual = 120000, 0.0, 120, 0.07
+        r = (1 + annual) ** (1 / 12) - 1
+        growth = (1 + r) ** n
+        expected = (target - saved * growth) * r / (growth - 1)
+        g = _goal(target=target, saved=saved, target_date=_months_from_today(n), horizon="long")
+        result = goal_progress([g], assumed_annual_return=annual)[0]
+        assert math.isclose(result["monthly_needed"], expected, rel_tol=1e-6)
+
+    def test_zero_assumed_return_falls_back_to_flat(self):
+        """With a 0% assumed return the annuity collapses to flat division."""
+        g = _goal(target=12000, saved=0, target_date=_months_from_today(12), horizon="long")
+        result = goal_progress([g], assumed_annual_return=0.0)[0]
+        assert math.isclose(result["monthly_needed"], 1000.0, rel_tol=1e-9)
+
+    def test_short_horizon_unaffected_by_compounding(self):
+        """Short goals keep flat division — no return assumption applied."""
+        g = _goal(target=12000, saved=0, target_date=_months_from_today(12), horizon="short")
+        result = goal_progress([g], assumed_annual_return=0.07)[0]
+        assert math.isclose(result["monthly_needed"], 1000.0, rel_tol=1e-9)
+
+    def test_long_horizon_clamps_to_zero_when_returns_alone_suffice(self):
+        """If existing savings will compound past the target on their own, no
+        further contribution is required (monthly_needed clamped to 0)."""
+        g = _goal(target=10000, saved=9000, target_date=_months_from_today(120), horizon="long")
+        result = goal_progress([g], assumed_annual_return=0.07)[0]
+        assert result["monthly_needed"] == 0.0
