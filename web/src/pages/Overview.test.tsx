@@ -1,17 +1,28 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 const getOverview = vi.fn();
+const getNetWorth = vi.fn();
 vi.mock("@/lib/currency", () => ({
   useCurrency: () => ({ currency: "USD", setCurrency: () => {}, symbol: "$", format: (n: number) => `$${n}` }),
 }));
 vi.mock("@/lib/persona", () => ({
   usePersona: () => ({ persona: "you", personId: 1, label: "Ada", people: [], setPersona: () => {} }),
 }));
-vi.mock("@/lib/api", () => ({ getOverview: (...a: unknown[]) => getOverview(...a) }));
+vi.mock("@/lib/api", () => ({
+  getOverview: (...a: unknown[]) => getOverview(...a),
+  getNetWorth: (...a: unknown[]) => getNetWorth(...a),
+}));
 
 import Overview from "./Overview";
+
+beforeEach(() => {
+  // Default: no net-worth trend, so the contributions-vs-net-worth overlay
+  // stays hidden unless a test opts in.
+  getNetWorth.mockResolvedValue({ summary: { assets: 0, liabilities: 0, net: 0 }, delta: null, accounts: [], trend: [], split: null });
+});
 
 const base = {
   month: "2026-05", months: ["2026-04", "2026-05"],
@@ -23,7 +34,7 @@ const base = {
   bills_due: { count: 0, amount: 0 },
 };
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => vi.clearAllMocks());
 
 test("renders headline numbers and category breakdown", async () => {
   getOverview.mockResolvedValue(base);
@@ -111,6 +122,58 @@ test("savings-rate card shows the FIRE benchmark line and a verdict", async () =
   render(<Overview />);
   await waitFor(() => expect(screen.getByText(/50% FIRE/i)).toBeInTheDocument());
   expect(screen.getByText(/FIRE pace/i)).toBeInTheDocument();
+});
+
+test("Trend view overlays contributions against net worth (the gap = returns)", async () => {
+  getOverview.mockResolvedValue({
+    ...base,
+    series: [
+      { month: "2026-01", income: 5000, spend: 4000, net: 1000, savings_rate: 0.2, complete: true },
+      { month: "2026-02", income: 5000, spend: 4000, net: 1000, savings_rate: 0.2, complete: true },
+      { month: "2026-03", income: 5000, spend: 4000, net: 1000, savings_rate: 0.2, complete: true },
+    ],
+  });
+  // Net worth grows faster than the $1,000/mo contributions — the extra is returns.
+  getNetWorth.mockResolvedValue({
+    summary: { assets: 24000, liabilities: 0, net: 24000 }, delta: null, accounts: [], split: null,
+    trend: [
+      { date: "2026-01-31", assets: 20000, liabilities: 0, net: 20000 },
+      { date: "2026-02-28", assets: 22000, liabilities: 0, net: 22000 },
+      { date: "2026-03-31", assets: 24000, liabilities: 0, net: 24000 },
+    ],
+  });
+  render(<Overview />);
+  await waitFor(() => expect(screen.getByTestId("net")).toBeInTheDocument());
+  // Switch the cash-flow card to the Trend view.
+  await userEvent.click(screen.getByRole("button", { name: "Trend" }));
+  // The contributions-vs-net-worth overlay appears with both series and a
+  // returns/appreciation read-out of the gap.
+  const overlay = await screen.findByLabelText(/contributions vs(\.)? net worth/i);
+  // Both series are present in the legend, and the gap is read out as returns.
+  expect(within(overlay).getAllByText(/net worth/i).length).toBeGreaterThanOrEqual(1);
+  expect(within(overlay).getAllByText(/contributions/i).length).toBeGreaterThanOrEqual(1);
+  expect(within(overlay).getByText(/returns & appreciation/i)).toBeInTheDocument();
+  // The $2,000 gap (24,000 net worth − 22,000 contributed) is surfaced.
+  expect(within(overlay).getByText(/\$2,000/)).toBeInTheDocument();
+});
+
+test("Trend view hides the net-worth overlay without enough snapshots", async () => {
+  getOverview.mockResolvedValue({
+    ...base,
+    series: [
+      { month: "2026-01", income: 5000, spend: 4000, net: 1000, savings_rate: 0.2, complete: true },
+      { month: "2026-02", income: 5000, spend: 4000, net: 1000, savings_rate: 0.2, complete: true },
+    ],
+  });
+  // Only a single snapshot — not enough to draw a trend.
+  getNetWorth.mockResolvedValue({
+    summary: { assets: 20000, liabilities: 0, net: 20000 }, delta: null, accounts: [], split: null,
+    trend: [{ date: "2026-02-28", assets: 20000, liabilities: 0, net: 20000 }],
+  });
+  render(<Overview />);
+  await waitFor(() => expect(screen.getByTestId("net")).toBeInTheDocument());
+  await userEvent.click(screen.getByRole("button", { name: "Trend" }));
+  expect(screen.queryByLabelText(/contributions vs(\.)? net worth/i)).toBeNull();
 });
 
 test("renders spending alert chips", async () => {

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { getOverview, type Overview as OverviewData } from "@/lib/api";
+import { getOverview, getNetWorth, type Overview as OverviewData, type NetWorthData } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { useCurrency } from "@/lib/currency";
-import { Money } from "@/components/money";
+import { Money, formatMoney } from "@/components/money";
 import { Kpi } from "@/components/kpi";
 import { Pill } from "@/components/ui/pill";
 import { CardHeaderRow } from "@/components/ui/card";
@@ -26,6 +26,7 @@ export default function Overview() {
   const { personId, label } = usePersona();
   const { currency } = useCurrency();
   const [data, setData] = useState<OverviewData | null>(null);
+  const [nw, setNw] = useState<NetWorthData | null>(null);
   const [month, setMonth] = useState<string | undefined>(undefined);
   const [cashView, setCashView] = useState<"net" | "trend">("net");
 
@@ -34,6 +35,14 @@ export default function Overview() {
     getOverview({ personId, month, display: currency }).then((d) => alive && setData(d)).catch(() => alive && setData(null));
     return () => { alive = false; };
   }, [personId, month, currency]);
+
+  // Net-worth trend powers the Trend view's contributions-vs-net-worth overlay.
+  // Independent of the selected month — it's a whole-history wealth line.
+  useEffect(() => {
+    let alive = true;
+    getNetWorth({ personId, display: currency }).then((d) => alive && setNw(d)).catch(() => alive && setNw(null));
+    return () => { alive = false; };
+  }, [personId, currency]);
 
   const cats = useMemo(
     () => Object.entries(data?.by_category ?? {}).sort((a, b) => b[1] - a[1]),
@@ -71,6 +80,36 @@ export default function Overview() {
     const window = ratePct.slice(Math.max(0, i - 2), i + 1);
     return Math.round(window.reduce((a, b) => a + b, 0) / window.length);
   });
+  // Contributions vs. net worth (growth lens). Anchor both lines at the net
+  // worth on your first snapshot, then add monthly contributions to one and
+  // track real net worth on the other. The gap that opens is returns &
+  // appreciation. Forward-fill net worth across months between snapshots; the
+  // line only renders once there are ≥2 distinct snapshots to draw a trend.
+  const nwByMonth = new Map<string, number>();
+  for (const p of nw?.trend ?? []) nwByMonth.set(p.date.slice(0, 7), p.net); // sorted asc → last wins
+  let carriedNw: number | null = null;
+  const nwAligned = series.map((s) => {
+    if (nwByMonth.has(s.month)) carriedNw = nwByMonth.get(s.month)!;
+    return carriedNw; // null for months before the first snapshot
+  });
+  const overlapIdx = series.map((_, i) => i).filter((i) => nwAligned[i] != null);
+  const wealthOverlay =
+    nwByMonth.size >= 2 && overlapIdx.length >= 2
+      ? (() => {
+          const base = overlapIdx[0];
+          const baseNet = nwAligned[base] as number;
+          const baseCum = cumulative[base];
+          return {
+            labels: overlapIdx.map((i) => series[i].month),
+            contrib: overlapIdx.map((i) => baseNet + (cumulative[i] - baseCum)),
+            netWorth: overlapIdx.map((i) => nwAligned[i] as number),
+          };
+        })()
+      : null;
+  const wealthGap = wealthOverlay
+    ? wealthOverlay.netWorth[wealthOverlay.netWorth.length - 1] - wealthOverlay.contrib[wealthOverlay.contrib.length - 1]
+    : 0;
+
   const latestRoll = rolling3.length ? rolling3[rolling3.length - 1] : null;
   const savingsVerdict =
     latestRoll == null ? null
@@ -233,9 +272,35 @@ export default function Overview() {
             <Kpi label="Out" testId="spend"><Money value={data.spend} /></Kpi>
             <Kpi label="Net" testId="net" big><Money value={data.net} colored /></Kpi>
           </div>
-          {cashView === "net"
-            ? <AreaChart points={areaPoints} />
-            : <LineChart labels={trendLabels} series={trendSeries} ariaLabel="Income, spending and cumulative savings over time" />}
+          {cashView === "net" ? (
+            <AreaChart points={areaPoints} />
+          ) : (
+            <>
+              <LineChart labels={trendLabels} series={trendSeries} ariaLabel="Income, spending and cumulative savings over time" />
+              {wealthOverlay && (
+                <div aria-label="Contributions vs. net worth" style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--fl-line)" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--fl-muted)", marginBottom: 6 }}>
+                    Contributions vs. net worth
+                  </div>
+                  <LineChart
+                    labels={wealthOverlay.labels}
+                    series={[
+                      { name: "Net worth", values: wealthOverlay.netWorth, color: "var(--persona-solid)" },
+                      { name: "Contributions", values: wealthOverlay.contrib, color: "var(--saved)" },
+                    ]}
+                    valueFormat={(n) => formatMoney(n)}
+                    height={120}
+                    ariaLabel="Net worth versus cumulative contributions since your first snapshot"
+                  />
+                  <div style={{ marginTop: 8, fontSize: 12, color: "var(--fl-muted)" }}>
+                    {wealthGap >= 0
+                      ? <><strong style={{ color: "var(--saved)", fontWeight: 700 }}>{formatMoney(wealthGap)}</strong> of returns & appreciation — net worth has outgrown what you set aside.</>
+                      : <><strong style={{ color: "var(--neg)", fontWeight: 700 }}>{formatMoney(-wealthGap)}</strong> below your contributions — market drag since your first snapshot.</>}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </section>
 
         <section className="frosted-card" style={CARD}>
