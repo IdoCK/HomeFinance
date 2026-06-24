@@ -12,6 +12,7 @@ const getBudgetSummary = vi.fn().mockResolvedValue({ total_budgeted: 2400, total
 
 vi.mock("@/lib/currency", () => ({
   useCurrency: () => ({ currency: "USD", setCurrency: () => {}, symbol: "$", format: (n: number) => `$${n}` }),
+  getActiveCurrency: () => "USD",
 }));
 vi.mock("@/lib/persona", () => ({
   usePersona: () => ({

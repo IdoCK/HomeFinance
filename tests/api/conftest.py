@@ -12,7 +12,14 @@ def client(tmp_path, monkeypatch):
 
     from backend import main
     importlib.reload(main)  # rebuild app against the patched DB_PATH
-    return TestClient(main.create_app())
+    app = main.create_app()
+    # init_db seeds a starter USD->ILS display rate so the production currency
+    # toggle works out of the box. FX tests drive rates from a clean table, so
+    # drop the seed here (after the app's own init_db has run) — each test then
+    # sets exactly the rates it needs.
+    with database.get_conn() as conn:
+        conn.execute("DELETE FROM fx_rates")
+    return TestClient(app)
 
 
 @pytest.fixture()

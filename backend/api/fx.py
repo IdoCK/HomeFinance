@@ -2,7 +2,7 @@ from fastapi import APIRouter
 
 from modules import database as db
 from modules import fx as fxmod
-from backend.schemas import FxRateUpsert, FxRefresh
+from backend.schemas import FxRateUpsert, FxRefresh, FxDisplayRate, FxDisplayRefresh
 
 router = APIRouter(prefix="/fx", tags=["fx"])
 
@@ -44,3 +44,29 @@ def refresh(body: FxRefresh):
 def recompute():
     updated, stale = db.recompute_amount_base()
     return {"updated": updated, "stale": stale}
+
+
+# ---- Global display rate (powers the USD/ILS toggle) -------------------------
+
+@router.get("/display-rate")
+def display_rate(quote: str = "ILS", base: str = "USD"):
+    """Current global display rate base->quote (the single rate every figure is
+    converted at when that currency is selected)."""
+    rate, source = fxmod.get_display_rate(quote, base=base)
+    return {"base": base, "quote": quote, "rate": rate, "source": source}
+
+
+@router.put("/display-rate")
+def set_display_rate(body: FxDisplayRate):
+    """Manually set the global display rate (works offline). Applies to the whole
+    ledger immediately — no recompute needed (display conversion is on-read)."""
+    fxmod.set_display_rate(body.quote, body.rate, base=body.base, source="manual")
+    return {"ok": True, "base": body.base, "quote": body.quote, "rate": body.rate}
+
+
+@router.post("/display-rate/refresh")
+def refresh_display_rate(body: FxDisplayRefresh):
+    """Fetch the latest market rate from the internet and store it as the global
+    display rate. Returns the new rate, or ok=False if the fetch failed."""
+    rate = fxmod.refresh_display_rate(body.quote, base=body.base)
+    return {"ok": rate is not None, "base": body.base, "quote": body.quote, "rate": rate}

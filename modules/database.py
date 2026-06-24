@@ -12,6 +12,17 @@ from contextlib import contextmanager
 
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "finance.db"
 
+# The household ledger is single-currency (USD); the USD/ILS toggle is a display
+# lens, not a true multi-currency book. We model that as ONE global display rate
+# stored under a far-past anchor date, so the nearest-prior lookup in modules/fx
+# resolves it for transactions of ANY date — every figure converts at the same
+# rate. Seeded on init (offline-friendly), overridable in Settings, refreshable
+# from the internet. fx.refresh_display_rate / fx.set_display_rate maintain it.
+FX_DISPLAY_ANCHOR = "1970-01-01"
+# Approximate USD->ILS rate seeded so the toggle converts out of the box without
+# a network call. Not a market quote — the user can correct it in Settings.
+FX_SEED_USD_ILS = 3.70
+
 # Starter taxonomy seeded for a person with no categories yet. Income categories
 # come first so money-in is differentiated (salary vs reimbursement vs rewards)
 # instead of collapsing into a single bucket.
@@ -275,6 +286,27 @@ def init_db():
                    PRIMARY KEY (rate_date, base, quote)
                )""")
         c.execute("CREATE INDEX IF NOT EXISTS idx_fx_lookup ON fx_rates(base, quote, rate_date)")
+
+
+def seed_fx_display_rate():
+    """Seed the global display rate (USD->ILS) so the currency toggle converts
+    immediately, even offline. Idempotent: only when no USD/ILS rate exists, so
+    it never clobbers a user-set or fetched rate. Stored under the far-past
+    anchor date so it applies to transactions of every date.
+
+    Kept separate from init_db (schema/people bootstrap) on purpose: tests that
+    build a bare DB via init_db get a clean fx_rates table; only the running app
+    (create_app) seeds this starter market datum.
+    """
+    with get_conn() as c:
+        has_ils = c.execute(
+            "SELECT 1 FROM fx_rates WHERE base='USD' AND quote='ILS' LIMIT 1").fetchone()
+        if has_ils is None:
+            c.execute(
+                "INSERT OR IGNORE INTO fx_rates(rate_date, base, quote, rate, source, fetched_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (FX_DISPLAY_ANCHOR, "USD", "ILS", FX_SEED_USD_ILS, "seed",
+                 datetime.now().isoformat(timespec="seconds")))
 
 
 # ---- people ---------------------------------------------------------------

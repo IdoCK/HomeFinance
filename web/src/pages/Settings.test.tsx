@@ -10,11 +10,14 @@ const upsertVendor = vi.fn().mockResolvedValue({ ok: true });
 const deleteVendor = vi.fn().mockResolvedValue({ ok: true });
 const getCategories = vi.fn().mockResolvedValue([{ id: 10, person_id: 1, name: "Groceries", keywords: "whole foods" }]);
 const getVendors = vi.fn().mockResolvedValue([{ id: 20, person_id: 1, name: "Amazon", keywords: "amazon,amzn" }]);
-const getFxRates = vi.fn().mockResolvedValue({ source: null, last_fetched: null, count: 0, rates: [] });
+const getDisplayRate = vi.fn().mockResolvedValue({ base: "USD", quote: "ILS", rate: 3.7, source: "seed" });
+const setDisplayRate = vi.fn().mockResolvedValue({ ok: true, rate: 3.7 });
+const refreshDisplayRate = vi.fn().mockResolvedValue({ ok: true, rate: 3.7 });
 const getUntrackedCount = vi.fn().mockResolvedValue({ count: 0 });
 
 vi.mock("@/lib/currency", () => ({
   useCurrency: () => ({ currency: "USD", setCurrency: () => {}, symbol: "$", format: (n: number) => `$${n}` }),
+  getActiveCurrency: () => "USD",
 }));
 vi.mock("@/lib/persona", () => ({
   usePersona: () => ({
@@ -31,7 +34,9 @@ vi.mock("@/lib/api", () => ({
   getVendors: (...a: unknown[]) => getVendors(...a),
   upsertVendor: (...a: unknown[]) => upsertVendor(...a),
   deleteVendor: (...a: unknown[]) => deleteVendor(...a),
-  getFxRates: (...a: unknown[]) => getFxRates(...a),
+  getDisplayRate: (...a: unknown[]) => getDisplayRate(...a),
+  setDisplayRate: (...a: unknown[]) => setDisplayRate(...a),
+  refreshDisplayRate: (...a: unknown[]) => refreshDisplayRate(...a),
   getUntrackedCount: (...a: unknown[]) => getUntrackedCount(...a),
 }));
 

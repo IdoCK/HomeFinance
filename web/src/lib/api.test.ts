@@ -257,7 +257,7 @@ test("generateInsights POSTs person_id", async () => {
 test("getEvents builds /api/events with person_id", async () => {
   const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
   vi.stubGlobal("fetch", fetchMock);
-  await getEvents(1);
+  await getEvents({ personId: 1 });
   expect(fetchMock.mock.calls[0][0]).toBe("/api/events?person_id=1");
 });
 

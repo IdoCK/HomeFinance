@@ -31,6 +31,7 @@ const getNetWorth = vi.fn().mockResolvedValue({
 
 vi.mock("@/lib/currency", () => ({
   useCurrency: () => ({ currency: "USD", setCurrency: () => {}, symbol: "$", format: (n: number) => `$${n}` }),
+  getActiveCurrency: () => "USD",
 }));
 let mockPersonId: number | undefined = 1;
 vi.mock("@/lib/persona", () => ({

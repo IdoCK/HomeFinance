@@ -189,7 +189,10 @@ export default function Transactions() {
   const visible = table.getRowModel().rows;
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
+    // minmax(0,1fr) caps the single column at the container width so a wide table
+    // scrolls inside its own card instead of stretching the whole page (grid items
+    // default to min-width:auto, which would otherwise grow to the table's width).
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 16 }}>
       <header style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", fontSize: 24, margin: 0 }}>Transactions</h1>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>

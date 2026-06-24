@@ -5,6 +5,7 @@ const getDrill = vi.fn();
 vi.mock("@/lib/api", () => ({ getDrill: (...a: unknown[]) => getDrill(...a) }));
 vi.mock("@/lib/currency", () => ({
   useCurrency: () => ({ currency: "USD", setCurrency: () => {}, symbol: "$", format: (n: number) => `$${n}` }),
+  getActiveCurrency: () => "USD",
 }));
 
 import { DrillDown } from "./drill-down";

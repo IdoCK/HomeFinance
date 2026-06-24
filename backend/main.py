@@ -22,6 +22,7 @@ def health_check():
 
 def create_app() -> FastAPI:
     db.init_db()
+    db.seed_fx_display_rate()  # starter USD/ILS rate so the currency toggle converts
     app = FastAPI(title="HomeFinance API")
 
     # Dev only: the Vite dev server runs on :5173 and calls the API on :8000.
@@ -48,9 +49,11 @@ def create_app() -> FastAPI:
     app.include_router(analysis.router, prefix="/api")
     app.include_router(fx.router, prefix="/api")
 
-    # Standalone user guide (docs/USER_GUIDE.html). Registered BEFORE the catch-all
-    # SPA mount at "/" so it wins; reachable at /guide in both dev and production.
-    @app.get("/guide", include_in_schema=False)
+    # User guide content (docs/USER_GUIDE.html). Served under /api so the Vite dev
+    # proxy reaches it and so the SPA can own the in-app "/guide" route + section
+    # sub-menu, embedding this HTML in an iframe (with ?embed to hide its own
+    # chrome). Registered BEFORE the catch-all SPA mount at "/" so it wins.
+    @app.get("/api/guide", include_in_schema=False)
     def guide():
         return FileResponse(GUIDE_FILE, media_type="text/html")
 

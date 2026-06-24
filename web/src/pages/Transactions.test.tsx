@@ -14,6 +14,7 @@ const ROWS = [
 
 vi.mock("@/lib/currency", () => ({
   useCurrency: () => ({ currency: "USD", setCurrency: () => {}, symbol: "$", format: (n: number) => `$${n}` }),
+  getActiveCurrency: () => "USD",
 }));
 vi.mock("@/lib/persona", () => ({
   usePersona: () => ({

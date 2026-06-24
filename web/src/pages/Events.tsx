@@ -5,6 +5,7 @@ import {
   getTransactions, type FinanceEvent, type Transaction,
 } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
+import { useCurrency } from "@/lib/currency";
 import { Money, formatMoney } from "@/components/money";
 
 // Engine membership kinds (event_mask): a date window, a repeating day-rule, or
@@ -40,6 +41,7 @@ function membershipLabel(e: FinanceEvent): string | null {
 
 export default function Events() {
   const { personId, label } = usePersona();
+  const { currency } = useCurrency();
   const [events, setEvents] = useState<FinanceEvent[]>([]);
   const [name, setName] = useState("");
   const [kind, setKind] = useState("tagged");
@@ -51,8 +53,8 @@ export default function Events() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
   const load = useCallback(
-    () => getEvents(personId).then(setEvents).catch(() => setEvents([])),
-    [personId],
+    () => getEvents({ personId, display: currency }).then(setEvents).catch(() => setEvents([])),
+    [personId, currency],
   );
   useEffect(() => { load(); }, [load]);
 
@@ -73,7 +75,7 @@ export default function Events() {
 
   const openEditor = async (id: number) => {
     setEditing(id);
-    const [all, tagged] = await Promise.all([getTransactions({ personId }), getEventTransactions(id)]);
+    const [all, tagged] = await Promise.all([getTransactions({ personId, display: currency }), getEventTransactions(id)]);
     setTxns(all);
     setSelected(new Set(tagged));
   };

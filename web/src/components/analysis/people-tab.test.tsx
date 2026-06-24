@@ -5,6 +5,7 @@ const getOverlap = vi.fn();
 vi.mock("@/lib/api", () => ({ getOverlap: (...a: unknown[]) => getOverlap(...a) }));
 vi.mock("@/lib/currency", () => ({
   useCurrency: () => ({ currency: "USD", setCurrency: () => {}, symbol: "$", format: (n: number) => `$${n}` }),
+  getActiveCurrency: () => "USD",
 }));
 
 import { PeopleTab } from "./people-tab";
