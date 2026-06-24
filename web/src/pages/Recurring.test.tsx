@@ -45,3 +45,11 @@ test("summarizes bills still due this month", async () => {
   await waitFor(() => expect(screen.getByTestId("bills-due")).toBeInTheDocument());
   expect(screen.getByTestId("bills-due")).toHaveTextContent("2 due this month");
 });
+
+test("does not surface the internal confidence metric", async () => {
+  render(<Recurring />);
+  await waitFor(() => expect(screen.getByText("Netflix")).toBeInTheDocument());
+  // Confidence is a model-internal score; it orders the list but is never shown.
+  expect(screen.queryByTitle(/confidence/i)).toBeNull();
+  expect(screen.queryByText(/confidence/i)).toBeNull();
+});

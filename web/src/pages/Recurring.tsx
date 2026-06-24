@@ -33,9 +33,6 @@ function ChargeRow({ c }: { c: RecurringCharge }) {
           {formatMoney(c.monthly_cost)}<span style={{ fontSize: 12, fontWeight: 500, color: "var(--fl-muted)" }}>/mo</span>
         </div>
         <div style={{ fontSize: 12, color: "var(--fl-muted)", fontVariantNumeric: "tabular-nums" }}>{formatMoney(c.annual_cost)}/yr</div>
-        <div title={`${Math.round(c.confidence * 100)}% confidence`} style={{ marginTop: 6, height: 4, width: 80, marginLeft: "auto", borderRadius: 999, background: "var(--fl-line)" }}>
-          <div style={{ height: 4, width: `${Math.round(c.confidence * 100)}%`, borderRadius: 999, background: "var(--persona)" }} />
-        </div>
       </div>
     </section>
   );
