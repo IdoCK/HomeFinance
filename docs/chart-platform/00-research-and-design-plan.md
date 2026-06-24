@@ -224,5 +224,33 @@ type ChartSpec = {
 
 ---
 
+---
+
+## Part 3 — Implementation status (delivered on `feat/chart-platform`)
+
+**Done:**
+- **Recharts adopted.** Shared `chart-kit.tsx` holds the conventions in one place:
+  the "ledger-slip" tooltip, the partial-month solid/dashed split, zero-baseline,
+  persona-safe colours, `formatMoney` passthrough, and a screen-reader data table.
+- **Time-series migrated, hand-rolled SVG retired.** `r-line-chart`, `r-area-chart`
+  (gradient + hatch + dashed tail + milestones), and the sparkline are Recharts.
+  Deleted `line-chart.tsx` / `area-chart.tsx` and their structural tests.
+- **Categorical charts:** `r-bar-chart` (grouped/single, H/V) and `r-donut-chart`
+  added; the Compare tab's grouped bar now uses the library (hover tooltips).
+- **Studio chart-builder** (`/studio`): declarative `ChartSpec` + pure resolver +
+  one `ChartRenderer`; six measures, NL-summary, live frosted preview, invalid
+  kinds disabled-with-reason, pin to a reorderable localStorage "My Charts" board.
+- **Interactivity + a11y:** crosshair + ledger-slip tooltip + clickable legend +
+  Recharts `accessibilityLayer` (keyboard) + SR data tables on every migrated chart.
+- **Bundle:** routes are lazy-loaded; main chunk 254 → 106 kB gzip, Recharts split
+  into chart-page chunks. The 500 kB warning is gone.
+
+**Kept hand-rolled, deliberately:** the diverging **tornado**, the **stacked
+progress-tracks**, and the **dot-matrix isotype** — labelled, accessible
+micro-visuals a charting library does not draw better (advisor-recommended).
+
+**Follow-ups:** live browser pass on the interactions; optional add-pinned-chart-
+to-Overview; CSV/PNG export from Studio.
+
 _Sources: dashboard-graphs-advisor report (in-house code audit) + 2026 library research
 (LogRocket, PkgPulse, Chart.ts, usedatabrain, shadcn/ui docs, airbnb/visx, recharts releases)._

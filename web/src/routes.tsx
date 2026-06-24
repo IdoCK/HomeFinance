@@ -1,18 +1,24 @@
+import { lazy, Suspense } from "react";
 import { createBrowserRouter, Outlet, useLocation } from "react-router-dom";
 import { AppSidebar } from "@/components/app-sidebar";
-import Overview from "@/pages/Overview";
-import Transactions from "@/pages/Transactions";
-import Analysis from "@/pages/Analysis";
-import Budgets from "@/pages/Budgets";
-import Recurring from "@/pages/Recurring";
-import Goals from "@/pages/Goals";
-import NetWorth from "@/pages/NetWorth";
-import Settings from "@/pages/Settings";
-import Insights from "@/pages/Insights";
-import Import from "@/pages/Import";
-import Events from "@/pages/Events";
-import Studio from "@/pages/Studio";
-import Guide from "@/pages/Guide";
+import { Loading } from "@/components/loading";
+
+// Lazy per-route chunks: Recharts (heavy) loads only with the chart pages, and
+// chart-free pages (Transactions, Settings, Import…) no longer carry it. Keeps
+// the initial bundle small and navigation chunks focused.
+const Overview = lazy(() => import("@/pages/Overview"));
+const Transactions = lazy(() => import("@/pages/Transactions"));
+const Analysis = lazy(() => import("@/pages/Analysis"));
+const Budgets = lazy(() => import("@/pages/Budgets"));
+const Recurring = lazy(() => import("@/pages/Recurring"));
+const Goals = lazy(() => import("@/pages/Goals"));
+const NetWorth = lazy(() => import("@/pages/NetWorth"));
+const Settings = lazy(() => import("@/pages/Settings"));
+const Insights = lazy(() => import("@/pages/Insights"));
+const Import = lazy(() => import("@/pages/Import"));
+const Events = lazy(() => import("@/pages/Events"));
+const Studio = lazy(() => import("@/pages/Studio"));
+const Guide = lazy(() => import("@/pages/Guide"));
 
 function AppLayout() {
   const loc = useLocation();
@@ -27,7 +33,9 @@ function AppLayout() {
             of forcing the page wider than the window. maxWidth keeps line lengths
             sane on very wide monitors. */}
         <div className="fl-page" key={loc.pathname} style={{ minWidth: 0, maxWidth: 1200, margin: "0 auto" }}>
-          <Outlet />
+          <Suspense fallback={<Loading rows={4} />}>
+            <Outlet />
+          </Suspense>
         </div>
       </main>
     </div>
