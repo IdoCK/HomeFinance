@@ -1,0 +1,203 @@
+/* Guide content styles — ported from docs/USER_GUIDE.html and scoped under
+   .guide-doc so the in-app User Guide renders as native page content (no iframe,
+   no inner frame). Every color/token (--fl-*, --persona-*, --showpiece,
+   --radius-card …) already lives in the app's :root (web/src/index.css) and
+   flips with the .dark theme, so this content tracks light/dark automatically.
+   --card-shadow is the one guide-local token, defined here. */
+.guide-doc {
+  --card-shadow: 0 10px 30px -22px rgba(22, 24, 29, 0.35);
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+  color: var(--fl-ink);
+}
+
+/* Hero — the page thesis: the showpiece gradient, the one bold element. */
+.guide-doc .hero {
+  background: var(--showpiece);
+  color: #fff;
+  border-radius: var(--radius-card);
+  padding: 24px 26px;
+  margin-bottom: 22px;
+  box-shadow: 0 16px 40px -26px rgba(168, 85, 247, 0.6);
+}
+.guide-doc .hero h1 {
+  margin: 0 0 6px;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.guide-doc .hero p {
+  margin: 0;
+  font-size: 14.5px;
+  max-width: 62ch;
+  opacity: 0.96;
+}
+.guide-doc .hero .lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.18);
+  padding: 5px 11px;
+  border-radius: 999px;
+  backdrop-filter: blur(4px);
+}
+
+.guide-doc section {
+  scroll-margin-top: 18px;
+}
+.guide-doc h2 {
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 30px 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.guide-doc h2 .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--persona-joint);
+  flex: none;
+}
+.guide-doc h3 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  letter-spacing: -0.01em;
+}
+
+.guide-doc .card {
+  background: var(--fl-card);
+  border: 1px solid var(--fl-line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--card-shadow);
+  padding: 16px 18px;
+  margin-bottom: 12px;
+}
+.guide-doc .card p {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.guide-doc .card p:last-child {
+  margin-bottom: 0;
+}
+.guide-doc .card.compact {
+  padding: 14px 16px;
+}
+
+.guide-doc .grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 760px) {
+  .guide-doc .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.guide-doc ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+.guide-doc li {
+  font-size: 14px;
+  margin: 4px 0;
+}
+.guide-doc p {
+  font-size: 14px;
+}
+.guide-doc a.inline {
+  color: var(--persona-you-deep);
+}
+
+.guide-doc code,
+.guide-doc .kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  background: var(--fl-frame);
+  border: 1px solid var(--fl-line);
+  border-radius: 7px;
+  padding: 1.5px 7px;
+  white-space: nowrap;
+}
+.guide-doc .lead {
+  color: var(--fl-muted);
+  font-size: 14px;
+}
+
+.guide-doc .pill {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--fl-line);
+  background: var(--fl-frame);
+  color: var(--fl-ink);
+}
+.guide-doc .pill.you {
+  color: var(--persona-you-deep);
+  border-color: var(--persona-you);
+}
+.guide-doc .pill.spouse {
+  color: var(--persona-spouse);
+  border-color: var(--persona-spouse);
+}
+.guide-doc .pill.joint {
+  background: var(--persona-joint);
+  color: #fff;
+  border: none;
+}
+
+.guide-doc .note {
+  border-left: 3px solid var(--saved);
+  background: color-mix(in srgb, var(--saved) 7%, var(--fl-card));
+  padding: 12px 16px;
+  border-radius: 0 12px 12px 0;
+  margin: 10px 0;
+  font-size: 13.5px;
+}
+.guide-doc .note.privacy {
+  border-left-color: var(--pos);
+  background: color-mix(in srgb, var(--pos) 8%, var(--fl-card));
+}
+.guide-doc .note strong {
+  font-weight: 700;
+}
+
+.guide-doc table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.guide-doc th,
+.guide-doc td {
+  text-align: left;
+  padding: 9px 8px;
+  border-bottom: 1px solid var(--fl-line);
+  vertical-align: top;
+}
+.guide-doc th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fl-muted);
+  font-weight: 700;
+}
+.guide-doc td code {
+  white-space: normal;
+}
+
+.guide-doc .footer {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid var(--fl-line);
+  font-size: 12px;
+  color: var(--fl-muted);
+}
