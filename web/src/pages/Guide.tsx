@@ -72,13 +72,14 @@ export default function Guide() {
           })}
         </nav>
 
-        {/* Embedded guide content (its own scroll region, decoupled from the app) */}
-        <section className="frosted-card" style={{ flex: 1, minWidth: 0, padding: 0, overflow: "hidden" }}>
+        {/* Embedded guide content — a plain page section with its own scroll
+            region (no card chrome; the guide is the page, not a widget on it). */}
+        <section style={{ flex: 1, minWidth: 0 }}>
           <iframe
             ref={iframeRef}
             src={GUIDE_SRC}
             title="User Guide"
-            style={{ display: "block", width: "100%", height: "calc(100vh - 130px)", border: "none", borderRadius: "inherit" }}
+            style={{ display: "block", width: "100%", height: "calc(100vh - 130px)", border: "none" }}
           />
         </section>
       </div>

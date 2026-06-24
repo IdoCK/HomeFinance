@@ -46,7 +46,6 @@ export function AppSidebar() {
 
   return (
     <aside
-      data-persona-seam={persona}
       style={{
         width: 224, padding: "18px 14px", display: "flex", flexDirection: "column", gap: 4,
         flex: "none", height: "100vh", overflowY: "auto",
