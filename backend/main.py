@@ -3,13 +3,14 @@ from pathlib import Path
 
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from modules import database as db
 from backend.api import analysis, budgets, categories, events, fx, goals, imports, insights, networth, overview, people, recurring, transactions, vendors
 
 DIST_DIR = Path(__file__).resolve().parent.parent / "web" / "dist"
+GUIDE_FILE = Path(__file__).resolve().parent.parent / "docs" / "USER_GUIDE.html"
 
 health = APIRouter()
 
@@ -46,6 +47,12 @@ def create_app() -> FastAPI:
     app.include_router(events.router, prefix="/api")
     app.include_router(analysis.router, prefix="/api")
     app.include_router(fx.router, prefix="/api")
+
+    # Standalone user guide (docs/USER_GUIDE.html). Registered BEFORE the catch-all
+    # SPA mount at "/" so it wins; reachable at /guide in both dev and production.
+    @app.get("/guide", include_in_schema=False)
+    def guide():
+        return FileResponse(GUIDE_FILE, media_type="text/html")
 
     # Production: serve the built SPA from web/dist when it exists. Absent in dev,
     # where there's no frontend yet -- send the bare root to the API docs so

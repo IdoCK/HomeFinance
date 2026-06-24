@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Household Finance — User Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  /* ---- Frosted Ledger tokens, mirrored from the app (web/src/index.css). ---- */
+  :root {
+    --fl-canvas: #E5E6EA;
+    --fl-frame:  #F6F7F9;
+    --fl-card:   #FFFFFF;
+    --fl-line:   #ECEDF0;
+    --fl-ink:    #16181D;
+    --fl-muted:  #8A8F98;
+    --persona-you: #3B82F6;
+    --persona-you-deep: #2563EB;
+    --persona-spouse: #EC4899;
+    --persona-joint: linear-gradient(90deg, var(--persona-you), var(--persona-spouse));
+    --pos: #22C55E;
+    --neg: #EF4444;
+    --saved: #A855F7;
+    --showpiece: linear-gradient(120deg, #FDBA74, #F472B6, #A855F7, #3B82F6);
+    --brand: linear-gradient(135deg, #FBBF24, #EC4899 55%, #3B82F6);
+    --radius-card: 18px;
+    --card-shadow: 0 10px 30px -22px rgba(22,24,29,.35);
+    --frame-shadow: 0 24px 60px -34px rgba(22,24,29,.33);
+  }
+  /* Dark token set (spec §13). Applied by system preference OR explicit toggle. */
+  @media (prefers-color-scheme: dark) {
+    html[data-theme="auto"] {
+      --fl-canvas: #0B0C0F; --fl-frame: #16181D; --fl-card: #1C1F26;
+      --fl-line: #2A2E37; --fl-ink: #F6F7F9; --fl-muted: #8A8F98;
+    }
+  }
+  html[data-theme="dark"] {
+    --fl-canvas: #0B0C0F; --fl-frame: #16181D; --fl-card: #1C1F26;
+    --fl-line: #2A2E37; --fl-ink: #F6F7F9; --fl-muted: #8A8F98;
+  }
+
+  * { box-sizing: border-box; }
+  html { font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif; }
+  body {
+    margin: 0;
+    background: var(--fl-canvas);
+    color: var(--fl-ink);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* The floating rounded frame, exactly like routes.tsx AppLayout. */
+  .frame {
+    display: flex;
+    max-width: 1080px;
+    margin: 16px auto;
+    min-height: calc(100vh - 32px);
+    background: var(--fl-frame);
+    border-radius: 22px;
+    overflow: hidden;
+    box-shadow: var(--frame-shadow);
+  }
+
+  /* ---- Sidebar = table of contents, echoing app-sidebar.tsx. ---- */
+  aside {
+    width: 232px; flex: none; padding: 18px 14px;
+    position: sticky; top: 0; align-self: flex-start;
+    max-height: 100vh; overflow-y: auto;
+    position: relative;
+  }
+  aside::after { /* persona seam (joint gradient) */
+    content: ""; position: absolute; top: 0; bottom: 0; right: 0; width: 2px;
+    background: var(--persona-joint);
+  }
+  .brand {
+    display: flex; align-items: center; gap: 9px;
+    font-weight: 800; font-size: 16px; letter-spacing: -0.02em;
+    padding: 2px 6px 16px;
+  }
+  .brand .mark {
+    width: 24px; height: 24px; border-radius: 8px; flex: none;
+    background: var(--brand);
+    box-shadow: 0 4px 10px -3px rgba(236,72,153,.53);
+  }
+  .toc-group {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase; color: #94A3B8; margin: 12px 8px 4px;
+  }
+  aside nav { display: flex; flex-direction: column; gap: 1px; }
+  aside nav a {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; font-weight: 500; padding: 8px 11px;
+    border-radius: 11px; text-decoration: none; color: #4B5059;
+  }
+  html[data-theme="dark"] aside nav a,
+  html[data-theme="auto"] aside nav a { color: var(--fl-muted); }
+  aside nav a:hover { background: var(--fl-card); color: var(--fl-ink); }
+  aside nav a .ico { width: 16px; text-align: center; opacity: .85; flex: none; }
+  .back {
+    margin-top: 14px; display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--fl-muted); text-decoration: none;
+    padding: 8px; border-radius: 10px;
+  }
+  .back:hover { background: var(--fl-card); }
+  .theme-toggle {
+    margin-top: 4px; font-size: 10.5px; color: var(--fl-muted);
+    background: none; border: none; cursor: pointer; padding: 8px;
+    text-align: left; display: flex; align-items: center; gap: 6px;
+    font-family: inherit;
+  }
+
+  /* ---- Main content column. ---- */
+  main { flex: 1; min-width: 0; padding: 22px 28px 40px; }
+  .hero {
+    background: var(--showpiece);
+    color: #fff; border-radius: var(--radius-card);
+    padding: 24px 26px; margin-bottom: 22px;
+    box-shadow: 0 16px 40px -26px rgba(168,85,247,.6);
+  }
+  .hero h1 { margin: 0 0 6px; font-size: 30px; font-weight: 800; letter-spacing: -0.03em; }
+  .hero p { margin: 0; font-size: 14.5px; max-width: 62ch; opacity: .96; }
+  .hero .lock {
+    display: inline-flex; align-items: center; gap: 6px; margin-top: 14px;
+    font-size: 11.5px; font-weight: 600; background: rgba(255,255,255,.18);
+    padding: 5px 11px; border-radius: 999px; backdrop-filter: blur(4px);
+  }
+
+  section { scroll-margin-top: 16px; }
+  h2 {
+    font-size: 21px; font-weight: 800; letter-spacing: -0.02em;
+    margin: 30px 0 12px; display: flex; align-items: center; gap: 9px;
+  }
+  h2 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--persona-joint); flex: none; }
+  h3 { font-size: 15px; font-weight: 700; margin: 0 0 4px; letter-spacing: -0.01em; }
+
+  .card {
+    background: var(--fl-card);
+    border: 1px solid var(--fl-line);
+    border-radius: var(--radius-card);
+    box-shadow: var(--card-shadow);
+    padding: 16px 18px; margin-bottom: 12px;
+  }
+  .card p { margin: 0 0 8px; font-size: 14px; }
+  .card p:last-child { margin-bottom: 0; }
+  .card.compact { padding: 14px 16px; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+
+  ul { margin: 6px 0 0; padding-left: 20px; }
+  li { font-size: 14px; margin: 4px 0; }
+  p { font-size: 14px; }
+  a.inline { color: var(--persona-you-deep); }
+
+  code, .kbd {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12.5px; background: var(--fl-frame);
+    border: 1px solid var(--fl-line); border-radius: 7px;
+    padding: 1.5px 7px; white-space: nowrap;
+  }
+  .lead { color: var(--fl-muted); font-size: 14px; }
+
+  .pill {
+    display: inline-block; font-size: 11.5px; font-weight: 600;
+    padding: 3px 10px; border-radius: 999px; border: 1px solid var(--fl-line);
+    background: var(--fl-frame); color: var(--fl-ink);
+  }
+  .pill.you { color: var(--persona-you-deep); border-color: var(--persona-you); }
+  .pill.spouse { color: var(--persona-spouse); border-color: var(--persona-spouse); }
+  .pill.joint { background: var(--persona-joint); color: #fff; border: none; }
+
+  .note {
+    border-left: 3px solid var(--saved);
+    background: color-mix(in srgb, var(--saved) 7%, var(--fl-card));
+    padding: 12px 16px; border-radius: 0 12px 12px 0; margin: 10px 0;
+    font-size: 13.5px;
+  }
+  .note.privacy { border-left-color: var(--pos);
+    background: color-mix(in srgb, var(--pos) 8%, var(--fl-card)); }
+  .note strong { font-weight: 700; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--fl-line); vertical-align: top; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fl-muted); font-weight: 700; }
+  td code { white-space: normal; }
+
+  .footer { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--fl-line);
+    font-size: 12px; color: var(--fl-muted); }
+
+  @media (max-width: 720px) {
+    .frame { flex-direction: column; margin: 8px; border-radius: 18px; }
+    aside { width: auto; position: static; max-height: none; }
+    aside::after { display: none; }
+    aside nav { flex-flow: row wrap; }
+    main { padding: 18px 16px 32px; }
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+  <!-- ===== Sidebar / table of contents ===== -->
+  <aside>
+    <div class="brand"><span class="mark"></span>Household</div>
+
+    <div class="toc-group">Guide</div>
+    <nav>
+      <a href="#start"><span class="ico">▶</span>Starting the app</a>
+      <a href="#switches"><span class="ico">⇄</span>Person &amp; currency</a>
+    </nav>
+
+    <div class="toc-group">Money pages</div>
+    <nav>
+      <a href="#overview"><span class="ico">▦</span>Overview</a>
+      <a href="#transactions"><span class="ico">≣</span>Transactions</a>
+      <a href="#analysis"><span class="ico">▤</span>Analysis</a>
+      <a href="#budgets"><span class="ico">◔</span>Budgets</a>
+      <a href="#recurring"><span class="ico">↻</span>Recurring</a>
+      <a href="#goals"><span class="ico">◎</span>Goals</a>
+      <a href="#networth"><span class="ico">↗</span>Net Worth</a>
+      <a href="#events"><span class="ico">⚑</span>Events</a>
+    </nav>
+
+    <div class="toc-group">Utility</div>
+    <nav>
+      <a href="#import"><span class="ico">＋</span>Import</a>
+      <a href="#insights"><span class="ico">✦</span>AI Insights</a>
+      <a href="#settings"><span class="ico">⚙</span>Settings</a>
+      <a href="#data"><span class="ico">▢</span>Your data</a>
+    </nav>
+
+    <a class="back" href="/">← Back to the app</a>
+    <button class="theme-toggle" id="themeToggle">🔒 Local only · ☾ Toggle theme</button>
+  </aside>
+
+  <!-- ===== Content ===== -->
+  <main>
+    <div class="hero">
+      <h1>User Guide</h1>
+      <p>A private, local finance dashboard for two people. Upload your bank,
+      credit-card and Amazon exports; the app sorts every transaction, draws
+      charts, and tracks budgets, goals and net worth.</p>
+      <span class="lock">🔒 Everything stays on your machine — nothing is uploaded unless you ask for AI insights.</span>
+    </div>
+
+    <!-- Start -->
+    <section id="start">
+      <h2><span class="dot"></span>Starting the app</h2>
+      <div class="card">
+        <p>Open a terminal in the project folder, start the server, then open the
+        address in your browser:</p>
+        <p><code>python run_api.py</code> &nbsp;→&nbsp; <code>http://localhost:8000</code></p>
+        <p class="lead">If the page doesn't load, whoever set up the app needs to build the
+        web frontend once with <code>npm --prefix web run build</code>.</p>
+      </div>
+    </section>
+
+    <!-- Switches -->
+    <section id="switches">
+      <h2><span class="dot"></span>The basics: person &amp; currency</h2>
+      <p class="lead">Every page reacts to two switches at the top of the left sidebar.</p>
+      <div class="grid">
+        <div class="card">
+          <h3>Person</h3>
+          <p>Switch between
+            <span class="pill you">Ido</span>
+            <span class="pill spouse">Aviv</span>
+            <span class="pill joint">Joint</span>.
+          Pick a person to see only their money; <strong>Joint</strong> merges both
+          for shared spending, savings, goals and net worth.</p>
+          <p class="lead">"Ido" and "Aviv" are defaults — rename them on Settings.</p>
+        </div>
+        <div class="card">
+          <h3>Display currency</h3>
+          <p>Toggle <span class="pill">$ USD</span> <span class="pill">₪ ILS</span>.
+          Every number on screen switches currency using stored exchange rates.
+          This only changes the <em>display</em> — your original amounts are never altered.</p>
+          <p class="lead">A light / dark mode toggle sits at the bottom of the sidebar.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Overview -->
+    <section id="overview">
+      <h2><span class="dot"></span>Overview</h2>
+      <div class="card">
+        <p>Your home screen. Shows this month's income, spending and savings rate, a
+        cash-flow chart (toggle between <strong>Net</strong> per month and a longer
+        <strong>Trend</strong> of income vs. spend with cumulative savings), and your
+        top spending categories. Use the arrows to step between months — the current,
+        incomplete month is flagged so you don't misread a partial month as a drop.</p>
+      </div>
+    </section>
+
+    <!-- Transactions -->
+    <section id="transactions">
+      <h2><span class="dot"></span>Transactions</h2>
+      <div class="card">
+        <p>The full, searchable list of every transaction for the selected person.</p>
+        <ul>
+          <li><strong>Search</strong> by description; filter by category, by
+          included/excluded, or by currency.</li>
+          <li>Click a transaction's category to <strong>recategorize</strong> it.</li>
+          <li>Toggle a row's <strong>included</strong> flag to keep it in the list but
+          exclude it from all totals — used automatically for things like credit-card
+          bill payments, which would otherwise double-count.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Analysis -->
+    <section id="analysis">
+      <h2><span class="dot"></span>Analysis</h2>
+      <div class="card">
+        <p>Deeper slicing of your spending, in three tabs:</p>
+        <ul>
+          <li><strong>Explore</strong> — drill down from parent groups → categories →
+          individual vendors. Vendor groups collapse merchant-name variants
+          (<code>AMAZON MKTPL</code>, <code>Amazon.com</code> → "Amazon") into one line.</li>
+          <li><strong>Compare</strong> — put two slices side by side (two time windows,
+          weekdays vs. weekends, or two events).</li>
+          <li><strong>People</strong> — see where Ido and Aviv overlap and differ.</li>
+        </ul>
+        <p class="lead">You can also filter this page by Events (below).</p>
+      </div>
+    </section>
+
+    <!-- Budgets -->
+    <section id="budgets">
+      <h2><span class="dot"></span>Budgets</h2>
+      <div class="card">
+        <p>Set a <strong>monthly cap</strong> per category. The page shows how much
+        you've budgeted this month and how actual spending tracks against each cap.
+        Budgets can be per-person or household (Joint).</p>
+      </div>
+    </section>
+
+    <!-- Recurring -->
+    <section id="recurring">
+      <h2><span class="dot"></span>Recurring</h2>
+      <div class="card">
+        <p>Automatically detects <strong>recurring charges</strong> (subscriptions,
+        rent, bills) from your history, each with a confidence indicator. Shows what's
+        <strong>committed each month</strong>, which bills are <strong>due this
+        month</strong>, and flags <strong>anomalies</strong> — a recurring charge that
+        came in higher than usual.</p>
+      </div>
+    </section>
+
+    <!-- Goals -->
+    <section id="goals">
+      <h2><span class="dot"></span>Goals</h2>
+      <div class="card">
+        <p>Savings goals, each with a target amount, optional target date, a
+        <strong>short-</strong> or <strong>long-term</strong> horizon, and optional
+        private notes. Each goal shows percent complete and how much you'd need to save
+        per month to hit the target on time. Goals can be personal or shared (Joint).</p>
+      </div>
+    </section>
+
+    <!-- Net Worth -->
+    <section id="networth">
+      <h2><span class="dot"></span>Net Worth</h2>
+      <div class="card">
+        <p>Tracks <strong>accounts</strong> (checking, savings, investments, property =
+        assets; credit cards, loans = liabilities) and your net worth over time.</p>
+        <ul>
+          <li><strong>Add an account</strong> with its current balance.</li>
+          <li><strong>Record a balance</strong> as of any date to build a history.</li>
+          <li><strong>Populate</strong> balance history automatically from a bank
+          statement you've already imported (uses its running-balance column).</li>
+          <li>Includes a simple <strong>projection</strong> of future net worth from
+          your savings rate and an assumed annual return.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Events -->
+    <section id="events">
+      <h2><span class="dot"></span>Events</h2>
+      <div class="card">
+        <p>Label spans of time or sets of transactions so you can analyze them. Three kinds:</p>
+        <ul>
+          <li><strong>Window</strong> — a date range (a vacation, a move).</li>
+          <li><strong>Recurring</strong> — a rule (paydays, birthdays).</li>
+          <li><strong>Tagged</strong> — a hand-picked set of transactions.</li>
+        </ul>
+        <p>Once an event exists you can filter the Analysis page by it, and manually tag
+        individual transactions to catch stragglers outside the date window.</p>
+      </div>
+    </section>
+
+    <!-- Import -->
+    <section id="import">
+      <h2><span class="dot"></span>Import — getting data in</h2>
+      <div class="card">
+        <p>The Import page is how data gets into the app:</p>
+        <ul>
+          <li>Switch to the <strong>person</strong> the file belongs to.</li>
+          <li>Choose the <strong>source</strong> (Amazon / credit card / bank), pick the
+          <strong>file</strong>, and confirm the <strong>statement currency</strong>.</li>
+          <li>The app shows the <strong>parsed rows</strong> for review — then
+          <strong>commit</strong> to save them.</li>
+        </ul>
+      </div>
+      <div class="grid">
+        <div class="card compact">
+          <h3>Where to get the files</h3>
+          <ul>
+            <li><strong>Amazon</strong> — Order Reports → "Items" report → download CSV.</li>
+            <li><strong>Credit card / bank</strong> — export transactions as CSV from
+            your provider's site.</li>
+          </ul>
+        </div>
+        <div class="card compact">
+          <h3>It handles any layout</h3>
+          <p>A local AI helper running entirely on your machine (no internet) figures
+          out each file's columns, date format, separators and sign convention on its
+          own. The page shows a 🟢/🔴 dot for whether it's ready; if red, files matching
+          a known format still import.</p>
+        </div>
+      </div>
+      <div class="note">
+        <strong>Duplicates are caught.</strong> Re-uploading the same file won't import
+        it twice. You can delete a previously imported file (and its transactions) from
+        the import history. <strong>Internal transfers</strong> like a credit-card bill
+        payment are imported but automatically excluded from totals (shown dimmed) so
+        they don't double-count — you can re-include any row.
+      </div>
+    </section>
+
+    <!-- Insights -->
+    <section id="insights">
+      <h2><span class="dot"></span>AI Insights</h2>
+      <div class="card">
+        <p>Optional. Generates personal-finance coaching from your data.</p>
+        <div class="note privacy">
+          <p><strong>What is sent:</strong> only anonymized aggregates — category
+          totals, monthly spend/savings, month-over-month percentages, and goal-progress
+          percentages. People are labeled "Person A / Person B / Household".</p>
+          <p style="margin:8px 0 0;"><strong>What is never sent:</strong> raw
+          transactions, merchant names, item descriptions, purchase dates, account
+          numbers, real names, or goal notes.</p>
+        </div>
+        <p>Before anything is sent, the page shows you the <strong>exact payload</strong>.
+        With no API key configured the page still works — it just shows that preview
+        instead of calling out.</p>
+      </div>
+    </section>
+
+    <!-- Settings -->
+    <section id="settings">
+      <h2><span class="dot"></span>Settings</h2>
+      <div class="card">
+        <ul>
+          <li><strong>People</strong> — rename the two household members.</li>
+          <li><strong>Money</strong> — set your default display currency.</li>
+          <li><strong>Categories</strong> — define per-person categories with
+          comma-separated <strong>keywords</strong> (e.g. <code>Groceries → whole foods,
+          trader joe, grocery</code>). Imports auto-tag any transaction whose description
+          contains a keyword. Group categories under a <strong>parent</strong> for rollup
+          totals.</li>
+          <li><strong>Vendor groups</strong> — same idea, used to collapse merchant-name
+          variants in the Analysis drill-down.</li>
+        </ul>
+        <p class="lead">The app seeds starter categories and vendor groups for each
+        person, so your first import already gets sorted. Everything is editable, and
+        re-running an import re-tags by your current rules.</p>
+      </div>
+    </section>
+
+    <!-- Data -->
+    <section id="data">
+      <h2><span class="dot"></span>How your data is organized</h2>
+      <div class="card">
+        <p>Everything is stored locally in a single file, <code>data/finance.db</code>:</p>
+        <table>
+          <thead><tr><th>What</th><th>Holds</th></tr></thead>
+          <tbody>
+            <tr><td><strong>People</strong></td><td>the two household members</td></tr>
+            <tr><td><strong>Transactions</strong></td><td>date, description, amount
+              (negative = spend, positive = income), category, source, currency, and an
+              <em>included</em> flag</td></tr>
+            <tr><td><strong>Categories / Vendor groups</strong></td><td>your keyword rules, per person</td></tr>
+            <tr><td><strong>Budgets</strong></td><td>a monthly cap per category</td></tr>
+            <tr><td><strong>Goals</strong></td><td>savings targets with progress</td></tr>
+            <tr><td><strong>Accounts / Snapshots</strong></td><td>net-worth ledger and its history</td></tr>
+            <tr><td><strong>Events</strong></td><td>labeled time windows or transaction sets</td></tr>
+            <tr><td><strong>Imported files</strong></td><td>a record of every file imported (for dedup)</td></tr>
+          </tbody>
+        </table>
+        <p class="lead" style="margin-top:12px;">Refunds are handled intelligently: a
+        credit on a card or Amazon feed reduces that category's spending rather than
+        counting as income.</p>
+      </div>
+      <div class="footer">🔒 Household Finance · all data stays local · <a class="inline" href="/">back to the app</a></div>
+    </section>
+  </main>
+</div>
+
+<script>
+  // Theme toggle: cycle the explicit override (auto → dark → light → auto),
+  // mirroring the app's light/dark switch. Persisted per browser.
+  (function () {
+    var root = document.documentElement;
+    var btn = document.getElementById("themeToggle");
+    var saved = localStorage.getItem("guide-theme");
+    if (saved) root.setAttribute("data-theme", saved);
+    function render() {
+      var t = root.getAttribute("data-theme");
+      var glyph = t === "dark" ? "☀" : "☾";
+      btn.textContent = "🔒 Local only · " + glyph + " Toggle theme";
+    }
+    btn.addEventListener("click", function () {
+      var cur = root.getAttribute("data-theme");
+      var next = cur === "dark" ? "light" : "dark";
+      root.setAttribute("data-theme", next);
+      localStorage.setItem("guide-theme", next);
+      render();
+    });
+    render();
+  })();
+</script>
+</body>
+</html>

@@ -8,7 +8,11 @@ export default defineConfig({
   resolve: { alias: { "@": path.resolve(__dirname, "src") } },
   server: {
     port: 5173,
-    proxy: { "/api": { target: "http://localhost:8000", changeOrigin: true } },
+    proxy: {
+      "/api": { target: "http://localhost:8000", changeOrigin: true },
+      // Standalone user guide is served by the API, not Vite — proxy it in dev.
+      "/guide": { target: "http://localhost:8000", changeOrigin: true },
+    },
   },
   test: {
     environment: "jsdom",
