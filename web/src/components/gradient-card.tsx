@@ -7,13 +7,16 @@ export function GradientCard({
   tag,
   headline,
   children,
+  ariaLabel,
 }: {
   tag?: ReactNode;
   headline?: ReactNode;
   children?: ReactNode;
+  ariaLabel?: string;
 }) {
   return (
     <div
+      aria-label={ariaLabel}
       style={{
         position: "relative",
         borderRadius: "var(--radius-card)",

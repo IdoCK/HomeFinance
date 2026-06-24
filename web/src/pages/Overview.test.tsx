@@ -43,7 +43,7 @@ test("renders headline numbers and category breakdown", async () => {
   expect(screen.getByTestId("income")).toHaveTextContent("$5,000.00");
   expect(screen.getByTestId("spend")).toHaveTextContent("$2,400.00");
   expect(screen.getByText("52%")).toBeInTheDocument();
-  expect(screen.getByText("Housing")).toBeInTheDocument();
+  expect(screen.getAllByText("Housing").length).toBeGreaterThan(0);
   // Safe-to-spend hero leads the page with the present-month answer.
   expect(screen.getByTestId("safe-to-spend")).toHaveTextContent("$4,685.00");
   // The "This month" spend bar splits committed vs discretionary.
@@ -142,7 +142,7 @@ test("Trend view overlays contributions against net worth (the gap = returns)", 
       { date: "2026-03-31", assets: 24000, liabilities: 0, net: 24000 },
     ],
   });
-  render(<Overview />);
+  render(<Overview />, { wrapper: MemoryRouter });
   await waitFor(() => expect(screen.getByTestId("net")).toBeInTheDocument());
   // Switch the cash-flow card to the Trend view.
   await userEvent.click(screen.getByRole("button", { name: "Trend" }));
@@ -170,10 +170,64 @@ test("Trend view hides the net-worth overlay without enough snapshots", async ()
     summary: { assets: 20000, liabilities: 0, net: 20000 }, delta: null, accounts: [], split: null,
     trend: [{ date: "2026-02-28", assets: 20000, liabilities: 0, net: 20000 }],
   });
-  render(<Overview />);
+  render(<Overview />, { wrapper: MemoryRouter });
   await waitFor(() => expect(screen.getByTestId("net")).toBeInTheDocument());
   await userEvent.click(screen.getByRole("button", { name: "Trend" }));
   expect(screen.queryByLabelText(/contributions vs(\.)? net worth/i)).toBeNull();
+});
+
+test("AI insights card leads with an insight, not a duplicate net", async () => {
+  getOverview.mockResolvedValue({
+    ...base,
+    alerts: [{ category: "Eating out", current: 600, baseline: 100, delta: 500, pct: 150, direction: "up", new: false }],
+  });
+  render(<Overview />);
+  const ai = await screen.findByLabelText("AI insights");
+  // The card leads with the insight (the month's biggest spending shift)…
+  expect(within(ai).getAllByText(/eating out/i).length).toBeGreaterThanOrEqual(1);
+  expect(within(ai).getByText(/versus your usual/i)).toBeInTheDocument();
+  // …and never repeats the net figure.
+  expect(within(ai).queryByText(/2,600/)).toBeNull();
+});
+
+test("single-persona view shows a ranked category bar with amounts", async () => {
+  getOverview.mockResolvedValue(base); // single persona: no split
+  render(<Overview />);
+  await waitFor(() => expect(screen.getByText("Top categories")).toBeInTheDocument());
+  const card = screen.getByText("Top categories").closest("section") as HTMLElement;
+  // Ranked bar (StackedBars) shows each category with its amount.
+  expect(within(card).getByText("Housing")).toBeInTheDocument();
+  expect(within(card).getByText("$2,000.00")).toBeInTheDocument();
+});
+
+test("Joint view keeps the who-spent-what dot matrix", async () => {
+  getOverview.mockResolvedValue({
+    ...base,
+    split: [
+      { person_id: 1, name: "Ido", spend: 1500 },
+      { person_id: 2, name: "Aviv", spend: 900 },
+    ],
+  });
+  render(<Overview />);
+  await waitFor(() => expect(screen.getByText("Who spent what")).toBeInTheDocument());
+  const card = screen.getByText("Who spent what").closest("section") as HTMLElement;
+  expect(within(card).getByText("Ido")).toBeInTheDocument();
+  expect(within(card).getByText("Aviv")).toBeInTheDocument();
+});
+
+test("Trend view links out to Analysis for deeper trends", async () => {
+  getOverview.mockResolvedValue({
+    ...base,
+    series: [
+      { month: "2026-04", income: 4000, spend: 3000, net: 1000, savings_rate: 0.25, complete: true },
+      { month: "2026-05", income: 5000, spend: 2400, net: 2600, savings_rate: 0.52, complete: true },
+    ],
+  });
+  render(<Overview />, { wrapper: MemoryRouter });
+  await waitFor(() => expect(screen.getByTestId("net")).toBeInTheDocument());
+  await userEvent.click(screen.getByRole("button", { name: "Trend" }));
+  const link = await screen.findByRole("link", { name: /compare months & categories in analysis/i });
+  expect(link).toHaveAttribute("href", "/analysis");
 });
 
 test("renders spending alert chips", async () => {

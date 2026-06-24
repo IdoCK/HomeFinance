@@ -167,11 +167,32 @@ export default function Overview() {
       ? { tone: "good" as const, icon: "✓", text: `You're in the black${!data.complete ? " so far" : ""} — saving ${Math.round(rate * 100)}% of income.` }
       : { tone: "bad" as const, icon: "!", text: `Spending is outpacing income${!data.complete ? " so far" : ""} this month.` };
 
-  // Who-spent-what: Joint → per-person split; single-persona → top category split.
-  const segments: Segment[] =
+  // Who-spent-what is a Joint-only question: the dot-matrix splits the month's
+  // spend by person. In a single-persona view there's no "who", so we show a
+  // compact ranked bar of that person's top categories instead (and leave the
+  // category-over-time drill-down to Analysis).
+  const personaSegments: Segment[] =
     data.split != null
       ? data.split.map((s) => ({ value: s.spend, color: personColor(s.name), label: s.name }))
-      : cats.slice(0, 4).map(([name, value], i) => ({ value, color: CAT_PALETTE[i % CAT_PALETTE.length], label: name }));
+      : [];
+  const maxCat = cats[0]?.[1] ?? 1;
+  const catRows = cats.slice(0, 5).map(([name, value], i) => ({
+    label: name, value, pct: (value / maxCat) * 100, color: CAT_PALETTE[i % CAT_PALETTE.length],
+  }));
+
+  // AI-Insights teaser: lead with a genuine insight (the month's biggest spending
+  // shift, else the top category) rather than a third copy of the net number.
+  const topAlert = data.alerts[0];
+  const topCat = cats[0];
+  const aiHeadline = topAlert?.category ?? (topCat ? topCat[0] : undefined);
+  const aiBody =
+    rate == null
+      ? "Import a full month to unlock insights. Only anonymized aggregates ever leave this device."
+      : topAlert
+        ? `${topAlert.category} is ${topAlert.direction === "up" ? "up" : "down"}${topAlert.pct != null ? ` ${Math.abs(topAlert.pct)}%` : ""} versus your usual — your biggest shift this month. Tap AI Insights for the anonymized breakdown.`
+        : topCat
+          ? `${topCat[0]} led your spending at ${formatMoney(topCat[1])} this month. Tap AI Insights for the anonymized breakdown.`
+          : `You saved ${Math.round(rate * 100)}% of income this month. Tap AI Insights to see the anonymized breakdown before sending.`;
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
@@ -270,7 +291,6 @@ export default function Overview() {
           <div style={{ display: "flex", gap: 26, marginBottom: 8 }}>
             <Kpi label="In" testId="income"><Money value={data.income} /></Kpi>
             <Kpi label="Out" testId="spend"><Money value={data.spend} /></Kpi>
-            <Kpi label="Net" testId="net" big><Money value={data.net} colored /></Kpi>
           </div>
           {cashView === "net" ? (
             <AreaChart points={areaPoints} />
@@ -299,6 +319,11 @@ export default function Overview() {
                   </div>
                 </div>
               )}
+              {/* Overview owns "this month"; deeper multi-month/category trends
+                  live in Analysis. Redirect rather than duplicate that surface. */}
+              <Link to="/analysis" style={{ display: "inline-block", marginTop: 12, fontSize: 12, fontWeight: 600, color: "var(--persona-solid)", textDecoration: "none" }}>
+                Compare months & categories in Analysis →
+              </Link>
             </>
           )}
         </section>
@@ -306,7 +331,7 @@ export default function Overview() {
         <section className="frosted-card" style={CARD}>
           <CardHeaderRow>This month</CardHeaderRow>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "2px 0 6px" }}>
-            <span style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1 }}>
+            <span data-testid="net" style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1 }}>
               <Money value={data.net} colored />
             </span>
             {delta != null && (deltaTrustworthy ? (
@@ -352,18 +377,21 @@ export default function Overview() {
 
         <section className="frosted-card" style={CARD}>
           <CardHeaderRow>{data.split != null ? "Who spent what" : "Top categories"}</CardHeaderRow>
-          {segments.length > 0
-            ? <DotMatrix segments={segments} />
-            : <div style={{ fontSize: 12, color: "var(--fl-muted)" }}>No spending yet.</div>}
+          {data.split != null
+            ? (personaSegments.length > 0
+                ? <DotMatrix segments={personaSegments} />
+                : <div style={{ fontSize: 12, color: "var(--fl-muted)" }}>No spending yet.</div>)
+            : (catRows.length > 0
+                ? <StackedBars rows={catRows} />
+                : <div style={{ fontSize: 12, color: "var(--fl-muted)" }}>No spending yet.</div>)}
         </section>
 
         <GradientCard
+          ariaLabel="AI insights"
           tag={<><span aria-hidden>✦</span> AI Insights</>}
-          headline={<Money value={data.net} />}
+          headline={aiHeadline}
         >
-          {rate == null
-            ? "Import a full month to unlock insights. Only anonymized aggregates ever leave this device."
-            : `You saved ${Math.round(rate * 100)}% of income this month. Tap AI Insights to see the anonymized breakdown before sending.`}
+          {aiBody}
         </GradientCard>
       </div>
     </div>
