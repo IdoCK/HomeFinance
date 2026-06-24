@@ -188,9 +188,13 @@ def init_db():
         # touches rows still at the old defaults, so user-chosen names are never
         # clobbered. Must run BEFORE the seed below so the INSERT OR IGNORE
         # collides on the new (now-existing) names instead of adding two more
-        # people.
-        c.execute("UPDATE people SET name='Ido' WHERE name='You'")
-        c.execute("UPDATE people SET name='Aviv' WHERE name='Spouse'")
+        # people. Guarded by NOT EXISTS so a DB that already carries the
+        # canonical name (plus a stray legacy row from a re-seed) doesn't hit a
+        # UNIQUE(name) collision on upgrade — the stray is simply left in place.
+        c.execute("UPDATE people SET name='Ido' WHERE name='You' "
+                  "AND NOT EXISTS (SELECT 1 FROM people WHERE name='Ido')")
+        c.execute("UPDATE people SET name='Aviv' WHERE name='Spouse' "
+                  "AND NOT EXISTS (SELECT 1 FROM people WHERE name='Aviv')")
         # Seed the two members once.
         for name in ("Ido", "Aviv"):
             c.execute("INSERT OR IGNORE INTO people(name) VALUES (?)", (name,))
