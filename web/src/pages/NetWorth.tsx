@@ -40,7 +40,7 @@ function WealthStats({ g }: { g: NetWorthGrowth }) {
   const hasRunway = g.runway_months != null;
   if (!hasTrailing && !hasCagr && !hasFire && !hasRunway) return null;
 
-  const signColor = (n: number) => (n >= 0 ? "var(--pos)" : "var(--neg)");
+  const signColor = (n: number) => (n >= 0 ? "var(--pos-ink)" : "var(--neg-ink)");
   const signed = (n: number) => `${n >= 0 ? "+" : "−"}${formatMoney(Math.abs(n))}`;
 
   return (
@@ -147,7 +147,7 @@ function AccountRow({ a, onSave, onRemove, onChanged }: {
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <span style={{ fontWeight: 700 }}>{a.name}</span>
         <span style={badge}>{a.kind.replace("_", " ")}</span>
-        <span style={{ ...badge, color: asset ? "var(--pos)" : "var(--neg)", borderColor: "currentColor" }}>
+        <span style={{ ...badge, color: asset ? "var(--pos-ink)" : "var(--neg-ink)", borderColor: "currentColor" }}>
           {asset ? "asset" : "liability"}
         </span>
         {history && history.length >= 2 && (
@@ -244,7 +244,7 @@ function ManagePanel({ a, onDone }: { a: Account; onDone: () => void }) {
               ))}
             </div>
             <button onClick={populate} disabled={picked.size === 0} style={{ ...pill, justifySelf: "start", fontWeight: 700, color: "var(--persona-solid)" }}>Populate</button>
-            {note && <span style={{ fontSize: 12, color: "var(--neg)" }}>{note}</span>}
+            {note && <span style={{ fontSize: 12, color: "var(--neg-ink)" }}>{note}</span>}
           </>
         )}
       </div>
@@ -300,7 +300,7 @@ export default function NetWorth() {
   if (!data) return <Loading />;
 
   const { summary, delta, accounts, trend, split } = data;
-  const deltaColor = delta == null ? "var(--fl-muted)" : delta > 0 ? "var(--pos)" : delta < 0 ? "var(--neg)" : "var(--fl-muted)";
+  const deltaColor = delta == null ? "var(--fl-muted)" : delta > 0 ? "var(--pos-ink)" : delta < 0 ? "var(--neg-ink)" : "var(--fl-muted)";
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -399,7 +399,7 @@ export default function NetWorth() {
             {KINDS.map((k) => <option key={k} value={k}>{k.replace("_", " ")}</option>)}
           </select>
           <input type="number" placeholder="Balance" value={balance} onChange={(e) => setBalance(e.target.value)} style={{ ...pill, width: 140 }} />
-          <span style={{ ...badge, color: isAssetKind(kind) ? "var(--pos)" : "var(--neg)", borderColor: "currentColor" }}>
+          <span style={{ ...badge, color: isAssetKind(kind) ? "var(--pos-ink)" : "var(--neg-ink)", borderColor: "currentColor" }}>
             {isAssetKind(kind) ? "asset" : "liability"}
           </span>
           <button onClick={submit} style={{ ...pill, fontWeight: 700, color: "var(--persona-solid)" }}>Add account</button>

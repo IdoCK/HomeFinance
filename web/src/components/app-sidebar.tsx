@@ -121,7 +121,7 @@ export function AppSidebar() {
 function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
   return (
     <>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#94A3B8", margin: "8px 8px 4px" }}>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#6B7280", margin: "8px 8px 4px" }}>
         {label}
       </div>
       <nav style={{ display: "flex", flexDirection: "column", gap: 1 }}>

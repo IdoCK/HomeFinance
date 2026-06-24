@@ -15,7 +15,10 @@
   --fl-card:   #FFFFFF;
   --fl-line:   #ECEDF0;
   --fl-ink:    #16181D;
-  --fl-muted:  #8A8F98;
+  /* Light-mode muted text. Darkened from #8A8F98 (which only hit ~2.6:1 on the
+     canvas, illegible for header subtitles) to clear ~3:1 on every surface while
+     staying clearly secondary. The .dark override below keeps the original. */
+  --fl-muted:  #6B7280;
 
   /* persona inks */
   --persona-you:        #3B82F6;
@@ -24,9 +27,14 @@
   /* Joint = blue→pink gradient */
   --persona-joint: linear-gradient(90deg, var(--persona-you), var(--persona-spouse));
 
-  /* money semantics */
-  --pos: #22C55E; /* income / positive */
-  --neg: #EF4444; /* over-budget / negative */
+  /* money semantics — `--pos`/`--neg` stay vibrant for chart fills; the `-ink`
+     companions are darkened so the same green/red is legible as TEXT on white
+     (#22C55E hits only 2.3:1 on white; #15803D clears AA at ~5:1). Use the ink
+     vars wherever the sign color is applied to type, the plain vars for fills. */
+  --pos: #22C55E; /* income / positive (fills) */
+  --neg: #EF4444; /* over-budget / negative (fills) */
+  --pos-ink: #15803D; /* positive as text — AA on white */
+  --neg-ink: #DC2626; /* negative as text — AA on white */
   --saved: #A855F7; /* tertiary / "saved" series */
 
   /* AI Insights showpiece gradient (used only on that one card) */

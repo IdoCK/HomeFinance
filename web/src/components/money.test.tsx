@@ -16,7 +16,13 @@ test("formatMoney formats ILS when asked", () => {
 
 test("Money colors negatives (USD default)", () => {
   wrap(<Money value={-10} colored />);
-  expect(screen.getByText("-$10.00")).toHaveStyle({ color: "var(--neg)" });
+  // Uses the text-legible "ink" shade, not the vibrant chart-fill token.
+  expect(screen.getByText("-$10.00")).toHaveStyle({ color: "var(--neg-ink)" });
+});
+
+test("Money colors positives with the legible ink shade", () => {
+  wrap(<Money value={10} colored />);
+  expect(screen.getByText("$10.00")).toHaveStyle({ color: "var(--pos-ink)" });
 });
 
 test("Money flags a missing rate with a muted affordance", () => {
