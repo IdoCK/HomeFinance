@@ -4,12 +4,13 @@ import {
   getPeople, renamePerson,
   getCategories, upsertCategory, deleteCategory,
   getVendors, upsertVendor, deleteVendor,
-  getFxRates,
+  getFxRates, getUntrackedCount,
   type Person, type Category, type Vendor, type FxRatesInfo,
 } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { useCurrency, type Currency } from "@/lib/currency";
 import { getAssumedReturn, setAssumedReturn } from "@/lib/prefs";
+import { Banner } from "@/components/ui/banner";
 
 const h2: CSSProperties = { fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--fl-muted)", margin: 0 };
 
@@ -79,6 +80,12 @@ export default function Settings() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [fx, setFx] = useState<FxRatesInfo | null>(null);
   useEffect(() => { getFxRates().then(setFx).catch(() => setFx(null)); }, []);
+  // Legacy rows imported before file-tracking can't be tied to a statement and
+  // may hide whole-file duplicates — surface the count as an audit banner.
+  const [untracked, setUntracked] = useState(0);
+  useEffect(() => {
+    getUntrackedCount(activePersonId ?? undefined).then((r) => setUntracked(r.count)).catch(() => setUntracked(0));
+  }, [activePersonId]);
   const CUR: { key: Currency; label: string }[] = [{ key: "USD", label: "$ USD" }, { key: "ILS", label: "₪ ILS" }];
 
   const loadPeople = useCallback(() => getPeople().then(setPeople).catch(() => setPeople([])), []);
@@ -107,6 +114,12 @@ export default function Settings() {
         <h1 style={{ fontWeight: 800, letterSpacing: "-0.03em", fontSize: 24, margin: 0 }}>Settings</h1>
         <span style={{ color: "var(--fl-muted)", fontSize: 13 }}>people, categories & vendor groups</span>
       </header>
+
+      {untracked > 0 && (
+        <Banner tone="warn" icon={<span style={{ fontWeight: 800 }}>!</span>}>
+          <strong style={{ fontWeight: 700 }}>{untracked.toLocaleString()}</strong> {untracked === 1 ? "transaction predates" : "transactions predate"} file tracking and aren't tied to a statement — they may include duplicates. Re-import those statements to track and de-duplicate them.
+        </Banner>
+      )}
 
       <section className="frosted-card" style={{ padding: 20, display: "grid", gap: 10 }}>
         <h2 style={h2}>People</h2>
