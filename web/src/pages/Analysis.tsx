@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Pill } from "@/components/ui/pill";
 import { CardHeaderRow } from "@/components/ui/card";
 import { FilterBar } from "@/components/filter-bar";
-import { LineChart } from "@/components/charts/line-chart";
+import { LineChart } from "@/components/charts/r-line-chart";
 import { DrillDown } from "@/components/analysis/drill-down";
 import { CompareTab } from "@/components/analysis/compare-tab";
 import { PeopleTab } from "@/components/analysis/people-tab";

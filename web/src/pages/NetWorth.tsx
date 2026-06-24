@@ -6,8 +6,8 @@ import { useCurrency } from "@/lib/currency";
 import { getAssumedReturn } from "@/lib/prefs";
 import { Money, formatMoney } from "@/components/money";
 import { Sparkline } from "@/components/charts/sparkline";
-import { AreaChart } from "@/components/charts/area-chart";
-import { LineChart } from "@/components/charts/line-chart";
+import { AreaChart } from "@/components/charts/r-area-chart";
+import { LineChart } from "@/components/charts/r-line-chart";
 import { Loading } from "@/components/loading";
 
 const NET_WORTH_MILESTONES = [100_000, 250_000, 500_000, 1_000_000];
@@ -332,6 +332,7 @@ export default function NetWorth() {
             xLabels={trend.map((p) => monthLabel(p.date))}
             milestones={NET_WORTH_MILESTONES}
             height={140}
+            seriesName="Net worth"
             ariaLabel="Net worth trend"
           />
         ) : (

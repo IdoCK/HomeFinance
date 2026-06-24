@@ -121,8 +121,10 @@ test("savings-rate card shows the FIRE benchmark line and a verdict", async () =
     ],
   });
   render(<Overview />);
-  await waitFor(() => expect(screen.getByText(/50% FIRE/i)).toBeInTheDocument());
-  expect(screen.getByText(/FIRE pace/i)).toBeInTheDocument();
+  // The verdict and the chart's accessible benchmark description both render
+  // outside Recharts' (jsdom-empty) plot area.
+  await waitFor(() => expect(screen.getByText(/FIRE pace/i)).toBeInTheDocument());
+  expect(screen.getByText(/against 20% and 50%/i)).toBeInTheDocument();
 });
 
 test("Trend view overlays contributions against net worth (the gap = returns)", async () => {

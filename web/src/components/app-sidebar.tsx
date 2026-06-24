@@ -1,7 +1,7 @@
 import { NavLink } from "react-router-dom";
 import {
   LayoutGrid, List, BarChart3, PieChart, RefreshCw, Target, TrendingUp, Tag,
-  Plus, Sparkles, Settings as SettingsIcon, BookOpen, type LucideIcon,
+  Plus, Sparkles, Settings as SettingsIcon, BookOpen, Wand2, type LucideIcon,
 } from "lucide-react";
 import { usePersona, type PersonaKey } from "@/lib/persona";
 import { useTheme } from "@/lib/theme";
@@ -19,6 +19,7 @@ const MONEY: NavItem[] = [
   { to: "/goals", label: "Goals", Icon: Target },
   { to: "/networth", label: "Net Worth", Icon: TrendingUp },
   { to: "/events", label: "Events", Icon: Tag },
+  { to: "/studio", label: "Studio", Icon: Wand2 },
 ];
 const UTILITY: NavItem[] = [
   { to: "/import", label: "Import", Icon: Plus, important: true },

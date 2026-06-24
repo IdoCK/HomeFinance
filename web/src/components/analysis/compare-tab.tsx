@@ -7,7 +7,7 @@ import { Pill } from "@/components/ui/pill";
 import { Kpi } from "@/components/kpi";
 import { formatMoney } from "@/components/money";
 import { useCurrency } from "@/lib/currency";
-import { GroupedBarChart } from "@/components/charts/grouped-bar-chart";
+import { BarChartR } from "@/components/charts/r-bar-chart";
 import { Loading } from "@/components/loading";
 
 /** Compare tab: split the filtered universe into two buckets (weekday/weekend or
@@ -61,7 +61,16 @@ export function CompareTab({ personId, filters }: { personId?: number; filters: 
                 </Kpi>
               ))}
             </div>
-            <GroupedBarChart rows={data.categories} labelA={data.labels.a} labelB={data.labels.b} format={formatMoney} />
+            <BarChartR
+              labels={data.categories.map((c) => c.name)}
+              series={[
+                { name: data.labels.a, values: data.categories.map((c) => c.a) },
+                { name: data.labels.b, values: data.categories.map((c) => c.b) },
+              ]}
+              horizontal
+              height={Math.max(160, data.categories.length * 46)}
+              ariaLabel={`${data.labels.a} versus ${data.labels.b} by category`}
+            />
           </>
         )}
       </section>
