@@ -11,6 +11,11 @@ const getAccountImports = vi.fn().mockResolvedValue({ imports: [] });
 const recordAccountSnapshot = vi.fn().mockResolvedValue({ ok: true });
 const populateFromStatements = vi.fn().mockResolvedValue({ ok: true, recorded: 2 });
 const getNetWorthProjection = vi.fn().mockResolvedValue({ annual_return: 0.07, monthly_savings: 0, current_net: 25000, points: [] });
+const NO_GROWTH = {
+  current_net: 25000, trailing_abs: null, trailing_pct: null, cagr: null, span_years: null,
+  fire_number: null, pct_to_fire: null, runway_months: null, monthly_expenses: 0, monthly_committed: 0,
+};
+const getNetWorthGrowth = vi.fn().mockResolvedValue(NO_GROWTH);
 const getNetWorth = vi.fn().mockResolvedValue({
   summary: { assets: 30000, liabilities: 5000, net: 25000 },
   delta: 2000,
@@ -39,6 +44,7 @@ vi.mock("@/lib/persona", () => ({
 vi.mock("@/lib/api", () => ({
   getNetWorth: (...a: unknown[]) => getNetWorth(...a),
   getNetWorthProjection: (...a: unknown[]) => getNetWorthProjection(...a),
+  getNetWorthGrowth: (...a: unknown[]) => getNetWorthGrowth(...a),
   addAccount: (...a: unknown[]) => addAccount(...a),
   updateAccountBalance: (...a: unknown[]) => updateAccountBalance(...a),
   deleteAccount: (...a: unknown[]) => deleteAccount(...a),
@@ -51,7 +57,7 @@ vi.mock("@/lib/api", () => ({
 
 import NetWorth from "./NetWorth";
 
-afterEach(() => { addAccount.mockClear(); updateAccountBalance.mockClear(); deleteAccount.mockClear(); getReconciliation.mockClear(); getAccountHistory.mockReset(); getAccountHistory.mockResolvedValue({ snapshots: [] }); getAccountImports.mockClear(); recordAccountSnapshot.mockClear(); populateFromStatements.mockClear(); getNetWorthProjection.mockClear(); getNetWorthProjection.mockResolvedValue({ annual_return: 0.07, monthly_savings: 0, current_net: 25000, points: [] }); mockPersonId = 1; });
+afterEach(() => { addAccount.mockClear(); updateAccountBalance.mockClear(); deleteAccount.mockClear(); getReconciliation.mockClear(); getAccountHistory.mockReset(); getAccountHistory.mockResolvedValue({ snapshots: [] }); getAccountImports.mockClear(); recordAccountSnapshot.mockClear(); populateFromStatements.mockClear(); getNetWorthProjection.mockClear(); getNetWorthProjection.mockResolvedValue({ annual_return: 0.07, monthly_savings: 0, current_net: 25000, points: [] }); getNetWorthGrowth.mockReset(); getNetWorthGrowth.mockResolvedValue(NO_GROWTH); mockPersonId = 1; });
 
 test("renders the net worth total and accounts", async () => {
   render(<NetWorth />);
@@ -86,6 +92,34 @@ test("renders a net-worth projection card (with vs without returns)", async () =
   await waitFor(() => expect(screen.getByLabelText("Net worth projection")).toBeInTheDocument());
   expect(screen.getByTestId("projection-headline")).toHaveTextContent("in 10 years");
   expect(screen.getByText(/7% assumed return/i)).toBeInTheDocument();
+});
+
+test("renders wealth stats: trailing 12m, CAGR, FIRE progress and runway", async () => {
+  getNetWorthGrowth.mockResolvedValueOnce({
+    current_net: 130000, trailing_abs: 30000, trailing_pct: 30, cagr: 0.12, span_years: 2,
+    fire_number: 900000, pct_to_fire: 0.1444, runway_months: 10, monthly_expenses: 3000, monthly_committed: 2500,
+  });
+  render(<NetWorth />);
+  const strip = await screen.findByLabelText("Wealth stats");
+  // Trailing 12-month growth (dollars + percent).
+  expect(within(strip).getByText(/past 12 months/i)).toBeInTheDocument();
+  expect(within(strip).getByText(/\$30,000/)).toBeInTheDocument();
+  expect(within(strip).getByText(/30%/)).toBeInTheDocument();
+  // CAGR.
+  expect(within(strip).getByText(/12%/)).toBeInTheDocument();
+  // FIRE progress: 14% of the 25x target.
+  expect(within(strip).getByText(/FIRE/i)).toBeInTheDocument();
+  expect(within(strip).getByText(/14%/)).toBeInTheDocument();
+  // Runway in months.
+  expect(within(strip).getByText("Runway")).toBeInTheDocument();
+  expect(within(strip).getByText(/10 mo/)).toBeInTheDocument();
+});
+
+test("hides the wealth-stats strip when there is nothing to show", async () => {
+  // Default mock = all nulls.
+  render(<NetWorth />);
+  await waitFor(() => expect(screen.getByTestId("networth-total")).toBeInTheDocument());
+  expect(screen.queryByLabelText("Wealth stats")).toBeNull();
 });
 
 test("renders a per-account balance sparkline when history has 2+ snapshots", async () => {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { pillStyle as pill } from "@/lib/ui";
-import { getNetWorth, getNetWorthProjection, addAccount, updateAccountBalance, deleteAccount, getReconciliation, getAccountHistory, getAccountImports, recordAccountSnapshot, populateFromStatements, type Account, type AccountSnapshot, type StatementImport, type NetWorthData, type NetWorthProjection, type ReconciliationResult, type StatementReconciliation } from "@/lib/api";
+import { getNetWorth, getNetWorthProjection, getNetWorthGrowth, addAccount, updateAccountBalance, deleteAccount, getReconciliation, getAccountHistory, getAccountImports, recordAccountSnapshot, populateFromStatements, type Account, type AccountSnapshot, type StatementImport, type NetWorthData, type NetWorthProjection, type NetWorthGrowth, type ReconciliationResult, type StatementReconciliation } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { useCurrency } from "@/lib/currency";
 import { getAssumedReturn } from "@/lib/prefs";
@@ -16,6 +16,68 @@ const monthLabel = (iso: string) => {
   return new Date(y, (m || 1) - 1, 1).toLocaleDateString(undefined, { month: "short" });
 };
 const kfmt = (n: number) => (Math.abs(n) >= 1000 ? `$${Math.round(n / 1000)}k` : `$${Math.round(n)}`);
+
+/** One wealth-stat block: a quiet uppercase label, a bold tabular figure, and a
+ *  muted one-line gloss. The grid of these is the page's "are we building
+ *  wealth?" read-out. */
+function Stat({ label, value, sub, accent }: { label: string; value: React.ReactNode; sub?: React.ReactNode; accent?: string }) {
+  return (
+    <div style={{ display: "grid", gap: 3, minWidth: 0 }}>
+      <span style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--fl-muted)", fontWeight: 700 }}>{label}</span>
+      <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums", color: accent ?? "var(--fl-ink)" }}>{value}</span>
+      {sub && <span style={{ fontSize: 11.5, color: "var(--fl-muted)" }}>{sub}</span>}
+    </div>
+  );
+}
+
+/** "Are we building wealth?" — trailing-12-month growth, CAGR, progress to a
+ *  25× FIRE number, and a runway in months. Renders only the stats it can
+ *  compute; nothing when there's no history or expense data yet. */
+function WealthStats({ g }: { g: NetWorthGrowth }) {
+  const hasTrailing = g.trailing_abs != null && g.trailing_pct != null;
+  const hasCagr = g.cagr != null;
+  const hasFire = g.fire_number != null && g.pct_to_fire != null;
+  const hasRunway = g.runway_months != null;
+  if (!hasTrailing && !hasCagr && !hasFire && !hasRunway) return null;
+
+  const signColor = (n: number) => (n >= 0 ? "var(--pos)" : "var(--neg)");
+  const signed = (n: number) => `${n >= 0 ? "+" : "−"}${formatMoney(Math.abs(n))}`;
+
+  return (
+    <section className="frosted-card" aria-label="Wealth stats"
+      style={{ padding: 20, display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
+      {hasTrailing && (
+        <Stat
+          label="Past 12 months"
+          value={<span style={{ color: signColor(g.trailing_abs!) }}>{signed(g.trailing_abs!)}</span>}
+          sub={<span style={{ color: signColor(g.trailing_pct!) }}>{g.trailing_pct! >= 0 ? "+" : "−"}{Math.abs(g.trailing_pct!)}% net worth</span>}
+        />
+      )}
+      {hasCagr && (
+        <Stat
+          label="Annual growth"
+          value={`${Math.round(g.cagr! * 100)}%`}
+          sub={`CAGR${g.span_years ? ` over ${g.span_years}y` : ""}`}
+        />
+      )}
+      {hasFire && (
+        <Stat
+          label="Progress to FIRE"
+          value={`${Math.round(g.pct_to_fire! * 100)}%`}
+          accent="var(--persona-solid)"
+          sub={<>25× <Money value={g.monthly_expenses * 12} />/yr = <Money value={g.fire_number!} /></>}
+        />
+      )}
+      {hasRunway && (
+        <Stat
+          label="Runway"
+          value={`${Math.round(g.runway_months!)} mo`}
+          sub="net worth ÷ committed bills"
+        />
+      )}
+    </section>
+  );
+}
 
 /** "Where you're headed": today's net worth + average monthly savings projected
  *  forward, with returns (compounding) vs contributions only (linear). Yearly
@@ -195,6 +257,7 @@ export default function NetWorth() {
   const { currency } = useCurrency();
   const [data, setData] = useState<NetWorthData | null>(null);
   const [proj, setProj] = useState<NetWorthProjection | null>(null);
+  const [growth, setGrowth] = useState<NetWorthGrowth | null>(null);
   const [recon, setRecon] = useState<ReconciliationResult | null>(null);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
@@ -212,6 +275,9 @@ export default function NetWorth() {
   useEffect(() => {
     getNetWorthProjection({ personId, display: currency, annualReturn: getAssumedReturn() })
       .then(setProj).catch(() => setProj(null));
+  }, [personId, currency]);
+  useEffect(() => {
+    getNetWorthGrowth({ personId, display: currency }).then(setGrowth).catch(() => setGrowth(null));
   }, [personId, currency]);
 
   const commitBalance = (a: Account, value: string) => {
@@ -272,6 +338,8 @@ export default function NetWorth() {
           <div style={{ color: "var(--fl-muted)", fontSize: 13 }}>Add a second snapshot to see a trend.</div>
         )}
       </section>
+
+      {growth && <WealthStats g={growth} />}
 
       {proj && proj.points.length > 0 && <ProjectionCard p={proj} />}
 

@@ -497,6 +497,66 @@ def net_worth_projection(current_net, monthly_savings, annual_return, months=120
     return out
 
 
+def net_worth_growth(trend):
+    """Trailing-12-month change and CAGR from a net-worth trend.
+
+    `trend` is a list of {date (ISO), net} dicts in any order. Returns None with
+    fewer than two points. Otherwise a dict:
+        {trailing_abs, trailing_pct, cagr, span_years, start_net, end_net}
+
+    trailing_abs/pct compare the latest net worth to the snapshot on or before
+    one year earlier. When no snapshot is a full year old (history under a year)
+    a true trailing-12m figure is unknowable, so both are None.
+
+    cagr is the compound annual growth rate over the full snapshot span:
+    (end/start)**(1/years) - 1. It is None when the span is under ~a month or
+    the starting net worth is not positive (a growth ratio across zero/negative
+    net worth is meaningless)."""
+    pts = sorted(
+        ({"date": pd.to_datetime(p["date"]).date(), "net": float(p["net"])} for p in trend),
+        key=lambda p: p["date"],
+    )
+    if len(pts) < 2:
+        return None
+    start, end = pts[0], pts[-1]
+    start_net, end_net = start["net"], end["net"]
+
+    # Trailing 12 months: the snapshot on or before (latest date − 1 year).
+    cutoff = end["date"] - timedelta(days=365)
+    prior = [p for p in pts if p["date"] <= cutoff]
+    if prior:
+        base = prior[-1]["net"]
+        trailing_abs = round(end_net - base, 2)
+        trailing_pct = round((end_net - base) / abs(base) * 100, 1) if base != 0 else None
+    else:
+        trailing_abs = trailing_pct = None
+
+    span_days = (end["date"] - start["date"]).days
+    span_years = span_days / 365.25
+    if span_years >= 1 / 12 and start_net > 0 and end_net > 0:
+        cagr = round((end_net / start_net) ** (1 / span_years) - 1, 4)
+    else:
+        cagr = None
+
+    return {"trailing_abs": trailing_abs, "trailing_pct": trailing_pct,
+            "cagr": cagr, "span_years": round(span_years, 2),
+            "start_net": round(start_net, 2), "end_net": round(end_net, 2)}
+
+
+def fire_metrics(net_worth, annual_expenses, monthly_burn):
+    """FIRE target (25× annual expenses — the 4% rule) and runway.
+
+    Returns {fire_number, pct_to_fire, runway_months}. fire_number is None when
+    expenses are unknown/zero. pct_to_fire is net worth as a share of that target
+    (0..1+, may exceed 1 once financially independent). runway_months is how many
+    months net worth covers the monthly burn, None when burn is not positive."""
+    fire_number = round(25 * annual_expenses, 2) if annual_expenses and annual_expenses > 0 else None
+    pct_to_fire = round(net_worth / fire_number, 4) if fire_number else None
+    runway_months = round(net_worth / monthly_burn, 1) if monthly_burn and monthly_burn > 0 else None
+    return {"fire_number": fire_number, "pct_to_fire": pct_to_fire,
+            "runway_months": runway_months}
+
+
 def net_worth_trend(snapshots):
     """Step-series DataFrame[date, assets, liabilities, net] over every date that
     has a snapshot. Each account contributes its most-recent snapshot on or

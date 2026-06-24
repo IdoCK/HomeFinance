@@ -104,6 +104,54 @@ def projection(person_id: Optional[int] = None, display: str = "USD",
     }
 
 
+@router.get("/growth")
+def growth(person_id: Optional[int] = None, display: str = "USD"):
+    """Wealth-building stats: trailing-12-month change, CAGR over the snapshot
+    span, the FIRE number (25× annual expenses) with progress toward it, and a
+    runway (net worth ÷ committed monthly bills). Money fields are scaled to the
+    display currency; ratios (percentages, CAGR, pct-to-FIRE) are currency-
+    invariant and pass through unscaled."""
+    scope = _scope(person_id)
+    accounts = _accounts_to_base(db.list_accounts(scope))           # USD base
+    current_net = analytics.net_worth(accounts)["net"]              # USD
+
+    trend_df = analytics.net_worth_trend(db.get_snapshots(scope))   # USD
+    trend = [] if trend_df.empty else trend_df.to_dict(orient="records")
+    g = analytics.net_worth_growth(trend)
+
+    # Annual expenses = average monthly spend over complete months × 12.
+    txns = fx.base_txns(db.get_transactions(person_id))
+    sav = analytics.monthly_savings(txns)
+    if sav.empty:
+        avg_spend = 0.0
+    else:
+        complete = sav[sav["complete"]]
+        base = complete if not complete.empty else sav
+        avg_spend = float(base["spend"].mean())
+    annual_expenses = avg_spend * 12
+
+    committed = analytics.committed_monthly(analytics.recurring_charges(txns))["total"]
+    fire = analytics.fire_metrics(current_net, annual_expenses, committed)
+
+    f = fx.display_factor(display) or 1.0
+
+    def _money(v):
+        return None if v is None else round(v * f, 2)
+
+    return {
+        "current_net": _money(current_net),
+        "trailing_abs": _money(g["trailing_abs"]) if g else None,
+        "trailing_pct": g["trailing_pct"] if g else None,
+        "cagr": g["cagr"] if g else None,
+        "span_years": g["span_years"] if g else None,
+        "fire_number": _money(fire["fire_number"]),
+        "pct_to_fire": fire["pct_to_fire"],
+        "runway_months": fire["runway_months"],
+        "monthly_expenses": _money(avg_spend),
+        "monthly_committed": _money(committed),
+    }
+
+
 @router.get("/reconcile")
 def reconcile(person_id: Optional[int] = None):
     """Tie each bank statement out against its own running-balance column.

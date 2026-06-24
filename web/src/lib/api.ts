@@ -270,6 +270,27 @@ export const getNetWorthProjection = (p: { personId?: number; display?: Currency
     person_id: p.personId, display: p.display, annual_return: p.annualReturn, years: p.years,
   });
 
+export type NetWorthGrowth = {
+  current_net: number;
+  /** Net-worth change over the trailing 12 months (abs + %). Null without a year of history. */
+  trailing_abs: number | null;
+  trailing_pct: number | null;
+  /** Compound annual growth rate over the full snapshot span (fraction). Null when unknowable. */
+  cagr: number | null;
+  span_years: number | null;
+  /** 25x annual expenses (the 4% rule). Null when expenses are unknown. */
+  fire_number: number | null;
+  /** Net worth as a share of the FIRE number (fraction, may exceed 1). */
+  pct_to_fire: number | null;
+  /** Months net worth covers committed bills. Null when there are no committed bills. */
+  runway_months: number | null;
+  monthly_expenses: number;
+  monthly_committed: number;
+};
+
+export const getNetWorthGrowth = (p: { personId?: number; display?: Currency }) =>
+  apiGet<NetWorthGrowth>("/networth/growth", { person_id: p.personId, display: p.display });
+
 export type StatementReconciliation = {
   filename: string;
   currency: Currency;
