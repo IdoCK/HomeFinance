@@ -1819,10 +1819,11 @@ with tab_ai:
     st.caption("Generate AI insights from **anonymized aggregates only** — no "
                "merchants, raw transactions, names, or notes are sent.")
 
-    has_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
-    if not has_key:
-        st.info("No `ANTHROPIC_API_KEY` set — **preview mode**. You can see exactly "
-                "what *would* be sent below; set the key to enable live insights.")
+    cli_available = ai_insights.ai_available()
+    if not cli_available:
+        st.info("Claude Code isn't installed — **preview mode**. You can see exactly "
+                "what *would* be sent below. Install Claude Code to enable live "
+                "insights — it runs on your Claude subscription, no API key needed.")
 
     # Build the summaries depending on the view.
     summaries = []
@@ -1848,8 +1849,8 @@ with tab_ai:
     with st.expander("🔍 See exactly what would be sent"):
         st.code(ai_insights.preview_payload(summaries), language="json")
 
-    if st.button("Generate insights", disabled=not has_key,
-                 help=None if has_key else "Set ANTHROPIC_API_KEY to enable"):
+    if st.button("Generate insights", disabled=not cli_available,
+                 help=None if cli_available else "Install Claude Code to enable"):
         with st.spinner("Thinking..."):
             with st.container(border=True):
                 st.markdown(ai_insights.get_insights(summaries))

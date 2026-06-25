@@ -24,14 +24,14 @@ afterEach(() => {
 });
 
 test("shows the hero and the exact payload that would be sent", async () => {
-  getInsightsPreview.mockResolvedValue({ payload: '{"who":"Person A"}', has_key: true });
+  getInsightsPreview.mockResolvedValue({ payload: '{"who":"Person A"}', available: true });
   render(<Insights />);
   await waitFor(() => expect(screen.getByText(/what the numbers say/i)).toBeInTheDocument());
   expect(screen.getByText(/"who":"Person A"/)).toBeInTheDocument();
 });
 
 test("Generate calls generateInsights and renders the returned text", async () => {
-  getInsightsPreview.mockResolvedValue({ payload: "{}", has_key: true });
+  getInsightsPreview.mockResolvedValue({ payload: "{}", available: true });
   generateInsights.mockResolvedValue({ text: "You saved 24% this month." });
   render(<Insights />);
   await waitFor(() => expect(screen.getByRole("button", { name: /generate insights/i })).toBeEnabled());
@@ -40,9 +40,9 @@ test("Generate calls generateInsights and renders the returned text", async () =
   await waitFor(() => expect(screen.getByText("You saved 24% this month.")).toBeInTheDocument());
 });
 
-test("without an API key the button is disabled and explains why", async () => {
-  getInsightsPreview.mockResolvedValue({ payload: "{}", has_key: false });
+test("without the CLI the button is disabled and explains why", async () => {
+  getInsightsPreview.mockResolvedValue({ payload: "{}", available: false });
   render(<Insights />);
   await waitFor(() => expect(screen.getByRole("button", { name: /generate insights/i })).toBeDisabled());
-  expect(screen.getByText(/set ANTHROPIC_API_KEY to enable/i)).toBeInTheDocument();
+  expect(screen.getByText(/install claude code to enable/i)).toBeInTheDocument();
 });

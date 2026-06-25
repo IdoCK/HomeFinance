@@ -231,14 +231,14 @@ test("renamePerson PATCHes the people endpoint", async () => {
 });
 
 test("getInsightsPreview builds /api/insights/preview with person_id", async () => {
-  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ payload: "[]", has_key: false }) });
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ payload: "[]", available: false }) });
   vi.stubGlobal("fetch", fetchMock);
   await getInsightsPreview(1);
   expect(fetchMock.mock.calls[0][0]).toBe("/api/insights/preview?person_id=1");
 });
 
 test("getInsightsPreview omits person_id for Joint", async () => {
-  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ payload: "[]", has_key: false }) });
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ payload: "[]", available: false }) });
   vi.stubGlobal("fetch", fetchMock);
   await getInsightsPreview(undefined);
   expect(fetchMock.mock.calls[0][0]).toBe("/api/insights/preview");

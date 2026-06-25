@@ -7,14 +7,28 @@ What never leaves: raw transactions, merchant names, item descriptions, account
 numbers, dates of individual purchases, or either person's real name. The two
 people are sent as generic labels ("Person A" / "Person B" / "Household").
 
-The API key is read from the ANTHROPIC_API_KEY environment variable so it is
-never written into the code or the database.
+Insights run through the locally-installed Claude Code CLI in headless mode
+(`claude -p ...`), which bills against the machine's Claude subscription. No
+Anthropic API key is involved. The binary name is configurable via the
+CLAUDE_BIN env var (default "claude").
 """
 
 import os
 import json
+import shutil
+import subprocess
 
-MODEL = "claude-opus-4-8"  # adjust to whatever model you have access to
+CLI_TIMEOUT = 120  # seconds
+
+
+def _claude_bin():
+    """Configurable binary name; read at call time so env changes are honored."""
+    return os.environ.get("CLAUDE_BIN", "claude")
+
+
+def ai_available():
+    """Whether the Claude Code CLI is resolvable on this machine."""
+    return shutil.which(_claude_bin()) is not None
 
 
 def build_anonymized_summary(label, transactions, goals, analytics):
@@ -71,39 +85,53 @@ SYSTEM_PROMPT = (
 )
 
 
+_INSTALL_HINT = (
+    "Claude Code isn't installed (or isn't on PATH). Install Claude Code to enable "
+    "live insights — it runs on your Claude subscription, no API key needed. "
+    "See https://docs.claude.com/claude-code"
+)
+
+
 def get_insights(summaries):
     """summaries: list of anonymized summary dicts. Returns insight text.
 
-    Requires the `anthropic` package and ANTHROPIC_API_KEY env var.
+    Runs the locally-installed Claude Code CLI in headless mode. The CLI has no
+    separate system-prompt arg, so the coaching instructions are prepended into a
+    single prompt string alongside the anonymized aggregates.
     """
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        return (
-            "⚠️ No ANTHROPIC_API_KEY set. Set it in your environment to enable AI "
-            "insights. (Your data stays local until you do — and even then only the "
-            "anonymized aggregates below are sent.)\n\n"
-            "Preview of what *would* be sent:\n```json\n"
-            + json.dumps(summaries, indent=2)
-            + "\n```"
-        )
+    binary = _claude_bin()
+    resolved = shutil.which(binary)
+    if resolved is None:
+        return _INSTALL_HINT
+
+    prompt = (
+        SYSTEM_PROMPT
+        + "\n\nHere are the anonymized household finance summaries. Provide insights "
+        "and tips:\n\n```json\n"
+        + json.dumps(summaries, indent=2)
+        + "\n```"
+    )
 
     try:
-        import anthropic
-    except ImportError:
-        return "The `anthropic` package isn't installed. Run: pip install anthropic"
+        result = subprocess.run(
+            [binary, "-p", prompt, "--output-format", "text"],
+            capture_output=True,
+            text=True,
+            timeout=CLI_TIMEOUT,
+        )
+    except FileNotFoundError:
+        return _INSTALL_HINT
+    except subprocess.TimeoutExpired:
+        return (
+            f"⚠️ Claude Code timed out after {CLI_TIMEOUT}s. Try again, or check that "
+            "the CLI is responsive."
+        )
 
-    client = anthropic.Anthropic(api_key=api_key)
-    user_content = (
-        "Here are the anonymized household finance summaries. Provide insights and "
-        "tips:\n\n```json\n" + json.dumps(summaries, indent=2) + "\n```"
-    )
-    resp = client.messages.create(
-        model=MODEL,
-        max_tokens=1200,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_content}],
-    )
-    return "".join(block.text for block in resp.content if block.type == "text")
+    if result.returncode != 0:
+        stderr = (result.stderr or "").strip()
+        return f"⚠️ Claude Code exited with an error:\n{stderr}"
+
+    return result.stdout.strip()
 
 
 def preview_payload(summaries):

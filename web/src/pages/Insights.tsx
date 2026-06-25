@@ -27,7 +27,7 @@ export default function Insights() {
   }, [personId]);
   useEffect(() => { loadPreview(); }, [loadPreview]);
 
-  const hasKey = preview?.has_key ?? false;
+  const available = preview?.available ?? false;
 
   const generate = async () => {
     setLoading(true);
@@ -55,19 +55,20 @@ export default function Insights() {
         <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
           <button
             onClick={generate}
-            disabled={!hasKey || loading}
+            disabled={!available || loading}
             style={{
               border: "none", borderRadius: 999, padding: "10px 20px", fontWeight: 700,
-              fontSize: 14, cursor: hasKey && !loading ? "pointer" : "not-allowed",
+              fontSize: 14, cursor: available && !loading ? "pointer" : "not-allowed",
               background: "rgba(255,255,255,0.95)", color: "#16181D",
-              opacity: hasKey ? 1 : 0.6,
+              opacity: available ? 1 : 0.6,
             }}
           >
             {loading ? "Thinking…" : "Generate insights"}
           </button>
-          {!hasKey && (
+          {!available && (
             <span style={{ fontSize: 13, opacity: 0.92 }}>
-              Set ANTHROPIC_API_KEY to enable live insights.
+              Install Claude Code to enable live insights — runs on your Claude
+              subscription, no API key needed.
             </span>
           )}
         </div>
