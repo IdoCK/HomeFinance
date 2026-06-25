@@ -369,7 +369,7 @@ export const deleteVendor = (id: number) =>
 export const renamePerson = (id: number, name: string) =>
   apiSend<{ id: number; name: string }>("PATCH", `/people/${id}`, { name });
 
-export type InsightsPreview = { payload: string; has_key: boolean };
+export type InsightsPreview = { payload: string; available: boolean };
 
 export const getInsightsPreview = (personId?: number) =>
   apiGet<InsightsPreview>("/insights/preview", { person_id: personId });

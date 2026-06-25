@@ -37,11 +37,10 @@ def _summaries(person_id: Optional[int]):
 
 @router.get("/preview")
 def preview(person_id: Optional[int] = None):
-    import os
     summaries = _summaries(person_id)
     return {
         "payload": ai_insights.preview_payload(summaries),
-        "has_key": bool(os.environ.get("ANTHROPIC_API_KEY")),
+        "available": ai_insights.ai_available(),
     }
 
 

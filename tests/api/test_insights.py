@@ -1,12 +1,14 @@
 import json
 
+from modules import ai_insights
 
-def test_preview_returns_payload_and_key_flag(client, people):
+
+def test_preview_returns_payload_and_available_flag(client, people):
     r = client.get("/api/insights/preview", params={"person_id": people[0]["id"]})
     assert r.status_code == 200
     body = r.json()
     assert isinstance(body["payload"], str)
-    assert isinstance(body["has_key"], bool)
+    assert isinstance(body["available"], bool)
     # payload is the exact anonymized JSON that would be sent — must parse.
     json.loads(body["payload"])
 
@@ -23,8 +25,84 @@ def test_preview_joint_is_household(client):
     assert "Ido" not in labels and "Aviv" not in labels
 
 
-def test_generate_returns_text(client, people):
+def test_generate_returns_text(client, people, monkeypatch):
+    # Mock the CLI: pretend claude is installed and returns insight text.
+    monkeypatch.setattr(ai_insights.shutil, "which", lambda _name: "/usr/bin/claude")
+
+    class FakeCompleted:
+        returncode = 0
+        stdout = "You saved 24% this month. Great work!"
+        stderr = ""
+
+    monkeypatch.setattr(ai_insights.subprocess, "run", lambda *a, **k: FakeCompleted())
+
     r = client.post("/api/insights/generate", json={"person_id": people[0]["id"]})
     assert r.status_code == 200
-    assert isinstance(r.json()["text"], str)
-    assert r.json()["text"]  # non-empty (preview-mode message when no API key)
+    assert r.json()["text"] == "You saved 24% this month. Great work!"
+
+
+def test_ai_available_reflects_shutil_which(monkeypatch):
+    monkeypatch.setattr(ai_insights.shutil, "which", lambda _name: "/usr/bin/claude")
+    assert ai_insights.ai_available() is True
+    monkeypatch.setattr(ai_insights.shutil, "which", lambda _name: None)
+    assert ai_insights.ai_available() is False
+
+
+def test_get_insights_prompt_contains_aggregates_and_returns_stdout(monkeypatch):
+    monkeypatch.setattr(ai_insights.shutil, "which", lambda _name: "/usr/bin/claude")
+
+    captured = {}
+
+    class FakeCompleted:
+        returncode = 0
+        stdout = "  Here are your insights.  "
+        stderr = ""
+
+    def fake_run(cmd, *a, **k):
+        captured["cmd"] = cmd
+        return FakeCompleted()
+
+    monkeypatch.setattr(ai_insights.subprocess, "run", fake_run)
+
+    summaries = [{"who": "Person A", "spending_by_category": {"Food": 123.45}}]
+    out = ai_insights.get_insights(summaries)
+
+    # Returns stdout stripped.
+    assert out == "Here are your insights."
+    # The prompt (last positional CLI arg before flags) carries the anonymized aggregates.
+    prompt = captured["cmd"][2]
+    assert "Person A" in prompt
+    assert "123.45" in prompt
+    # Coaching instructions are prepended into the single prompt.
+    assert "personal-finance coach" in prompt
+
+
+def test_get_insights_cli_not_installed(monkeypatch):
+    monkeypatch.setattr(ai_insights.shutil, "which", lambda _name: None)
+    out = ai_insights.get_insights([{"who": "Person A"}])
+    assert "Claude Code" in out
+
+
+def test_get_insights_nonzero_exit_returns_friendly_error(monkeypatch):
+    monkeypatch.setattr(ai_insights.shutil, "which", lambda _name: "/usr/bin/claude")
+
+    class FakeCompleted:
+        returncode = 1
+        stdout = ""
+        stderr = "boom: something broke"
+
+    monkeypatch.setattr(ai_insights.subprocess, "run", lambda *a, **k: FakeCompleted())
+    out = ai_insights.get_insights([{"who": "Person A"}])
+    assert "boom: something broke" in out
+
+
+def test_get_insights_file_not_found(monkeypatch):
+    # which() resolves but run() raises FileNotFoundError (race / removed binary).
+    monkeypatch.setattr(ai_insights.shutil, "which", lambda _name: "/usr/bin/claude")
+
+    def fake_run(*a, **k):
+        raise FileNotFoundError()
+
+    monkeypatch.setattr(ai_insights.subprocess, "run", fake_run)
+    out = ai_insights.get_insights([{"who": "Person A"}])
+    assert "Claude Code" in out
