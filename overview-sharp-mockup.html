@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HomeFinance — Overview (Sharp Corners Mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ---- Frosted Ledger brand tokens (light mode), copied from web/src/index.css ---- */
+:root {
+  --fl-canvas: #E5E6EA;
+  --fl-frame:  #F6F7F9;
+  --fl-card:   #FFFFFF;
+  --fl-line:   #ECEDF0;
+  --fl-ink:    #16181D;
+  --fl-muted:  #6B7280;
+
+  --persona-you:        #3B82F6;
+  --persona-you-deep:   #2563EB;
+  --persona-spouse:     #EC4899;
+
+  --pos: #22C55E;
+  --neg: #EF4444;
+  --pos-ink: #15803D;
+  --neg-ink: #DC2626;
+  --saved: #A855F7;
+
+  --showpiece: linear-gradient(120deg, #FDBA74, #F472B6, #A855F7, #3B82F6);
+
+  --persona: var(--persona-you);
+  --persona-solid: #7C6FF0; /* Joint mid blue->pink */
+  --persona-joint: linear-gradient(90deg, var(--persona-you), var(--persona-spouse));
+}
+
+/* ---- Optional dark set (light is the priority) ---- */
+.dark {
+  --fl-canvas: #0B0C0F;
+  --fl-frame:  #16181D;
+  --fl-card:   #1C1F26;
+  --fl-line:   #2A2E37;
+  --fl-ink:    #F6F7F9;
+  --fl-muted:  #8A8F98;
+}
+
+* { box-sizing: border-box; }
+
+/* SHARP CORNERS EVERYWHERE — the whole point of this mockup. */
+* { border-radius: 0 !important; }
+
+body {
+  margin: 0;
+  background: var(--fl-canvas);
+  color: var(--fl-ink);
+  font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-variant-numeric: tabular-nums; /* ledger-aligned figures */
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 32px 24px 80px;
+  display: grid;
+  gap: 14px;
+}
+
+/* Frosted card treatment kept — square corners only. */
+.frosted-card {
+  background: var(--fl-card);
+  border: 1px solid var(--fl-line);
+  box-shadow: 0 10px 30px -22px rgba(22, 24, 29, .35);
+}
+
+.card-pad { padding: 16px; }
+
+/* ---- Header ---- */
+header.top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+header.top h1 {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin: 0;
+}
+.stepper {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---- Pills (now rectangular) ---- */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border: 1px solid var(--fl-line);
+  background: var(--fl-frame);
+  color: var(--fl-ink);
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1;
+  user-select: none;
+}
+.pill.active {
+  background: var(--persona-solid);
+  border-color: var(--persona-solid);
+  color: #fff;
+}
+.pill.icon { min-width: 32px; font-size: 15px; }
+
+/* ---- Banner ---- */
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border: 1px solid var(--fl-line);
+  font-size: 14px;
+}
+.banner .ico {
+  width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 13px; line-height: 1;
+  flex: 0 0 auto;
+}
+.banner.good {
+  background: color-mix(in srgb, var(--pos) 10%, transparent);
+  border-color: color-mix(in srgb, var(--pos) 35%, transparent);
+  color: var(--pos-ink);
+}
+.banner.good .ico { background: color-mix(in srgb, var(--pos) 18%, transparent); color: var(--pos-ink); }
+.banner.warn {
+  background: var(--fl-frame);
+  border: 1px dashed var(--fl-line);
+  color: var(--fl-muted);
+}
+
+/* ---- Safe to spend hero ---- */
+.hero {
+  padding: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 20px;
+}
+.hero .label { font-size: 13px; font-weight: 600; color: var(--fl-muted); }
+.hero .big {
+  font-size: 44px; font-weight: 800; letter-spacing: -0.04em; line-height: 1;
+  color: var(--pos-ink);
+}
+.hero .breakdown { font-size: 12.5px; color: var(--fl-muted); margin-left: auto; }
+.hero .bills { flex-basis: 100%; font-size: 12px; color: var(--fl-muted); }
+
+/* uncategorized link chip */
+.uncat {
+  justify-self: start;
+  width: fit-content;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; font-weight: 600; text-decoration: none;
+  padding: 6px 12px;
+  border: 1px solid var(--fl-line);
+  background: var(--fl-frame);
+  color: var(--fl-ink);
+}
+
+/* ---- Alerts row ---- */
+.alerts { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; padding: 6px 12px;
+}
+.chip.up { background: color-mix(in srgb, var(--neg-ink) 12%, transparent); color: var(--neg-ink); }
+.chip.down { background: color-mix(in srgb, var(--pos-ink) 12%, transparent); color: var(--pos-ink); }
+.chip strong { font-weight: 700; }
+
+/* ---- Rows ---- */
+.row-2, .row-3 { display: grid; gap: 14px; }
+.row-2 { grid-template-columns: 1.7fr 1fr; }
+.row-3 { grid-template-columns: 1fr 1fr 1.15fr; }
+@media (max-width: 820px) {
+  .row-2, .row-3 { grid-template-columns: 1fr; }
+}
+
+/* ---- Card header row ---- */
+.card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.card-head .title { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+.toggle { display: inline-flex; gap: 6px; }
+
+/* ---- KPIs ---- */
+.kpis { display: flex; gap: 26px; margin-bottom: 8px; }
+.kpi .k-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fl-muted); }
+.kpi .k-val { font-size: 18px; font-weight: 700; }
+
+/* chart caption */
+.cap { margin-top: 8px; font-size: 12px; color: var(--fl-muted); }
+
+/* ---- This month ---- */
+.net-row { display: flex; align-items: baseline; gap: 10px; margin: 2px 0 12px; }
+.net-big { font-size: 40px; font-weight: 800; letter-spacing: -0.04em; line-height: 1; color: var(--pos-ink); }
+.delta {
+  font-size: 11px; font-weight: 700;
+  color: var(--pos-ink);
+  background: color-mix(in srgb, var(--pos) 12%, transparent);
+  padding: 3px 8px;
+}
+
+/* ---- Stacked bars ---- */
+.bars { display: grid; gap: 12px; }
+.bar-row .bar-top { display: flex; justify-content: space-between; font-size: 12.5px; margin-bottom: 5px; }
+.bar-row .bar-top .b-label { font-weight: 600; }
+.bar-row .bar-top .b-val { font-weight: 700; }
+.track { height: 10px; background: var(--fl-frame); border: 1px solid var(--fl-line); overflow: hidden; }
+.fill { height: 100%; display: flex; }
+.seg { height: 100%; }
+
+/* savings rate header number */
+.rate-num { font-size: 18px; font-weight: 800; }
+.rate-verdict { margin-top: 8px; font-size: 12px; color: var(--fl-muted); }
+
+/* ---- Who spent what (dot matrix) ---- */
+.dotwrap { display: grid; gap: 12px; }
+.dotgrid { display: grid; grid-template-columns: repeat(20, 1fr); gap: 4px; }
+.dot { width: 100%; aspect-ratio: 1 / 1; }
+.dotlegend { display: flex; gap: 16px; font-size: 12.5px; flex-wrap: wrap; }
+.dotlegend .lg { display: inline-flex; align-items: center; gap: 6px; }
+.swatch { width: 11px; height: 11px; display: inline-block; }
+
+/* ---- AI insights gradient card ---- */
+.ai-card {
+  padding: 18px;
+  background: var(--showpiece);
+  color: #fff;
+  border: 1px solid color-mix(in srgb, #fff 18%, transparent);
+  box-shadow: 0 18px 50px -28px rgba(168, 85, 247, .65);
+  display: flex; flex-direction: column;
+}
+.ai-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em;
+  padding: 4px 9px;
+  background: rgba(255,255,255,0.18);
+  width: fit-content;
+  margin-bottom: 12px;
+}
+.ai-head { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 8px; }
+.ai-body { font-size: 13.5px; line-height: 1.55; opacity: 0.95; }
+.ai-cta {
+  margin-top: auto; padding-top: 14px;
+  font-size: 12.5px; font-weight: 700;
+}
+.ai-cta span {
+  display: inline-block; padding: 7px 13px;
+  background: rgba(255,255,255,0.16);
+  border: 1px solid rgba(255,255,255,0.28);
+}
+
+.note {
+  text-align: center; font-size: 11.5px; color: var(--fl-muted);
+  margin-top: 6px;
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <header class="top">
+    <h1>Overview · Joint</h1>
+    <div class="stepper">
+      <button class="pill icon" aria-label="Previous month">‹</button>
+      <button class="pill active">2026-06</button>
+      <button class="pill icon" aria-label="Next month">›</button>
+    </div>
+  </header>
+
+  <!-- Verdict banner -->
+  <div class="banner good">
+    <span class="ico">✓</span>
+    <strong>You're in the black so far — saving 31% of income.</strong>
+  </div>
+
+  <!-- Partial-month notice -->
+  <div class="banner warn">
+    <span class="ico" style="border:1.5px dashed currentColor;width:14px;height:14px;"></span>
+    June 2026 is still in progress — day 24 of 30. These figures will keep changing.
+  </div>
+
+  <!-- Safe to spend hero -->
+  <section class="frosted-card hero" aria-label="Safe to spend">
+    <div style="display:grid;gap:2px;">
+      <span class="label">Safe to spend (so far)</span>
+      <span class="big">$2,840</span>
+    </div>
+    <span class="breakdown">$9,200 in − $4,150 committed − $2,210 spent</span>
+    <div class="bills">3 bills (~$640) still due this month</div>
+  </section>
+
+  <!-- Uncategorized link -->
+  <a class="uncat" href="#">$312 across 7 uncategorized →</a>
+
+  <!-- Spending alerts -->
+  <section class="alerts" aria-label="Spending alerts">
+    <span class="chip up"><strong>Dining</strong> ↑ 42% vs usual</span>
+    <span class="chip up"><strong>Travel</strong> new this month</span>
+    <span class="chip down"><strong>Groceries</strong> ↓ 18% vs usual</span>
+  </section>
+
+  <!-- Row 1: cash flow (wide) + this month -->
+  <div class="row-2">
+
+    <!-- Cash flow -->
+    <section class="frosted-card card-pad">
+      <div class="card-head">
+        <span class="title">Cash flow</span>
+        <div class="toggle" role="group" aria-label="Cash-flow view">
+          <button class="pill active">Net</button>
+          <button class="pill">Trend</button>
+        </div>
+      </div>
+      <div class="kpis">
+        <div class="kpi"><div class="k-label">In</div><div class="k-val">$9,200</div></div>
+        <div class="kpi"><div class="k-label">Out</div><div class="k-val">$6,360</div></div>
+      </div>
+
+      <!-- Area chart: net saved per month -->
+      <svg viewBox="0 0 640 200" width="100%" height="200" preserveAspectRatio="none" role="img" aria-label="Net saved per month">
+        <defs>
+          <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#7C6FF0" stop-opacity="0.32"/>
+            <stop offset="100%" stop-color="#7C6FF0" stop-opacity="0.02"/>
+          </linearGradient>
+        </defs>
+        <!-- baseline -->
+        <line x1="0" y1="160" x2="640" y2="160" stroke="var(--fl-line)" stroke-width="1"/>
+        <!-- gridlines -->
+        <line x1="0" y1="100" x2="640" y2="100" stroke="var(--fl-line)" stroke-width="1" stroke-dasharray="3 5"/>
+        <line x1="0" y1="50" x2="640" y2="50" stroke="var(--fl-line)" stroke-width="1" stroke-dasharray="3 5"/>
+        <!-- area -->
+        <path d="M0,128 L91,108 L183,138 L274,86 L366,96 L457,62 L549,78 L640,52 L640,160 L0,160 Z" fill="url(#areaFill)"/>
+        <!-- line -->
+        <path d="M0,128 L91,108 L183,138 L274,86 L366,96 L457,62 L549,78 L640,52" fill="none" stroke="#7C6FF0" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+        <!-- in-progress dashed tail -->
+        <path d="M549,78 L640,52" fill="none" stroke="#7C6FF0" stroke-width="2.5" stroke-dasharray="4 4" stroke-linecap="round"/>
+        <!-- end dot -->
+        <circle cx="640" cy="52" r="3.5" fill="#7C6FF0"/>
+      </svg>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--fl-muted);margin-top:4px;">
+        <span>Nov</span><span>Dec</span><span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span>
+      </div>
+      <div class="cap">Net saved each month (income − spending). Above the line is a surplus; below, a shortfall.</div>
+    </section>
+
+    <!-- This month -->
+    <section class="frosted-card card-pad">
+      <div class="card-head"><span class="title">This month</span></div>
+      <div class="net-row">
+        <span class="net-big">+$2,840</span>
+        <span class="delta">▲ 410</span>
+      </div>
+      <div class="bars">
+        <div class="bar-row">
+          <div class="bar-top"><span class="b-label">Income</span><span class="b-val">$9,200</span></div>
+          <div class="track"><div class="fill" style="width:100%;"><div class="seg" style="width:100%;background:var(--pos);"></div></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-top"><span class="b-label">Spending</span><span class="b-val">$6,360</span></div>
+          <div class="track"><div class="fill" style="width:69%;">
+            <div class="seg" style="width:66%;background:var(--neg);"></div>
+            <div class="seg" style="width:34%;background:color-mix(in srgb, var(--neg) 40%, transparent);"></div>
+          </div></div>
+          <div style="font-size:11px;color:var(--fl-muted);margin-top:4px;">$4,150 committed · $2,210 discretionary</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-top"><span class="b-label">Saved</span><span class="b-val">$2,840</span></div>
+          <div class="track"><div class="fill" style="width:31%;"><div class="seg" style="width:100%;background:var(--saved);"></div></div></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Row 2: savings rate + who spent what + AI insights -->
+  <div class="row-3">
+
+    <!-- Savings rate -->
+    <section class="frosted-card card-pad">
+      <div class="card-head"><span class="title">Savings rate</span><span class="rate-num">31%</span></div>
+      <svg viewBox="0 0 320 130" width="100%" height="130" role="img" aria-label="Savings-rate trajectory against 20% and 50% benchmarks">
+        <!-- 50% FIRE benchmark -->
+        <line x1="0" y1="34" x2="320" y2="34" stroke="var(--saved)" stroke-width="1" stroke-dasharray="4 4" opacity="0.7"/>
+        <text x="316" y="29" text-anchor="end" font-size="9" fill="var(--saved)">50% FIRE</text>
+        <!-- 20% benchmark -->
+        <line x1="0" y1="86" x2="320" y2="86" stroke="var(--fl-muted)" stroke-width="1" stroke-dasharray="4 4" opacity="0.6"/>
+        <text x="316" y="81" text-anchor="end" font-size="9" fill="var(--fl-muted)">20%</text>
+        <!-- 3-mo avg line -->
+        <path d="M0,104 L53,96 L107,90 L160,78 L213,70 L267,66 L320,60" fill="none" stroke="var(--persona-spouse)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+        <circle cx="320" cy="60" r="3.5" fill="var(--persona-spouse)"/>
+      </svg>
+      <div class="rate-verdict">Above the 20% savings guideline.</div>
+    </section>
+
+    <!-- Who spent what -->
+    <section class="frosted-card card-pad">
+      <div class="card-head"><span class="title">Who spent what</span></div>
+      <div class="dotwrap">
+        <div class="dotgrid" id="dotgrid" aria-label="Spend split by person"></div>
+        <div class="dotlegend">
+          <span class="lg"><span class="swatch" style="background:var(--persona-you);"></span> Ido · $3,640</span>
+          <span class="lg"><span class="swatch" style="background:var(--persona-spouse);"></span> Aviv · $2,720</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- AI Insights -->
+    <section class="ai-card" aria-label="AI insights">
+      <span class="ai-tag">✦ AI Insights</span>
+      <h2 class="ai-head">Dining</h2>
+      <p class="ai-body">Dining is up 42% versus your usual — your biggest shift this month. Tap AI Insights for the anonymized breakdown.</p>
+      <div class="ai-cta"><span>Open AI Insights →</span></div>
+    </section>
+  </div>
+
+  <p class="note">Throwaway design exploration — sharp corners (border-radius: 0) on every surface. Sample data.</p>
+</div>
+
+<script>
+// Build the who-spent-what dot matrix: 60 dots split ~57% Ido / 43% Aviv.
+(function () {
+  var grid = document.getElementById("dotgrid");
+  if (!grid) return;
+  var total = 60, ido = 34; // 34/60 ≈ 57%
+  for (var i = 0; i < total; i++) {
+    var d = document.createElement("span");
+    d.className = "dot";
+    d.style.background = i < ido ? "var(--persona-you)" : "var(--persona-spouse)";
+    grid.appendChild(d);
+  }
+})();
+</script>
+</body>
+</html>
