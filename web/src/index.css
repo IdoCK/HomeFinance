@@ -200,6 +200,36 @@ body {
   font-family: var(--font-sans);
   font-variant-numeric: tabular-nums; /* ledger-aligned figures */
 }
+
+/* ---- Integrated scrollbars. Targets the app's supported engines (WebKit:
+   Chrome, Edge, Safari) so the bars feel part of the frosted surface rather
+   than an OS overlay. The thumb is a translucent tint of --fl-ink, so it stays
+   subtle on every surface AND flips automatically in dark mode (ink inverts).
+   Track stays transparent; the thumb is inset via a transparent border +
+   padding-box clip so it reads slimmer than the gutter and rounds to a pill to
+   match the frosted aesthetic. `scrollbar-color` is the standards fallback. ---- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--fl-ink) 22%, transparent) transparent;
+}
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--fl-ink) 22%, transparent);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--fl-ink) 40%, transparent);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:active {
+  background: color-mix(in srgb, var(--fl-ink) 52%, transparent);
+  background-clip: padding-box;
+}
+
 .frosted-canvas { background: var(--fl-canvas); }
 .frosted-card {
   background: var(--fl-card);

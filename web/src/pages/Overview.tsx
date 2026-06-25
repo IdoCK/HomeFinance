@@ -5,7 +5,8 @@ import { usePersona } from "@/lib/persona";
 import { useCurrency } from "@/lib/currency";
 import { Money, formatMoney } from "@/components/money";
 import { Kpi } from "@/components/kpi";
-import { Pill } from "@/components/ui/pill";
+import { Stepper } from "@/components/ui/stepper";
+import { SegmentedToggle } from "@/components/ui/segmented-toggle";
 import { CardHeaderRow } from "@/components/ui/card";
 import { GradientCard } from "@/components/gradient-card";
 import { AreaChart } from "@/components/charts/r-area-chart";
@@ -213,9 +214,15 @@ export default function Overview() {
           Overview · {label}
         </h1>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
-          <Pill onClick={() => step(-1)} disabled={idx <= 0} aria-label="Previous month">‹</Pill>
-          <Pill active>{data.month ?? "—"}</Pill>
-          <Pill onClick={() => step(1)} disabled={idx < 0 || idx >= months.length - 1} aria-label="Next month">›</Pill>
+          <Stepper
+            label={data.month ?? "—"}
+            onPrev={() => step(-1)}
+            onNext={() => step(1)}
+            prevDisabled={idx <= 0}
+            nextDisabled={idx < 0 || idx >= months.length - 1}
+            prevLabel="Previous month"
+            nextLabel="Next month"
+          />
         </div>
       </header>
 
@@ -292,10 +299,15 @@ export default function Overview() {
         <section className="frosted-card" style={CARD}>
           <CardHeaderRow
             action={
-              <div role="group" aria-label="Cash-flow view" style={{ display: "inline-flex", gap: 6 }}>
-                <Pill active={cashView === "net"} onClick={() => setCashView("net")}>Net</Pill>
-                <Pill active={cashView === "trend"} onClick={() => setCashView("trend")}>Trend</Pill>
-              </div>
+              <SegmentedToggle
+                ariaLabel="Cash-flow view"
+                value={cashView}
+                onChange={setCashView}
+                options={[
+                  { value: "net", label: "Net" },
+                  { value: "trend", label: "Trend" },
+                ]}
+              />
             }
           >
             Cash flow
