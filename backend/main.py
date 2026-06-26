@@ -1,16 +1,17 @@
 """FastAPI layer over the existing finance engine. Thin: routers call modules/."""
-from pathlib import Path
-
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from modules import database as db
+from modules.paths import bundle_dir
 from backend.api import analysis, budgets, categories, events, fx, goals, imports, insights, networth, overview, people, recurring, transactions, vendors
 
-DIST_DIR = Path(__file__).resolve().parent.parent / "web" / "dist"
-GUIDE_FILE = Path(__file__).resolve().parent.parent / "docs" / "USER_GUIDE.html"
+# Bundled, read-only resources: the project root in dev, PyInstaller's extraction
+# dir in the frozen exe. Both keep web/dist and docs at the same relative paths.
+DIST_DIR = bundle_dir() / "web" / "dist"
+GUIDE_FILE = bundle_dir() / "docs" / "USER_GUIDE.html"
 
 health = APIRouter()
 

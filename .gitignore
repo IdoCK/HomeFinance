@@ -11,3 +11,8 @@ __pycache__/
 node_modules/
 web/node_modules/
 web/dist/
+
+# PyInstaller build artifacts (python build.py)
+build/
+dist/
+*.spec.bak

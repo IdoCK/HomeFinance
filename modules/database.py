@@ -10,7 +10,12 @@ from datetime import datetime, date
 from pathlib import Path
 from contextlib import contextmanager
 
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "finance.db"
+from modules.paths import data_dir
+
+# Writable per-machine location: data/ in a dev checkout, or data/ next to the
+# .exe when frozen. Read at call time in get_conn()/init_db(), so tests can
+# still monkeypatch this attribute.
+DB_PATH = data_dir() / "finance.db"
 
 # The household ledger is single-currency (USD); the USD/ILS toggle is a display
 # lens, not a true multi-currency book. We model that as ONE global display rate

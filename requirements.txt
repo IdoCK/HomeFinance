@@ -8,3 +8,6 @@ fastapi
 uvicorn[standard]
 python-multipart
 httpx
+
+# Build-only: packaging the standalone .exe (python build.py). Not needed at runtime.
+pyinstaller>=6.0

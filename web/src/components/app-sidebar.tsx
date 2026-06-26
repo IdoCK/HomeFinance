@@ -54,8 +54,8 @@ export function AppSidebar() {
     >
       {/* Brand */}
       <div style={{ display: "flex", alignItems: "center", gap: 9, fontWeight: 800, fontSize: 16, letterSpacing: "-0.02em", padding: "2px 6px 14px" }}>
-        <span style={{ width: 24, height: 24, borderRadius: 8, background: "linear-gradient(135deg,#FBBF24,#EC4899 55%,#3B82F6)", boxShadow: "0 4px 10px -3px rgba(236,72,153,.53)" }} />
-        Household
+        <img src="/homefinancelogo.png" alt="HomeFinance" width={24} height={24} style={{ display: "block", objectFit: "contain" }} />
+        HomeFinance
       </div>
 
       {/* Persona segmented switch */}
