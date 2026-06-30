@@ -17,6 +17,7 @@ vi.mock("@/lib/api", () => ({
   getOllamaStatus: (...a: unknown[]) => getOllamaStatus(...a),
   parseImport: (...a: unknown[]) => parseImport(...a),
   commitImport: (...a: unknown[]) => commitImport(...a),
+  getCategories: () => Promise.resolve([{ id: 1, person_id: 1, name: "Groceries", keywords: "" }]),
 }));
 
 import Import from "./Import";

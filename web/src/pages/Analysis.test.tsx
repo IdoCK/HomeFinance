@@ -14,6 +14,9 @@ vi.mock("@/lib/api", () => ({
   getFilterOptions: (...a: unknown[]) => getFilterOptions(...a),
   getCategoryTrend: (...a: unknown[]) => getCategoryTrend(...a),
   getDrill: vi.fn().mockResolvedValue({ level: "category", items: [], rows: [] }),
+  getVendors: vi.fn().mockResolvedValue([]),
+  groupVendor: vi.fn().mockResolvedValue({ ok: true, name: "", keywords: [] }),
+  ungroupVendor: vi.fn().mockResolvedValue({ ok: true, name: "", keywords: [] }),
   getCompare: vi.fn().mockResolvedValue({
     preset: "weekdays_weekends", metric: "spend",
     buckets: [{ label: "Weekdays", total: 0, per_day: 0, n_days: 0 }, { label: "Weekends", total: 0, per_day: 0, n_days: 0 }],

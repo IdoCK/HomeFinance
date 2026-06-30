@@ -70,7 +70,7 @@ function CardAction({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 /** Convenience header row matching the reference `.ch`: title on the left, an
- *  action (or a muted `···` affordance) on the right. */
+ *  optional action on the right. */
 function CardHeaderRow({
   className,
   children,
@@ -84,7 +84,7 @@ function CardHeaderRow({
       {...props}
     >
       <div className="text-[13px] font-bold text-[var(--fl-ink)]">{children}</div>
-      {action ?? <span aria-hidden className="text-[var(--fl-muted)] font-bold tracking-widest text-[13px]">···</span>}
+      {action}
     </div>
   );
 }

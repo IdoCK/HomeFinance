@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { pillStyle as pill } from "@/lib/ui";
-import { getOllamaStatus, parseImport, commitImport, type ImportRow, type OllamaStatus } from "@/lib/api";
+import { getOllamaStatus, parseImport, commitImport, getCategories, type ImportRow, type OllamaStatus } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 
 const POS = "#22C55E";
@@ -58,8 +58,15 @@ export default function Import() {
   const [busy, setBusy] = useState(false);
   const [importedCount, setImportedCount] = useState(0);
   const [dragOver, setDragOver] = useState(false);
+  const [knownCategories, setKnownCategories] = useState<string[]>([]);
 
   useEffect(() => { getOllamaStatus().then(setStatus).catch(() => setStatus(null)); }, []);
+  useEffect(() => {
+    if (personId == null) return;
+    getCategories(personId)
+      .then((cs) => setKnownCategories(cs.map((c) => c.name)))
+      .catch(() => setKnownCategories([]));
+  }, [personId]);
 
   // Transactions belong to one person; Joint has no owner to import into.
   if (personId == null) {
@@ -107,6 +114,23 @@ export default function Import() {
 
   const plural = (n: number) => (n === 1 ? "" : "s");
   const hasUnknown = rows.some((r) => r.currency_source === "unknown" || !r.currency);
+
+  // Combobox options: the person's known categories plus any already assigned to
+  // the parsed rows, de-duped and sorted. Powers the <datalist> dropdown.
+  const categoryOptions = Array.from(
+    new Set([...knownCategories, ...rows.map((r) => r.category)].filter(Boolean)),
+  ).sort((a, b) => a.localeCompare(b));
+
+  // On blur, snap a typed value to an existing category that matches
+  // case-insensitively (so "groceries" reuses "Groceries" instead of forking a
+  // duplicate). A genuinely new name is kept as typed — it becomes a new
+  // category when the file is committed.
+  const normalizeCategory = (i: number, raw: string) => {
+    const v = raw.trim();
+    if (!v) return;
+    const match = categoryOptions.find((c) => c.toLowerCase() === v.toLowerCase());
+    editRow(i, { category: match ?? v });
+  };
 
   return (
     <div style={{ display: "grid", gap: 16, maxWidth: 960 }}>
@@ -179,6 +203,9 @@ export default function Import() {
 
       {step === "review" && (
         <section className="frosted-card" style={{ padding: 20, display: "grid", gap: 12 }}>
+          <datalist id="import-categories">
+            {categoryOptions.map((c) => <option key={c} value={c} />)}
+          </datalist>
           {warnings.length > 0 && (
             <div style={{ fontSize: 13, color: NEG, background: "color-mix(in srgb, #EF4444 8%, transparent)", borderRadius: 12, padding: "10px 14px" }}>
               {warnings.map((w, i) => <div key={i}>{w}</div>)}
@@ -221,9 +248,11 @@ export default function Import() {
                     </td>
                     <td style={cell}>
                       <input
+                        list="import-categories"
                         value={r.category}
                         aria-label={`Category for ${r.description}`}
                         onChange={(e) => editRow(i, { category: e.target.value })}
+                        onBlur={(e) => normalizeCategory(i, e.target.value)}
                         style={{ ...pill, padding: "4px 10px" }}
                       />
                     </td>

@@ -538,6 +538,48 @@ def upsert_vendor(person_id, name, keywords):
             (person_id, name, keywords))
 
 
+def group_vendor(person_id, target, keyword):
+    """Fold the merchant `keyword` into the vendor group `target` so vendor_of()
+    collapses it from now on (the drill-down drag-to-group action).
+
+    If `target` is already a configured vendor we append the keyword to its rule.
+    If it's an auto merchant key (no rule yet), we seed a new rule with the
+    target's own name first — keyword_from_desc keys are literal substrings of the
+    description, so this keeps the target's existing rows grouped under it too.
+    Returns the merged keyword list."""
+    target = (target or "").strip()
+    keyword = (keyword or "").strip()
+    existing = {v["name"]: v for v in get_vendors(person_id)}
+    if target in existing:
+        kws = [k.strip() for k in (existing[target]["keywords"] or "").split(",") if k.strip()]
+    else:
+        kws = [target]
+    lowered = {k.lower() for k in kws}
+    if keyword and keyword.lower() not in lowered:
+        kws.append(keyword)
+    upsert_vendor(person_id, target, ",".join(kws))
+    return kws
+
+
+def ungroup_vendor(person_id, target, keyword):
+    """Pull a merchant `keyword` back out of vendor group `target` (the drill-down
+    remove-a-member action). If the group has no keywords left afterward the rule
+    is deleted entirely, so everything reverts to auto merchant keys. Returns the
+    remaining keyword list."""
+    target = (target or "").strip()
+    keyword = (keyword or "").strip().lower()
+    existing = {v["name"]: v for v in get_vendors(person_id)}
+    if target not in existing:
+        return []
+    kws = [k.strip() for k in (existing[target]["keywords"] or "").split(",") if k.strip()]
+    kws = [k for k in kws if k.lower() != keyword]
+    if kws:
+        upsert_vendor(person_id, target, ",".join(kws))
+    else:
+        delete_vendor(existing[target]["id"])
+    return kws
+
+
 def delete_vendor(vendor_id):
     with get_conn() as conn:
         conn.execute("DELETE FROM vendors WHERE id=?", (vendor_id,))

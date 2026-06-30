@@ -72,6 +72,12 @@ class VendorUpsert(BaseModel):
     keywords: str = ""
 
 
+class VendorGroup(BaseModel):
+    person_id: int
+    target: str   # the vendor group to fold into
+    keyword: str  # the dragged merchant key to add to that group
+
+
 class InsightsRequest(BaseModel):
     person_id: Optional[int] = None
 

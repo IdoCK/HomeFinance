@@ -35,6 +35,12 @@ export function FilterBar({
     set({ dow: next.length ? next : undefined });
   };
 
+  // "Select all" is a toggle: when every category is already chosen it clears
+  // the constraint instead (undefined = no filter = all rows).
+  const allCatsSelected =
+    options.categories.length > 0 &&
+    (value.categories?.length ?? 0) === options.categories.length;
+
   const dirty =
     Boolean(value.dateFrom || value.dateTo || value.dayType || value.eventId) ||
     Boolean(value.months?.length) ||
@@ -107,7 +113,17 @@ export function FilterBar({
 
       {options.categories.length > 0 && (
         <div style={{ display: "grid", gap: 6 }}>
-          <SectionTitle>Categories</SectionTitle>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <SectionTitle>Categories</SectionTitle>
+            {/* Select-all seeds the list with every category so you can then
+                deselect just the one or two you want to drop. */}
+            <Pill
+              onClick={() => set({ categories: allCatsSelected ? undefined : [...options.categories] })}
+              aria-label={allCatsSelected ? "Deselect all categories" : "Select all categories"}
+            >
+              {allCatsSelected ? "Deselect all" : "Select all"}
+            </Pill>
+          </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 92, overflowY: "auto" }}>
             {options.categories.map((c) => (
               <Pill key={c} active={(value.categories ?? []).includes(c)} onClick={() => toggle("categories", c)}>{c}</Pill>

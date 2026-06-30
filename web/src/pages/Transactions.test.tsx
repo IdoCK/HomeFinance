@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 const updateTransaction = vi.fn().mockResolvedValue({});
@@ -37,20 +38,20 @@ beforeEach(() => {
 afterEach(() => { updateTransaction.mockClear(); getTransactions.mockReset(); getTransferPairs.mockReset(); });
 
 test("renders the persona's transactions", async () => {
-  render(<Transactions />);
+  render(<Transactions />, { wrapper: MemoryRouter });
   await waitFor(() => expect(screen.getByText("Trader Joes")).toBeInTheDocument());
   expect(screen.getByText("Paycheck")).toBeInTheDocument();
   expect(screen.getByText("Netflix")).toBeInTheDocument();
 });
 
 test("shows an Original column header", async () => {
-  render(<Transactions />);
+  render(<Transactions />, { wrapper: MemoryRouter });
   await waitFor(() => expect(screen.getByText("Trader Joes")).toBeInTheDocument());
   expect(screen.getByText(/Original/i)).toBeInTheDocument();
 });
 
 test("search filters rows by description", async () => {
-  render(<Transactions />);
+  render(<Transactions />, { wrapper: MemoryRouter });
   await waitFor(() => expect(screen.getByText("Trader Joes")).toBeInTheDocument());
   await userEvent.type(screen.getByPlaceholderText(/search/i), "netflix");
   expect(screen.queryByText("Trader Joes")).not.toBeInTheDocument();
@@ -58,7 +59,7 @@ test("search filters rows by description", async () => {
 });
 
 test("editing a category calls updateTransaction", async () => {
-  render(<Transactions />);
+  render(<Transactions />, { wrapper: MemoryRouter });
   await waitFor(() => expect(screen.getByText("Netflix")).toBeInTheDocument());
   const input = screen.getByDisplayValue("Subscriptions");
   await userEvent.clear(input);
@@ -68,7 +69,7 @@ test("editing a category calls updateTransaction", async () => {
 });
 
 test("toggling Included calls updateTransaction", async () => {
-  render(<Transactions />);
+  render(<Transactions />, { wrapper: MemoryRouter });
   await waitFor(() => expect(screen.getByText("Trader Joes")).toBeInTheDocument());
   const toggles = screen.getAllByRole("checkbox");
   await userEvent.click(toggles[0]);
@@ -81,7 +82,7 @@ test("transfer-pair banner excludes both sides", async () => {
       out_desc: "Zelle out", in_desc: "Zelle in", out_person: 1, in_person: 2,
       days_apart: 1, cross_person: true, both_included: true },
   ]);
-  render(<Transactions />);
+  render(<Transactions />, { wrapper: MemoryRouter });
   await waitFor(() => expect(screen.getByLabelText("Transfer pairs")).toBeInTheDocument());
   expect(screen.getByText(/1 transfer pair detected/i)).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: /exclude both/i }));

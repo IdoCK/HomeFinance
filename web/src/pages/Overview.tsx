@@ -1,15 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { getOverview, getNetWorth, type Overview as OverviewData, type NetWorthData } from "@/lib/api";
+import { getOverview, getCategoryTrend, type Overview as OverviewData, type CategoryTrend } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 import { useCurrency } from "@/lib/currency";
 import { Money, formatMoney } from "@/components/money";
 import { Kpi } from "@/components/kpi";
 import { Stepper } from "@/components/ui/stepper";
-import { SegmentedToggle } from "@/components/ui/segmented-toggle";
 import { CardHeaderRow } from "@/components/ui/card";
 import { GradientCard } from "@/components/gradient-card";
-import { AreaChart } from "@/components/charts/r-area-chart";
 import { LineChart } from "@/components/charts/r-line-chart";
 import { StackedBars } from "@/components/charts/stacked-bars";
 import { DotMatrix, type Segment } from "@/components/charts/dot-matrix";
@@ -18,26 +16,20 @@ import { Loading } from "@/components/loading";
 
 const CARD: React.CSSProperties = { padding: 16 };
 const CAT_PALETTE = ["var(--persona-solid)", "var(--persona-spouse)", "var(--saved)", "var(--fl-muted)"];
+const MAX_CAT_LINES = 8; // one per palette color; matches Analysis › category trend
 
 function personColor(name: string): string {
   return name === "Ido" ? "var(--persona-you)" : name === "Aviv" ? "var(--persona-spouse)" : "var(--persona-solid)";
-}
-
-// "2026-03" -> "Mar" for compact x-axis ticks. Parsed as a LOCAL date so it
-// doesn't shift a month in timezones behind UTC.
-function fmtMonth(ym: string): string {
-  const [y, m] = ym.split("-").map(Number);
-  if (!y || !m) return ym;
-  return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: "short" });
 }
 
 export default function Overview() {
   const { personId, label } = usePersona();
   const { currency } = useCurrency();
   const [data, setData] = useState<OverviewData | null>(null);
-  const [nw, setNw] = useState<NetWorthData | null>(null);
   const [month, setMonth] = useState<string | undefined>(undefined);
-  const [cashView, setCashView] = useState<"net" | "trend">("net");
+  // Category-over-time trend (all months) — mirrors Analysis › Spending by
+  // category over time, surfaced on Overview as the default all-months view.
+  const [catTrend, setCatTrend] = useState<CategoryTrend | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -45,16 +37,25 @@ export default function Overview() {
     return () => { alive = false; };
   }, [personId, month, currency]);
 
-  // Net-worth trend powers the Trend view's contributions-vs-net-worth overlay.
-  // Independent of the selected month — it's a whole-history wealth line.
   useEffect(() => {
     let alive = true;
-    getNetWorth({ personId, display: currency }).then((d) => alive && setNw(d)).catch(() => alive && setNw(null));
+    setCatTrend(null);
+    getCategoryTrend({ personId, filters: {}, display: currency })
+      .then((d) => alive && setCatTrend(d))
+      .catch(() => alive && setCatTrend({ months: [], series: [] }));
     return () => { alive = false; };
   }, [personId, currency]);
 
+  // Rent dwarfs everything and isn't a discretionary lever, so it's hidden from
+  // the Overview category views (Top categories + Spending by category over time).
+  const HIDDEN_CATS = ["rent"];
+  const isHiddenCat = (name: string) => HIDDEN_CATS.includes(name.trim().toLowerCase());
+
   const cats = useMemo(
-    () => Object.entries(data?.by_category ?? {}).sort((a, b) => b[1] - a[1]),
+    () =>
+      Object.entries(data?.by_category ?? {})
+        .filter(([name]) => !isHiddenCat(name))
+        .sort((a, b) => b[1] - a[1]),
     [data],
   );
 
@@ -69,22 +70,13 @@ export default function Overview() {
   };
 
   const series = data.series ?? [];
-  // Cash-flow area = net saved per month; savings-rate bars = savings_rate % per
-  // month. Month labels on the x-axis and an in-progress dash give the line
-  // meaning at a glance ("each point is one month's net").
-  const areaPoints = series.map((s) => ({ label: s.month, value: s.net }));
-  const areaXLabels = series.map((s) => fmtMonth(s.month));
-  const areaPartial = series.map((s) => !s.complete);
-
-  // Trend view: income vs spend dual line (#9) + cumulative saved (#8). Cumulative
-  // is the running sum of monthly net — the savings trajectory.
-  let run = 0;
-  const cumulative = series.map((s) => (run += s.net));
+  // Cash-flow trend: income, spending, and net saved — each PER MONTH (not
+  // cumulative) so all three lines read on the same monthly basis.
   const trendLabels = series.map((s) => s.month);
   const trendSeries = [
     { name: "Income", values: series.map((s) => s.income), color: "var(--pos)", total: series.reduce((a, s) => a + s.income, 0) },
     { name: "Spending", values: series.map((s) => s.spend), color: "var(--neg)", total: series.reduce((a, s) => a + s.spend, 0) },
-    { name: "Saved (cumulative)", values: cumulative, color: "var(--saved)", total: cumulative[cumulative.length - 1] ?? 0 },
+    { name: "Saved", values: series.map((s) => s.net), color: "var(--saved)", total: series.reduce((a, s) => a + s.net, 0) },
   ];
   // Savings-rate trajectory: a rolling 3-month average smooths statement-cycle
   // noise, read against the 20% (solid) and 50% (FIRE) benchmarks.
@@ -93,35 +85,6 @@ export default function Overview() {
     const window = ratePct.slice(Math.max(0, i - 2), i + 1);
     return Math.round(window.reduce((a, b) => a + b, 0) / window.length);
   });
-  // Contributions vs. net worth (growth lens). Anchor both lines at the net
-  // worth on your first snapshot, then add monthly contributions to one and
-  // track real net worth on the other. The gap that opens is returns &
-  // appreciation. Forward-fill net worth across months between snapshots; the
-  // line only renders once there are ≥2 distinct snapshots to draw a trend.
-  const nwByMonth = new Map<string, number>();
-  for (const p of nw?.trend ?? []) nwByMonth.set(p.date.slice(0, 7), p.net); // sorted asc → last wins
-  let carriedNw: number | null = null;
-  const nwAligned = series.map((s) => {
-    if (nwByMonth.has(s.month)) carriedNw = nwByMonth.get(s.month)!;
-    return carriedNw; // null for months before the first snapshot
-  });
-  const overlapIdx = series.map((_, i) => i).filter((i) => nwAligned[i] != null);
-  const wealthOverlay =
-    nwByMonth.size >= 2 && overlapIdx.length >= 2
-      ? (() => {
-          const base = overlapIdx[0];
-          const baseNet = nwAligned[base] as number;
-          const baseCum = cumulative[base];
-          return {
-            labels: overlapIdx.map((i) => series[i].month),
-            contrib: overlapIdx.map((i) => baseNet + (cumulative[i] - baseCum)),
-            netWorth: overlapIdx.map((i) => nwAligned[i] as number),
-          };
-        })()
-      : null;
-  const wealthGap = wealthOverlay
-    ? wealthOverlay.netWorth[wealthOverlay.netWorth.length - 1] - wealthOverlay.contrib[wealthOverlay.contrib.length - 1]
-    : 0;
 
   const latestRoll = rolling3.length ? rolling3[rolling3.length - 1] : null;
   const savingsVerdict =
@@ -213,17 +176,6 @@ export default function Overview() {
         <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.03em", margin: 0 }}>
           Overview · {label}
         </h1>
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
-          <Stepper
-            label={data.month ?? "—"}
-            onPrev={() => step(-1)}
-            onNext={() => step(1)}
-            prevDisabled={idx <= 0}
-            nextDisabled={idx < 0 || idx >= months.length - 1}
-            prevLabel="Previous month"
-            nextLabel="Next month"
-          />
-        </div>
       </header>
 
       <Banner tone={verdict.tone} icon={<span style={{ fontWeight: 800, fontSize: 14, lineHeight: 1 }}>{verdict.icon}</span>}>
@@ -241,20 +193,36 @@ export default function Overview() {
       )}
 
       {data.safe_to_spend != null && (
-        <section className="frosted-card" aria-label="Safe to spend" style={{ padding: 18, display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "6px 20px" }}>
-          <div style={{ display: "grid", gap: 2 }}>
+        <section className="frosted-card" aria-label="Safe to spend" style={{ padding: 18, display: "grid", gap: 8 }}>
+          {/* The month stepper lives here and drives every month-specific block on
+              the page (Safe to spend, the verdict, alerts, This month, Top
+              categories). The all-months charts ignore it. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fl-muted)" }}>
               Safe to spend{!data.complete ? " (so far)" : ""}
             </span>
+            <div style={{ marginLeft: "auto" }}>
+              <Stepper
+                label={data.month ?? "—"}
+                onPrev={() => step(-1)}
+                onNext={() => step(1)}
+                prevDisabled={idx <= 0}
+                nextDisabled={idx < 0 || idx >= months.length - 1}
+                prevLabel="Previous month"
+                nextLabel="Next month"
+              />
+            </div>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "6px 20px" }}>
             <span data-testid="safe-to-spend" style={{ fontSize: 44, fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1 }}>
               <Money value={data.safe_to_spend} colored />
             </span>
+            <span style={{ fontSize: 12.5, color: "var(--fl-muted)", marginLeft: "auto" }}>
+              <Money value={data.income} /> in − <Money value={data.committed} /> committed − <Money value={data.discretionary_spent} /> spent
+            </span>
           </div>
-          <span style={{ fontSize: 12.5, color: "var(--fl-muted)", marginLeft: "auto" }}>
-            <Money value={data.income} /> in − <Money value={data.committed} /> committed − <Money value={data.discretionary_spent} /> spent
-          </span>
           {data.bills_due && data.bills_due.count > 0 && (
-            <div style={{ flexBasis: "100%", fontSize: 12, color: "var(--fl-muted)" }}>
+            <div style={{ fontSize: 12, color: "var(--fl-muted)" }}>
               {data.bills_due.count} {data.bills_due.count === 1 ? "bill" : "bills"} (~<Money value={data.bills_due.amount} />) still due this month
             </div>
           )}
@@ -294,71 +262,27 @@ export default function Overview() {
         </section>
       )}
 
-      {/* Row 1: cash flow (wide) + this month */}
+      {/* Row 1: cash-flow trend (all months, wide) + this month */}
       <div className="fl-row-2">
         <section className="frosted-card" style={CARD}>
-          <CardHeaderRow
-            action={
-              <SegmentedToggle
-                ariaLabel="Cash-flow view"
-                value={cashView}
-                onChange={setCashView}
-                options={[
-                  { value: "net", label: "Net" },
-                  { value: "trend", label: "Trend" },
-                ]}
-              />
-            }
-          >
-            Cash flow
-          </CardHeaderRow>
-          <div style={{ display: "flex", gap: 26, marginBottom: 8 }}>
+          <CardHeaderRow>Cash flow</CardHeaderRow>
+          {/* In/Out are the selected month's totals (the trend below is all
+              months), so the month is labelled right here next to them. */}
+          <div style={{ display: "flex", alignItems: "baseline", gap: 26, marginBottom: 8 }}>
             <Kpi label="In" testId="income"><Money value={data.income} /></Kpi>
             <Kpi label="Out" testId="spend"><Money value={data.spend} /></Kpi>
+            <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 600, color: "var(--fl-muted)" }}>{monthName}</span>
           </div>
-          {cashView === "net" ? (
-            <>
-              <AreaChart points={areaPoints} xLabels={areaXLabels} partial={areaPartial} seriesName="Net saved" ariaLabel="Net saved per month" />
-              <div style={{ marginTop: 6, fontSize: 12, color: "var(--fl-muted)" }}>
-                Net saved each month (income − spending). Above the line is a surplus; below, a shortfall.
-              </div>
-            </>
-          ) : (
-            <>
-              <LineChart labels={trendLabels} series={trendSeries} ariaLabel="Income, spending and cumulative savings over time" />
-              {wealthOverlay && (
-                <div aria-label="Contributions vs. net worth" style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--fl-line)" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--fl-muted)", marginBottom: 6 }}>
-                    Contributions vs. net worth
-                  </div>
-                  <LineChart
-                    labels={wealthOverlay.labels}
-                    series={[
-                      { name: "Net worth", values: wealthOverlay.netWorth, color: "var(--persona-solid)" },
-                      { name: "Contributions", values: wealthOverlay.contrib, color: "var(--saved)" },
-                    ]}
-                    valueFormat={(n) => formatMoney(n)}
-                    height={120}
-                    ariaLabel="Net worth versus cumulative contributions since your first snapshot"
-                  />
-                  <div style={{ marginTop: 8, fontSize: 12, color: "var(--fl-muted)" }}>
-                    {wealthGap >= 0
-                      ? <><strong style={{ color: "var(--saved)", fontWeight: 700 }}>{formatMoney(wealthGap)}</strong> of returns & appreciation — net worth has outgrown what you set aside.</>
-                      : <><strong style={{ color: "var(--neg-ink)", fontWeight: 700 }}>{formatMoney(-wealthGap)}</strong> below your contributions — market drag since your first snapshot.</>}
-                  </div>
-                </div>
-              )}
-              {/* Overview owns "this month"; deeper multi-month/category trends
-                  live in Analysis. Redirect rather than duplicate that surface. */}
-              <Link to="/analysis" style={{ display: "inline-block", marginTop: 12, fontSize: 12, fontWeight: 600, color: "var(--persona-solid)", textDecoration: "none" }}>
-                Compare months & categories in Analysis →
-              </Link>
-            </>
-          )}
+          <LineChart labels={trendLabels} series={trendSeries} ariaLabel="Income, spending and net saved per month" />
+          {/* Overview shows the all-months trend; deeper month/category
+              comparison lives in Analysis. Redirect rather than duplicate it. */}
+          <Link to="/analysis" style={{ display: "inline-block", marginTop: 12, fontSize: 12, fontWeight: 600, color: "var(--persona-solid)", textDecoration: "none" }}>
+            Compare months & categories in Analysis →
+          </Link>
         </section>
 
         <section className="frosted-card" style={CARD}>
-          <CardHeaderRow>This month</CardHeaderRow>
+          <CardHeaderRow>{monthName}</CardHeaderRow>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "2px 0 6px" }}>
             <span data-testid="net" style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1 }}>
               <Money value={data.net} colored />
@@ -376,6 +300,30 @@ export default function Overview() {
           <StackedBars rows={stackRows} />
         </section>
       </div>
+
+      {/* All-months category trend — mirrors Analysis › Spending by category
+          over time, surfaced here as the default all-months category view. */}
+      <section className="frosted-card" style={CARD}>
+        <CardHeaderRow action={<span style={{ fontSize: 11, fontWeight: 600, color: "var(--fl-muted)" }}>All months</span>}>
+          Spending by category over time
+        </CardHeaderRow>
+        {(() => {
+          if (catTrend == null) return <Loading rows={2} />;
+          const series = catTrend.series.filter((s) => !isHiddenCat(s.name));
+          if (series.length === 0)
+            return <div style={{ fontSize: 12, color: "var(--fl-muted)" }}>No spending history yet.</div>;
+          return (
+            <LineChart
+              labels={catTrend.months}
+              series={series.slice(0, MAX_CAT_LINES).map((s) => ({ name: s.name, values: s.values, total: s.total }))}
+              ariaLabel="Spending by category over time, across all months"
+            />
+          );
+        })()}
+        <Link to="/analysis" style={{ display: "inline-block", marginTop: 12, fontSize: 12, fontWeight: 600, color: "var(--persona-solid)", textDecoration: "none" }}>
+          Compare months & categories in Analysis →
+        </Link>
+      </section>
 
       {/* Row 2: savings rate + who spent what + AI insights */}
       <div className="fl-row-3">
@@ -405,7 +353,9 @@ export default function Overview() {
         </section>
 
         <section className="frosted-card" style={CARD}>
-          <CardHeaderRow>{data.split != null ? "Who spent what" : "Top categories"}</CardHeaderRow>
+          <CardHeaderRow action={<span style={{ fontSize: 11, fontWeight: 600, color: "var(--fl-muted)" }}>{monthName}</span>}>
+            {data.split != null ? "Who spent what" : "Top categories"}
+          </CardHeaderRow>
           {data.split != null
             ? (personaSegments.length > 0
                 ? <DotMatrix segments={personaSegments} />

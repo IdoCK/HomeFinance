@@ -108,6 +108,10 @@ export type Transaction = {
   original_currency: Currency;
   amount_base: number;
   rate_stale: boolean;
+  /** sha256 of the statement this row was imported from; null for legacy rows. */
+  file_hash: string | null;
+  /** Display name of the imported file; null for legacy/untracked rows. */
+  filename: string | null;
 };
 
 export const getTransactions = (p: { personId?: number; display?: Currency }) =>
@@ -363,6 +367,16 @@ export const getVendors = (personId: number) =>
   apiGet<Vendor[]>("/vendors", { person_id: personId });
 export const upsertVendor = (v: { personId: number; name: string; keywords: string }) =>
   apiSend<{ ok: boolean }>("PUT", "/vendors", { person_id: v.personId, name: v.name, keywords: v.keywords });
+/** Fold a dragged merchant key into a vendor group (drill-down drag-to-group). */
+export const groupVendor = (g: { personId: number; target: string; keyword: string }) =>
+  apiSend<{ ok: boolean; name: string; keywords: string[] }>("POST", "/vendors/group", {
+    person_id: g.personId, target: g.target, keyword: g.keyword,
+  });
+/** Remove a merchant key from a vendor group (drill-down remove-a-member). */
+export const ungroupVendor = (g: { personId: number; target: string; keyword: string }) =>
+  apiSend<{ ok: boolean; name: string; keywords: string[] }>("POST", "/vendors/ungroup", {
+    person_id: g.personId, target: g.target, keyword: g.keyword,
+  });
 export const deleteVendor = (id: number) =>
   apiSend<{ ok: boolean }>("DELETE", `/vendors/${id}`);
 

@@ -15,6 +15,10 @@ def list_transactions(person_id: Optional[int] = None, display: str = "USD"):
     """person_id omitted -> all people (Joint). `display` re-expresses each row at
     its own transaction-date rate; the original amount+currency are preserved."""
     rows = db.get_transactions(person_id)
+    # Map each row's file_hash to the imported file's display name, so the UI can
+    # filter by source file. Legacy rows (no file_hash) get filename=None.
+    names = {(im["person_id"], im["file_hash"]): im["filename"]
+             for im in db.list_imports(person_id)}
     for t in rows:
         base = t.get("amount_base")
         base = t.get("amount") if base is None else base
@@ -24,6 +28,7 @@ def list_transactions(person_id: Optional[int] = None, display: str = "USD"):
         t["amount_base"] = base
         t["rate_stale"] = conv is None
         t["amount"] = base if conv is None else conv   # never show a wrong/zero number
+        t["filename"] = names.get((t.get("person_id"), t.get("file_hash")))
     return rows
 
 
