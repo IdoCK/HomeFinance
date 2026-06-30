@@ -22,8 +22,10 @@ router = APIRouter(prefix="/import", tags=["import"])
 
 
 def _category_rules(person_id: int):
+    # Global taxonomy: every category's keyword rules apply to every import,
+    # regardless of which person the file is imported for.
     return [(c["name"], (c["keywords"] or "").split(","))
-            for c in db.get_categories(person_id)]
+            for c in db.get_categories()]
 
 
 @router.get("/untracked-count")
