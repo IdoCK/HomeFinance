@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { getInsightsPreview, generateInsights, type InsightsPreview } from "@/lib/api";
 import { usePersona } from "@/lib/persona";
 
@@ -91,8 +93,8 @@ export default function Insights() {
           <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--fl-muted)", marginBottom: 12 }}>
             Your insights
           </div>
-          <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.6, color: "var(--fl-ink)" }}>
-            {result}
+          <div className="insights-prose">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{result}</ReactMarkdown>
           </div>
           <div style={{ marginTop: 16, fontSize: 12, color: "var(--fl-muted)" }}>
             Generated from anonymized aggregates only.

@@ -46,3 +46,22 @@ test("without the CLI the button is disabled and explains why", async () => {
   await waitFor(() => expect(screen.getByRole("button", { name: /generate insights/i })).toBeDisabled());
   expect(screen.getByText(/install claude code to enable/i)).toBeInTheDocument();
 });
+
+test("renders Markdown insights as formatted elements, not raw tokens", async () => {
+  getInsightsPreview.mockResolvedValue({ payload: "{}", available: true });
+  generateInsights.mockResolvedValue({
+    text: "## Snapshot\n\n**Spending** is up.\n\n| Category | Total |\n|---|---|\n| Rent | 100 |\n",
+  });
+  render(<Insights />);
+  await waitFor(() => expect(screen.getByRole("button", { name: /generate insights/i })).toBeEnabled());
+  await userEvent.click(screen.getByRole("button", { name: /generate insights/i }));
+
+  // Heading becomes a real <h2>, GFM table renders, bold becomes <strong>.
+  await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: /snapshot/i })).toBeInTheDocument());
+  expect(screen.getByRole("table")).toBeInTheDocument();
+  expect(screen.getByRole("columnheader", { name: /category/i })).toBeInTheDocument();
+  expect(screen.getByRole("cell", { name: /rent/i })).toBeInTheDocument();
+  expect(screen.getByText("Spending").tagName).toBe("STRONG");
+  // The raw Markdown syntax must NOT show up as literal text.
+  expect(screen.queryByText(/## Snapshot/)).not.toBeInTheDocument();
+});

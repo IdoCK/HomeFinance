@@ -238,6 +238,53 @@ body {
   box-shadow: 0 10px 30px -22px rgba(22, 24, 29, .35);
 }
 
+/* ---- AI-insights prose: render the coach's Markdown as a considered "note".
+   Grounded in the app's identity — persona-colored section eyebrows, and data
+   tables set as a statement excerpt (hairline rules, right-aligned tabular
+   figures). Boldness is spent on the tables; everything else stays quiet. ---- */
+.insights-prose { color: var(--fl-ink); line-height: 1.62; font-size: 15px; }
+.insights-prose > :first-child { margin-top: 0; }
+.insights-prose > :last-child { margin-bottom: 0; }
+.insights-prose h1, .insights-prose h2 {
+  font-weight: 800; letter-spacing: -0.02em; line-height: 1.2;
+  margin: 22px 0 10px;
+}
+.insights-prose h1 { font-size: 22px; }
+.insights-prose h2 { font-size: 18px; }
+/* Section labels read as eyebrows in the active persona's color — tying the
+   note to whose finances it describes. */
+.insights-prose h3 {
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.07em; color: var(--persona-solid); margin: 20px 0 8px;
+}
+.insights-prose p { margin: 10px 0; }
+.insights-prose strong { font-weight: 700; color: var(--fl-ink); }
+.insights-prose a { color: var(--persona-solid); text-decoration: underline; }
+.insights-prose ul, .insights-prose ol { margin: 8px 0; padding-left: 20px; }
+.insights-prose li { margin: 5px 0; }
+.insights-prose li::marker { color: var(--persona-solid); }
+.insights-prose hr { border: 0; border-top: 1px solid var(--fl-line); margin: 18px 0; }
+.insights-prose code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.88em;
+  background: var(--fl-frame); border-radius: 6px; padding: 1px 6px;
+}
+.insights-prose table {
+  width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px;
+}
+.insights-prose thead th {
+  text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--fl-muted);
+  padding: 0 12px 8px; border-bottom: 1px solid var(--fl-line);
+}
+.insights-prose td { padding: 9px 12px; border-bottom: 1px solid var(--fl-line); }
+.insights-prose tbody tr:last-child td { border-bottom: none; }
+/* First column is the label; every other column is a figure — right-align with
+   tabular numerals so they line up like a statement. */
+.insights-prose th:not(:first-child),
+.insights-prose td:not(:first-child) {
+  text-align: right; font-variant-numeric: tabular-nums;
+}
+
 /* ---- Overview signature rows — collapse to one column on narrow viewports. ---- */
 .fl-row-2, .fl-row-3 { display: grid; gap: 14px; }
 .fl-row-2 { grid-template-columns: 1.7fr 1fr; }
