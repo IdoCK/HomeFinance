@@ -154,6 +154,30 @@ Each format is one `## Identifier` heading followed by a ```json block:
 }
 ```
 
+## Discount Bank of Israel — Visa Credit Card (Cal, Hebrew)
+
+```json
+{
+  "source": "credit_card",
+  "match": {
+    "header_signature": ["כרטיס", "בית עסק", "תאריך עסקה", "סכום החיוב", "תאריך החיוב"],
+    "file_contains": []
+  },
+  "parse": {
+    "date_header": "תאריך עסקה",
+    "desc_header": "בית עסק",
+    "amount_header": "סכום החיוב",
+    "debit_header": null,
+    "credit_header": null,
+    "amount_already_signed": false,
+    "spend_is_negative": false,
+    "date_format": "%d/%m/%Y",
+    "skip_summary_rows": true,
+    "default_currency": "ILS"
+  }
+}
+```
+
 ## Isracard Mastercard — Transaction Detail (Hebrew)
 
 ```json
