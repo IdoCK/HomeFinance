@@ -41,6 +41,52 @@ def test_generate_returns_text(client, people, monkeypatch):
     assert r.json()["text"] == "You saved 24% this month. Great work!"
 
 
+def test_generate_personalizes_labels_with_real_names(client, people, monkeypatch):
+    # Real names never go to the model; the platform swaps the generic labels
+    # back into the model's output before returning it.
+    monkeypatch.setattr(ai_insights.shutil, "which", lambda _name: "/usr/bin/claude")
+
+    class FakeCompleted:
+        returncode = 0
+        stdout = "## Person A — Snapshot\n\nPerson A is on track."
+        stderr = ""
+
+    monkeypatch.setattr(ai_insights.subprocess, "run", lambda *a, **k: FakeCompleted())
+
+    r = client.post("/api/insights/generate", json={"person_id": people[0]["id"]})
+    assert r.status_code == 200
+    text = r.json()["text"]
+    assert people[0]["name"] in text
+    assert "Person A" not in text
+
+
+def test_apply_names_swaps_labels():
+    names = {"Person A": "Ido", "Person B": "Aviv"}
+    assert ai_insights.apply_names("Person A paid Person B.", names) == "Ido paid Aviv."
+    assert ai_insights.apply_names("", names) == ""
+    assert ai_insights.apply_names("untouched", {}) == "untouched"
+
+
+def test_get_insights_decodes_cli_output_as_utf8(monkeypatch):
+    # Guards the Windows mojibake fix: the CLI emits UTF-8, so subprocess must be
+    # told to decode as UTF-8 (not the platform's ANSI codepage).
+    monkeypatch.setattr(ai_insights.shutil, "which", lambda _name: "/usr/bin/claude")
+    captured = {}
+
+    class FakeCompleted:
+        returncode = 0
+        stdout = "ok"
+        stderr = ""
+
+    def fake_run(cmd, *a, **k):
+        captured.update(k)
+        return FakeCompleted()
+
+    monkeypatch.setattr(ai_insights.subprocess, "run", fake_run)
+    ai_insights.get_insights([{"who": "Person A"}])
+    assert captured.get("encoding") == "utf-8"
+
+
 def test_ai_available_reflects_shutil_which(monkeypatch):
     monkeypatch.setattr(ai_insights.shutil, "which", lambda _name: "/usr/bin/claude")
     assert ai_insights.ai_available() is True

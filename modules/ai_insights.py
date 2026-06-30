@@ -117,6 +117,11 @@ def get_insights(summaries):
             [binary, "-p", prompt, "--output-format", "text"],
             capture_output=True,
             text=True,
+            # The CLI emits UTF-8 (em dashes, non-breaking hyphens, emoji,
+            # Hebrew). Without this, Windows decodes stdout with the ANSI
+            # codepage (cp1252) and mangles them (e.g. "‑" -> "â€‘").
+            encoding="utf-8",
+            errors="replace",
             timeout=CLI_TIMEOUT,
         )
     except FileNotFoundError:
@@ -132,6 +137,19 @@ def get_insights(summaries):
         return f"⚠️ Claude Code exited with an error:\n{stderr}"
 
     return result.stdout.strip()
+
+
+def apply_names(text, names):
+    """Re-personalize the model's RETURNED text: swap the generic privacy labels
+    back to the household's real names. Only the labels ("Person A"/"Person B")
+    were ever sent to the model, so this is a local, display-only rename that
+    keeps real names off the wire. Longest labels first so a label isn't
+    half-replaced by a shorter one."""
+    if not text or not names:
+        return text
+    for label in sorted(names, key=len, reverse=True):
+        text = text.replace(label, names[label])
+    return text
 
 
 def preview_payload(summaries):
