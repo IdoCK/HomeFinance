@@ -258,13 +258,20 @@ def _apply_spec(raw_df, spec, source, categorize_fn, category_rules,
             amount_col = lone
             debit_col = credit_col = None
 
-    # If the amount column already carries signs (some values negative), those
-    # signs ARE the direction — money-out negative, money-in positive. Trust the
-    # data over the model's spend_is_negative guess, which qwen gets wrong on
-    # signed columns and would otherwise flip every credit into a debit.
-    amount_already_signed = (
-        amount_col is not None and _column_has_negative(raw_df, amount_col, start)
-    )
+    # Whether the amount column is already signed (negative = money out). A
+    # registry format states this explicitly via `amount_already_signed`; trust
+    # that — otherwise a single refund row (one negative value) in an
+    # unsigned-magnitude column like the Israeli cards' (positive = spend,
+    # negative = money back) would be mistaken for a standard signed column and
+    # flip every spend into income. Only the agent/LLM path leaves it unset, and
+    # there we detect signs from the data (qwen mislabels signed columns).
+    declared_signed = spec.get("amount_already_signed")
+    if declared_signed is None:
+        amount_already_signed = (
+            amount_col is not None and _column_has_negative(raw_df, amount_col, start)
+        )
+    else:
+        amount_already_signed = bool(declared_signed)
 
     rows, skipped = [], 0
     statement_balance = None  # latest-dated running balance, if balance_col is set
