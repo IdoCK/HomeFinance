@@ -292,8 +292,20 @@ def _apply_spec(raw_df, spec, source, categorize_fn, category_rules,
         # --- date
         try:
             raw_date = r[date_col]
-            dt = (pd.to_datetime(raw_date, format=date_fmt) if date_fmt
-                  else pd.to_datetime(raw_date))
+            try:
+                dt = (pd.to_datetime(raw_date, format=date_fmt) if date_fmt
+                      else pd.to_datetime(raw_date))
+            except (ValueError, TypeError):
+                # The model only sees a few sample rows and can guess a wrong
+                # date_format (e.g. '%d-%m' for full ISO timestamps). Fall back
+                # to pandas' format-free parsing before giving up on the row.
+                dt = pd.to_datetime(raw_date)
+            # An empty/unparseable date parses to NaT without raising. A real
+            # transaction always has a date, so treat NaT as a non-data row
+            # (summary totals, footers, section headers) and skip it.
+            if pd.isna(dt):
+                skipped += 1
+                continue
             date = dt.date().isoformat()
         except Exception:
             skipped += 1

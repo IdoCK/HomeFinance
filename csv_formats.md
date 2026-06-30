@@ -105,6 +105,79 @@ Each format is one `## Identifier` heading followed by a ```json block:
 }
 ```
 
+## Discount Bank of Israel — Bank Statement
+
+```json
+{
+  "source": "bank",
+  "match": {
+    "header_signature": ["Date", "Value date", "Description", "Channel"],
+    "file_contains": []
+  },
+  "parse": {
+    "date_header": "Date",
+    "desc_header": "Description",
+    "amount_header": "₪ Credit/Debit",
+    "debit_header": null,
+    "credit_header": null,
+    "balance_header": "₪ NIS Balance",
+    "amount_already_signed": true,
+    "spend_is_negative": true,
+    "date_format": null,
+    "skip_summary_rows": true,
+    "default_currency": "ILS"
+  }
+}
+```
+
+## Discount Bank of Israel — Visa Credit Card (Cal)
+
+```json
+{
+  "source": "credit_card",
+  "match": {
+    "header_signature": ["Business", "Date of transaction", "Amount to be charged", "Date of charge"],
+    "file_contains": []
+  },
+  "parse": {
+    "date_header": "Date of transaction",
+    "desc_header": "Business",
+    "amount_header": "Amount to be charged",
+    "debit_header": null,
+    "credit_header": null,
+    "amount_already_signed": false,
+    "spend_is_negative": false,
+    "date_format": "%d/%m/%Y",
+    "skip_summary_rows": true,
+    "default_currency": "ILS"
+  }
+}
+```
+
+## Isracard Mastercard — Transaction Detail (Hebrew)
+
+```json
+{
+  "source": "credit_card",
+  "match": {
+    "header_signature": ["תאריך רכישה", "שם בית עסק", "סכום חיוב", "מטבע חיוב"],
+    "file_contains": []
+  },
+  "parse": {
+    "date_header": "תאריך רכישה",
+    "desc_header": "שם בית עסק",
+    "amount_header": "סכום חיוב",
+    "debit_header": null,
+    "credit_header": null,
+    "amount_already_signed": false,
+    "spend_is_negative": false,
+    "date_format": "%d.%m.%y",
+    "skip_summary_rows": true,
+    "default_currency": "ILS"
+  }
+}
+```
+
 ## Amazon — Order Items Export
 
 ```json
