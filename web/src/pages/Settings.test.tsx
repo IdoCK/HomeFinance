@@ -8,8 +8,8 @@ const upsertCategory = vi.fn().mockResolvedValue({ ok: true });
 const deleteCategory = vi.fn().mockResolvedValue({ ok: true });
 const upsertVendor = vi.fn().mockResolvedValue({ ok: true });
 const deleteVendor = vi.fn().mockResolvedValue({ ok: true });
-const getCategories = vi.fn().mockResolvedValue([{ id: 10, person_id: 1, name: "Groceries", keywords: "whole foods" }]);
-const getVendors = vi.fn().mockResolvedValue([{ id: 20, person_id: 1, name: "Amazon", keywords: "amazon,amzn" }]);
+const getCategories = vi.fn().mockResolvedValue([{ id: 10, name: "Groceries", keywords: "whole foods" }]);
+const getVendors = vi.fn().mockResolvedValue([{ id: 20, name: "Amazon", keywords: "amazon,amzn" }]);
 const getDisplayRate = vi.fn().mockResolvedValue({ base: "USD", quote: "ILS", rate: 3.7, source: "seed" });
 const setDisplayRate = vi.fn().mockResolvedValue({ ok: true, rate: 3.7 });
 const refreshDisplayRate = vi.fn().mockResolvedValue({ ok: true, rate: 3.7 });
@@ -115,4 +115,28 @@ test("assigning a parent group calls upsertCategory with the parent (keywords pr
   await userEvent.type(parent, "Essentials");
   await userEvent.tab();
   expect(upsertCategory).toHaveBeenCalledWith({ personId: 1, name: "Groceries", keywords: "whole foods", parent: "Essentials" });
+});
+
+test("categories panel renders rows from getCategories as a shared list", async () => {
+  render(<Settings />);
+  await waitFor(() => expect(screen.getByText("Groceries")).toBeInTheDocument());
+  expect(screen.getByLabelText("Keywords for category Groceries")).toBeInTheDocument();
+  // Both Categories and Vendor groups panels show the shared caption
+  expect(screen.getAllByText("Shared across everyone")).toHaveLength(2);
+});
+
+test("editing keywords in the categories panel calls upsertCategory", async () => {
+  render(<Settings />);
+  await waitFor(() => expect(screen.getByText("Groceries")).toBeInTheDocument());
+  const kwInput = screen.getByLabelText("Keywords for category Groceries");
+  await userEvent.clear(kwInput);
+  await userEvent.type(kwInput, "trader joes");
+  await userEvent.tab();
+  expect(upsertCategory).toHaveBeenCalledWith({ personId: 1, name: "Groceries", keywords: "trader joes" });
+});
+
+test("per-person picker is not rendered in the categories/vendor panels", async () => {
+  render(<Settings />);
+  await waitFor(() => expect(screen.getByText("Groceries")).toBeInTheDocument());
+  expect(screen.queryByText(/Editing rules for/i)).toBeNull();
 });

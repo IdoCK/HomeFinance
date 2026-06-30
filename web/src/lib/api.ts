@@ -350,8 +350,8 @@ export const recordAccountSnapshot = (id: number, date: string, balance: number)
 export const populateFromStatements = (id: number, fileHashes: string[]) =>
   apiSend<{ ok: boolean; recorded: number }>("POST", `/networth/accounts/${id}/populate-from-statements`, { file_hashes: fileHashes });
 
-export type Category = { id: number; person_id: number; name: string; keywords: string; parent?: string | null };
-export type Vendor = { id: number; person_id: number; name: string; keywords: string };
+export type Category = { id: number; person_id?: number | null; name: string; keywords: string; parent?: string | null };
+export type Vendor = { id: number; person_id?: number | null; name: string; keywords: string };
 
 export const getCategories = (personId: number) =>
   apiGet<Category[]>("/categories", { person_id: personId });

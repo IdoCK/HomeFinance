@@ -38,6 +38,7 @@ function RuleSection({ kind, items, onSave, onAdd, onRemove, onSaveParent }: {
   return (
     <section className="frosted-card" style={{ padding: 20, display: "grid", gap: 10 }}>
       <h2 style={h2}>{Title}</h2>
+      <p style={{ margin: 0, fontSize: 12, color: "var(--fl-muted)" }}>Shared across everyone</p>
       {items.length === 0 && <div style={{ color: "var(--fl-muted)", fontSize: 13 }}>None yet.</div>}
       {items.map((r) => (
         <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -204,20 +205,6 @@ export default function Settings() {
           />
           <span style={{ fontSize: 13, color: "var(--fl-muted)" }}>% · an estimate, not a guarantee</span>
         </div>
-      </section>
-
-      <section className="frosted-card" style={{ padding: 16, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-        <span style={h2}>Editing rules for</span>
-        {people.map((p) => (
-          <button
-            key={p.id}
-            onClick={() => setSelected(p.id)}
-            aria-pressed={selected === p.id}
-            style={{ ...pill, fontWeight: selected === p.id ? 700 : 500, background: selected === p.id ? "var(--persona)" : "transparent", color: selected === p.id ? "#fff" : "var(--fl-ink)" }}
-          >
-            {p.name}
-          </button>
-        ))}
       </section>
 
       <RuleSection
