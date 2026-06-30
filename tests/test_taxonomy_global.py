@@ -51,7 +51,6 @@ def _old_shape_db(path):
 
 def _reload_db(tmp_path, monkeypatch):
     """Point the db module at a temp DB file and import it fresh."""
-    import importlib
     from modules import database
     db_path = tmp_path / "finance.db"
     monkeypatch.setattr(database, "DB_PATH", db_path)
