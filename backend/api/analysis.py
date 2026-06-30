@@ -110,7 +110,7 @@ def category_trend(
         return {"months": [], "series": []}
 
     if rollup:
-        parents = db.category_parents(person_id) if person_id is not None else {}
+        parents = db.category_parents()
         if parents:
             pivot = pivot.rename(columns=lambda c: (parents.get(c) or "").strip() or c)
             pivot = pivot.T.groupby(level=0).sum().T

@@ -8,12 +8,12 @@ router = APIRouter(prefix="/categories", tags=["categories"])
 
 @router.get("")
 def list_categories(person_id: int):
-    return db.get_categories(person_id)
+    return db.get_categories()
 
 
 @router.put("")
 def upsert_category(body: CategoryUpsert):
-    db.upsert_category(body.person_id, body.name, body.keywords, body.parent)
+    db.upsert_category(body.name, body.keywords, body.parent)
     return {"ok": True}
 
 

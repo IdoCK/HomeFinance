@@ -19,15 +19,14 @@ def test_category_upsert_updates_existing(client, people):
     assert dining[0]["keywords"] == "chipotle,sweetgreen"
 
 
-def test_categories_scoped_to_person(client, people):
-    # init_db seeds a starter taxonomy for every person, so a person is never empty;
-    # scoping means a category added for one person does not appear for the other.
+def test_categories_global_shared_across_people(client, people):
+    # Categories are global/household-wide — adding one makes it visible to everyone.
     you, spouse = people[0]["id"], people[1]["id"]
-    client.put("/api/categories", json={"person_id": you, "name": "MineOnly", "keywords": ""})
+    client.put("/api/categories", json={"person_id": you, "name": "SharedCat", "keywords": ""})
     you_names = {c["name"] for c in client.get("/api/categories", params={"person_id": you}).json()}
     spouse_names = {c["name"] for c in client.get("/api/categories", params={"person_id": spouse}).json()}
-    assert "MineOnly" in you_names
-    assert "MineOnly" not in spouse_names
+    assert "SharedCat" in you_names
+    assert "SharedCat" in spouse_names  # global: visible to both
 
 
 def test_vendors_list_add_delete(client, people):

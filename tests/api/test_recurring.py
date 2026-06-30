@@ -27,7 +27,7 @@ def test_recurring_detects_monthly_subscription(client, people):
 def test_recurring_collapses_via_vendor_rule(client, people):
     from modules import database as db
     you = people[0]["id"]
-    db.upsert_vendor(you, "Amazon", "amazon,amzn")
+    db.upsert_vendor("Amazon", "amazon,amzn")
     today = date.today()
     variants = ["AMAZON.COM", "AMZN MKTP US", "AMAZON.COM", "AMZN MKTP US"]
     rows = [

@@ -44,19 +44,17 @@ def test_household_budget_is_separate_from_person(fresh_db):
 
 
 def test_parent_assignment_roundtrip(fresh_db):
-    pid = fresh_db["Ido"]
-    db.upsert_category(pid, "Groceries", "whole foods", parent="Food")
-    db.upsert_category(pid, "Eating Out", "restaurant", parent="Food")
-    parents = db.category_parents(pid)
+    db.upsert_category("Groceries", "whole foods", parent="Food")
+    db.upsert_category("Eating Out", "restaurant", parent="Food")
+    parents = db.category_parents()
     assert parents["Groceries"] == "Food"
     assert parents["Eating Out"] == "Food"
 
 
 def test_clearing_parent_unsets_it(fresh_db):
-    pid = fresh_db["Ido"]
-    db.upsert_category(pid, "Groceries", "whole foods", parent="Food")
-    db.upsert_category(pid, "Groceries", "whole foods", parent="")   # clear
-    assert db.category_parents(pid)["Groceries"] == ""
+    db.upsert_category("Groceries", "whole foods", parent="Food")
+    db.upsert_category("Groceries", "whole foods", parent="")   # clear
+    assert db.category_parents()["Groceries"] == ""
 
 
 def test_view_budget_union_sums_per_category(fresh_db):

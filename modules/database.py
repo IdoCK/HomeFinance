@@ -62,6 +62,63 @@ _STARTER_VENDORS = [
 ]
 
 
+def _merge_keywords(values):
+    """Union comma-separated keyword rules across rows, dedupe case-insensitively,
+    preserving first-seen order."""
+    seen, out = set(), []
+    for raw in values:
+        for k in (raw or "").split(","):
+            k = k.strip()
+            if k and k.lower() not in seen:
+                seen.add(k.lower())
+                out.append(k)
+    return ",".join(out)
+
+
+def _migrate_taxonomy_to_global(c, table, has_parent):
+    """One-time migration: collapse a per-person taxonomy table (categories or
+    vendors) into a single global table keyed by name. Idempotent — a no-op once
+    the table no longer has a person_id column. Merges keyword rules (union) and,
+    for categories, keeps a non-empty parent (most common; ties broken
+    alphabetically)."""
+    from collections import Counter, defaultdict
+    cols = [r[1] for r in c.execute(f"PRAGMA table_info({table})")]
+    if "person_id" not in cols:
+        return  # already global
+    by_name = defaultdict(list)
+    for r in c.execute(f"SELECT * FROM {table}"):
+        by_name[r["name"]].append(dict(r))
+    merged = []
+    for name, group in by_name.items():
+        keywords = _merge_keywords(g.get("keywords") for g in group)
+        parent = ""
+        if has_parent:
+            nonempty = [(g.get("parent") or "").strip() for g in group]
+            nonempty = [p for p in nonempty if p]
+            if nonempty:
+                counts = Counter(nonempty)
+                parent = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
+        merged.append((name, keywords, parent))
+    c.execute(f"ALTER TABLE {table} RENAME TO {table}_old")
+    if has_parent:
+        c.execute(f"""CREATE TABLE {table} (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            keywords TEXT DEFAULT '',
+            parent TEXT DEFAULT '')""")
+        c.executemany(
+            f"INSERT INTO {table}(name, keywords, parent) VALUES (?,?,?)", merged)
+    else:
+        c.execute(f"""CREATE TABLE {table} (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            keywords TEXT DEFAULT '')""")
+        c.executemany(
+            f"INSERT INTO {table}(name, keywords) VALUES (?,?)",
+            [(n, k) for (n, k, _p) in merged])
+    c.execute(f"DROP TABLE {table}_old")
+
+
 @contextmanager
 def get_conn():
     conn = sqlite3.connect(DB_PATH)
@@ -87,13 +144,9 @@ def init_db():
 
             CREATE TABLE IF NOT EXISTS categories (
                 id        INTEGER PRIMARY KEY AUTOINCREMENT,
-                person_id INTEGER NOT NULL,
-                name      TEXT NOT NULL,
-                -- simple keyword rules: comma-separated substrings matched
-                -- (case-insensitive) against a transaction description
+                name      TEXT UNIQUE NOT NULL,
                 keywords  TEXT DEFAULT '',
-                UNIQUE(person_id, name),
-                FOREIGN KEY(person_id) REFERENCES people(id)
+                parent    TEXT DEFAULT ''
             );
 
             CREATE TABLE IF NOT EXISTS transactions (
@@ -166,11 +219,8 @@ def init_db():
             -- Analysis drill-down. Same keyword-rule shape as categories.
             CREATE TABLE IF NOT EXISTS vendors (
                 id        INTEGER PRIMARY KEY AUTOINCREMENT,
-                person_id INTEGER NOT NULL,
-                name      TEXT NOT NULL,
-                keywords  TEXT DEFAULT '',
-                UNIQUE(person_id, name),
-                FOREIGN KEY(person_id) REFERENCES people(id)
+                name      TEXT UNIQUE NOT NULL,
+                keywords  TEXT DEFAULT ''
             );
 
             -- User-defined events to slice spending by (Analysis filter). person_id
@@ -215,27 +265,24 @@ def init_db():
         for name in ("Ido", "Aviv"):
             c.execute("INSERT OR IGNORE INTO people(name) VALUES (?)", (name,))
 
-        # Seed a starter category taxonomy for any person who has none yet, so
-        # income isn't one undifferentiated bucket and first imports auto-tag.
-        # Only seeds when empty, so it never clobbers the user's edits.
-        for (person_id,) in c.execute("SELECT id FROM people").fetchall():
-            has = c.execute(
-                "SELECT COUNT(*) FROM categories WHERE person_id=?", (person_id,)
-            ).fetchone()[0]
-            if not has:
-                for name, kws in _STARTER_CATEGORIES:
-                    c.execute(
-                        "INSERT OR IGNORE INTO categories(person_id, name, keywords) "
-                        "VALUES (?,?,?)", (person_id, name, kws))
-            # Seed starter vendor groups for a person who has none yet.
-            has_v = c.execute(
-                "SELECT COUNT(*) FROM vendors WHERE person_id=?",
-                (person_id,)).fetchone()[0]
-            if not has_v:
-                for name, kws in _STARTER_VENDORS:
-                    c.execute(
-                        "INSERT OR IGNORE INTO vendors(person_id, name, keywords) "
-                        "VALUES (?,?,?)", (person_id, name, kws))
+        # Ensure a legacy categories table has the `parent` column before we merge it,
+        # so pre-parent DBs don't lose parent data during the global migration.
+        cat_cols = [r[1] for r in c.execute("PRAGMA table_info(categories)")]
+        if "person_id" in cat_cols and "parent" not in cat_cols:
+            c.execute("ALTER TABLE categories ADD COLUMN parent TEXT DEFAULT ''")
+        # Collapse per-person taxonomies into one shared, household-wide set.
+        _migrate_taxonomy_to_global(c, "categories", has_parent=True)
+        _migrate_taxonomy_to_global(c, "vendors", has_parent=False)
+
+        # Seed the shared starter taxonomy once (global, household-wide).
+        if not c.execute("SELECT COUNT(*) FROM categories").fetchone()[0]:
+            for name, kws in _STARTER_CATEGORIES:
+                c.execute("INSERT OR IGNORE INTO categories(name, keywords) VALUES (?,?)",
+                          (name, kws))
+        if not c.execute("SELECT COUNT(*) FROM vendors").fetchone()[0]:
+            for name, kws in _STARTER_VENDORS:
+                c.execute("INSERT OR IGNORE INTO vendors(name, keywords) VALUES (?,?)",
+                          (name, kws))
 
         # Migration: link each transaction to the file it was imported from
         # (added after the first releases, so older DBs lack the column).
@@ -249,10 +296,6 @@ def init_db():
             c.execute(
                 "ALTER TABLE transactions ADD COLUMN included INTEGER NOT NULL DEFAULT 1"
             )
-        # Migration: optional parent (rollup group) for categories.
-        cat_cols = [r[1] for r in c.execute("PRAGMA table_info(categories)")]
-        if "parent" not in cat_cols:
-            c.execute("ALTER TABLE categories ADD COLUMN parent TEXT DEFAULT ''")
         # Migration: per-row running balance (for month-end balance history).
         if "balance" not in cols:
             c.execute("ALTER TABLE transactions ADD COLUMN balance REAL")
@@ -487,34 +530,29 @@ def clear_untracked_transactions(person_id):
 
 # ---- categories -----------------------------------------------------------
 
-def get_categories(person_id):
+def get_categories(person_id=None):
+    """All categories (global/household-wide). `person_id` is accepted but
+    ignored — categories are shared across everyone."""
     with get_conn() as conn:
-        return [
-            dict(r)
-            for r in conn.execute(
-                "SELECT * FROM categories WHERE person_id=? ORDER BY name", (person_id,)
-            )
-        ]
+        return [dict(r) for r in conn.execute(
+            "SELECT * FROM categories ORDER BY name")]
 
 
-def upsert_category(person_id, name, keywords, parent=None):
-    """Insert or update a category. `parent` is an optional rollup group name;
+def upsert_category(name, keywords, parent=None):
+    """Insert or update a global category. `parent` is an optional rollup group;
     pass None to leave an existing category's parent untouched."""
     with get_conn() as conn:
         if parent is None:
             conn.execute(
-                """INSERT INTO categories(person_id, name, keywords) VALUES (?,?,?)
-                   ON CONFLICT(person_id, name) DO UPDATE SET keywords=excluded.keywords""",
-                (person_id, name, keywords),
-            )
+                """INSERT INTO categories(name, keywords) VALUES (?,?)
+                   ON CONFLICT(name) DO UPDATE SET keywords=excluded.keywords""",
+                (name, keywords))
         else:
             conn.execute(
-                """INSERT INTO categories(person_id, name, keywords, parent)
-                   VALUES (?,?,?,?)
-                   ON CONFLICT(person_id, name) DO UPDATE SET
+                """INSERT INTO categories(name, keywords, parent) VALUES (?,?,?)
+                   ON CONFLICT(name) DO UPDATE SET
                        keywords=excluded.keywords, parent=excluded.parent""",
-                (person_id, name, keywords, parent),
-            )
+                (name, keywords, parent))
 
 
 def delete_category(category_id):
@@ -524,32 +562,26 @@ def delete_category(category_id):
 
 # ---- vendor groups (drill-down rollups) -----------------------------------
 
-def get_vendors(person_id):
+def get_vendors(person_id=None):
+    """All vendor groups (global). `person_id` accepted but ignored."""
     with get_conn() as conn:
         return [dict(r) for r in conn.execute(
-            "SELECT * FROM vendors WHERE person_id=? ORDER BY name", (person_id,))]
+            "SELECT * FROM vendors ORDER BY name")]
 
 
-def upsert_vendor(person_id, name, keywords):
+def upsert_vendor(name, keywords):
     with get_conn() as conn:
         conn.execute(
-            """INSERT INTO vendors(person_id, name, keywords) VALUES (?,?,?)
-               ON CONFLICT(person_id, name) DO UPDATE SET keywords=excluded.keywords""",
-            (person_id, name, keywords))
+            """INSERT INTO vendors(name, keywords) VALUES (?,?)
+               ON CONFLICT(name) DO UPDATE SET keywords=excluded.keywords""",
+            (name, keywords))
 
 
-def group_vendor(person_id, target, keyword):
-    """Fold the merchant `keyword` into the vendor group `target` so vendor_of()
-    collapses it from now on (the drill-down drag-to-group action).
-
-    If `target` is already a configured vendor we append the keyword to its rule.
-    If it's an auto merchant key (no rule yet), we seed a new rule with the
-    target's own name first — keyword_from_desc keys are literal substrings of the
-    description, so this keeps the target's existing rows grouped under it too.
-    Returns the merged keyword list."""
+def group_vendor(target, keyword):
+    """Fold the merchant `keyword` into the global vendor group `target`."""
     target = (target or "").strip()
     keyword = (keyword or "").strip()
-    existing = {v["name"]: v for v in get_vendors(person_id)}
+    existing = {v["name"]: v for v in get_vendors()}
     if target in existing:
         kws = [k.strip() for k in (existing[target]["keywords"] or "").split(",") if k.strip()]
     else:
@@ -557,24 +589,22 @@ def group_vendor(person_id, target, keyword):
     lowered = {k.lower() for k in kws}
     if keyword and keyword.lower() not in lowered:
         kws.append(keyword)
-    upsert_vendor(person_id, target, ",".join(kws))
+    upsert_vendor(target, ",".join(kws))
     return kws
 
 
-def ungroup_vendor(person_id, target, keyword):
-    """Pull a merchant `keyword` back out of vendor group `target` (the drill-down
-    remove-a-member action). If the group has no keywords left afterward the rule
-    is deleted entirely, so everything reverts to auto merchant keys. Returns the
-    remaining keyword list."""
+def ungroup_vendor(target, keyword):
+    """Pull a merchant `keyword` out of global vendor group `target`. Deletes the
+    rule when its last keyword is removed."""
     target = (target or "").strip()
     keyword = (keyword or "").strip().lower()
-    existing = {v["name"]: v for v in get_vendors(person_id)}
+    existing = {v["name"]: v for v in get_vendors()}
     if target not in existing:
         return []
     kws = [k.strip() for k in (existing[target]["keywords"] or "").split(",") if k.strip()]
     kws = [k for k in kws if k.lower() != keyword]
     if kws:
-        upsert_vendor(person_id, target, ",".join(kws))
+        upsert_vendor(target, ",".join(kws))
     else:
         delete_vendor(existing[target]["id"])
     return kws
@@ -585,14 +615,11 @@ def delete_vendor(vendor_id):
         conn.execute("DELETE FROM vendors WHERE id=?", (vendor_id,))
 
 
-def category_parents(person_id):
-    """Map of {category_name: parent_name} for a person (parent '' when unset)."""
+def category_parents():
+    """Map of {category_name: parent_name} (global; parent '' when unset)."""
     with get_conn() as conn:
-        return {
-            r["name"]: (r["parent"] or "")
-            for r in conn.execute(
-                "SELECT name, parent FROM categories WHERE person_id=?", (person_id,))
-        }
+        return {r["name"]: (r["parent"] or "")
+                for r in conn.execute("SELECT name, parent FROM categories")}
 
 
 # ---- budgets --------------------------------------------------------------

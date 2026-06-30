@@ -52,8 +52,8 @@ def test_category_trend_series_align_to_months(client, seeded):
 def test_category_trend_rollup_groups_under_parent(client, seeded):
     from modules import database as db
     # Roll Housing + Groceries up under a "Essentials" parent.
-    db.upsert_category(seeded, "Housing", "", "Essentials")
-    db.upsert_category(seeded, "Groceries", "", "Essentials")
+    db.upsert_category("Housing", "", "Essentials")
+    db.upsert_category("Groceries", "", "Essentials")
     d = client.get("/api/analysis/category-trend",
                    params={"person_id": seeded, "rollup": "true"}).json()
     names = [s["name"] for s in d["series"]]
