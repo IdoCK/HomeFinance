@@ -1,0 +1,13 @@
+streamlit>=1.30
+pandas>=2.0
+openpyxl>=3.1
+anthropic>=0.40
+altair>=5.0
+pytest>=8.0
+fastapi
+uvicorn[standard]
+python-multipart
+httpx
+
+# Build-only: packaging the standalone .exe (python build.py). Not needed at runtime.
+pyinstaller>=6.0

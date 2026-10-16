@@ -1,0 +1,27 @@
+data/*.db
+data/*.bak*
+data/*.db.bak-*
+venv/
+__pycache__/
+.env
+.claude/*
+!.claude/agents/
+.planning/
+.superpowers/
+node_modules/
+web/node_modules/
+web/dist/
+
+# PyInstaller build artifacts (python build.py)
+build/
+dist/
+*.spec.bak
+
+# Local credentials, financial imports, and SQLite sidecars
+.env.*
+!.env.example
+.streamlit/secrets.toml
+data/*
+!data/.gitkeep
+.venv/
+.pytest_cache/

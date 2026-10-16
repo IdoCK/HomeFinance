@@ -1,0 +1,316 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ---- Frosted Ledger brand tokens (spec §3). Defined FIRST so the shadcn
+   bridge and @theme below can resolve them at build time (Tailwind's @theme
+   inline resolver does a forward pass — referencing a var declared later
+   yields "Invalid custom property, expected a value"). Light mode. ---- */
+:root {
+  /* surfaces */
+  --fl-canvas: #E5E6EA;
+  --fl-frame:  #F6F7F9;
+  --fl-card:   #FFFFFF;
+  --fl-line:   #ECEDF0;
+  --fl-ink:    #16181D;
+  /* Light-mode muted text. Darkened from #8A8F98 (which only hit ~2.6:1 on the
+     canvas, illegible for header subtitles) to clear ~3:1 on every surface while
+     staying clearly secondary. The .dark override below keeps the original. */
+  --fl-muted:  #6B7280;
+
+  /* persona inks */
+  --persona-you:        #3B82F6;
+  --persona-you-deep:   #2563EB;
+  --persona-spouse:     #EC4899;
+  /* Joint = blue→pink gradient */
+  --persona-joint: linear-gradient(90deg, var(--persona-you), var(--persona-spouse));
+
+  /* money semantics — `--pos`/`--neg` stay vibrant for chart fills; the `-ink`
+     companions are darkened so the same green/red is legible as TEXT on white
+     (#22C55E hits only 2.3:1 on white; #15803D clears AA at ~5:1). Use the ink
+     vars wherever the sign color is applied to type, the plain vars for fills. */
+  --pos: #22C55E; /* income / positive (fills) */
+  --neg: #EF4444; /* over-budget / negative (fills) */
+  --pos-ink: #15803D; /* positive as text — AA on white */
+  --neg-ink: #DC2626; /* negative as text — AA on white */
+  --saved: #A855F7; /* tertiary / "saved" series */
+
+  /* AI Insights showpiece gradient (used only on that one card) */
+  --showpiece: linear-gradient(120deg, #FDBA74, #F472B6, #A855F7, #3B82F6);
+
+  /* Active persona accent — swapped at runtime by the persona context.
+     --persona may be a GRADIENT (Joint), so it can only be used as a fill
+     (background). For anything needing a real color value (text, border,
+     SVG stroke/fill) use --persona-solid, a solid companion that tracks the
+     active persona. Both default to "you" (blue) here; persona.tsx overrides
+     them per persona — you→blue, spouse→pink, joint→gradient/violet. */
+  --persona: var(--persona-you);
+  --persona-solid: var(--persona-you);
+  /* Solid stand-in for the Joint gradient (mid blue→pink). */
+  --persona-joint-solid: #7C6FF0;
+
+  --radius-card: 18px;
+}
+
+/* ---- After-dark token set (spec §13). Brand surfaces flip; persona inks,
+   money semantics, showpiece and --persona inherit from :root. ---- */
+.dark {
+  --fl-canvas: #0B0C0F;
+  --fl-frame:  #16181D;
+  --fl-card:   #1C1F26;
+  --fl-line:   #2A2E37;
+  --fl-ink:    #F6F7F9;
+  --fl-muted:  #8A8F98;
+}
+
+/* ---- shadcn base, BRIDGED onto the brand tokens (--fl-*). One palette, not
+   two: shadcn primitives (Card, Button, Table, Badge) render in brand colors
+   automatically. .dark below only carries shadcn-specific tokens, since the
+   bridged vars point at --fl-*/--persona-solid/--neg which flip above. ---- */
+:root {
+  --background: var(--fl-frame);
+  --foreground: var(--fl-ink);
+  --card: var(--fl-card);
+  --card-foreground: var(--fl-ink);
+  --popover: var(--fl-card);
+  --popover-foreground: var(--fl-ink);
+  --primary: var(--persona-solid);
+  --primary-foreground: #fff;
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: var(--fl-muted);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: var(--neg);
+  --border: var(--fl-line);
+  --input: var(--fl-line);
+  --ring: var(--persona-solid);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+body {
+  margin: 0;
+}
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  /* ---- Frosted Ledger brand utilities (text-persona, bg-pos, border-fl-line, …) ---- */
+  --color-persona: var(--persona);
+  --color-persona-solid: var(--persona-solid);
+  --color-pos: var(--pos);
+  --color-neg: var(--neg);
+  --color-saved: var(--saved);
+  --color-fl-canvas: var(--fl-canvas);
+  --color-fl-frame: var(--fl-frame);
+  --color-fl-card: var(--fl-card);
+  --color-fl-line: var(--fl-line);
+  --color-fl-ink: var(--fl-ink);
+  --color-fl-muted: var(--fl-muted);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+body {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums; /* ledger-aligned figures */
+}
+
+/* ---- Integrated scrollbars. Targets the app's supported engines (WebKit:
+   Chrome, Edge, Safari) so the bars feel part of the frosted surface rather
+   than an OS overlay. The thumb is a translucent tint of --fl-ink, so it stays
+   subtle on every surface AND flips automatically in dark mode (ink inverts).
+   Track stays transparent; the thumb is inset via a transparent border +
+   padding-box clip so it reads slimmer than the gutter and rounds to a pill to
+   match the frosted aesthetic. `scrollbar-color` is the standards fallback. ---- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--fl-ink) 22%, transparent) transparent;
+}
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--fl-ink) 22%, transparent);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--fl-ink) 40%, transparent);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:active {
+  background: color-mix(in srgb, var(--fl-ink) 52%, transparent);
+  background-clip: padding-box;
+}
+
+.frosted-canvas { background: var(--fl-canvas); }
+.frosted-card {
+  background: var(--fl-card);
+  border: 1px solid var(--fl-line);
+  border-radius: var(--radius-card);
+  box-shadow: 0 10px 30px -22px rgba(22, 24, 29, .35);
+}
+
+/* ---- AI-insights prose: render the coach's Markdown as a considered "note".
+   Grounded in the app's identity — persona-colored section eyebrows, and data
+   tables set as a statement excerpt (hairline rules, right-aligned tabular
+   figures). Boldness is spent on the tables; everything else stays quiet. ---- */
+.insights-prose { color: var(--fl-ink); line-height: 1.62; font-size: 15px; }
+.insights-prose > :first-child { margin-top: 0; }
+.insights-prose > :last-child { margin-bottom: 0; }
+.insights-prose h1, .insights-prose h2 {
+  font-weight: 800; letter-spacing: -0.02em; line-height: 1.2;
+  margin: 22px 0 10px;
+}
+.insights-prose h1 { font-size: 22px; }
+.insights-prose h2 { font-size: 18px; }
+/* Section labels read as eyebrows in the active persona's color — tying the
+   note to whose finances it describes. */
+.insights-prose h3 {
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.07em; color: var(--persona-solid); margin: 20px 0 8px;
+}
+.insights-prose p { margin: 10px 0; }
+.insights-prose strong { font-weight: 700; color: var(--fl-ink); }
+.insights-prose a { color: var(--persona-solid); text-decoration: underline; }
+.insights-prose ul, .insights-prose ol { margin: 8px 0; padding-left: 20px; }
+.insights-prose li { margin: 5px 0; }
+.insights-prose li::marker { color: var(--persona-solid); }
+.insights-prose hr { border: 0; border-top: 1px solid var(--fl-line); margin: 18px 0; }
+.insights-prose code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.88em;
+  background: var(--fl-frame); border-radius: 6px; padding: 1px 6px;
+}
+.insights-prose table {
+  width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px;
+}
+.insights-prose thead th {
+  text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--fl-muted);
+  padding: 0 12px 8px; border-bottom: 1px solid var(--fl-line);
+}
+.insights-prose td { padding: 9px 12px; border-bottom: 1px solid var(--fl-line); }
+.insights-prose tbody tr:last-child td { border-bottom: none; }
+/* First column is the label; every other column is a figure — right-align with
+   tabular numerals so they line up like a statement. */
+.insights-prose th:not(:first-child),
+.insights-prose td:not(:first-child) {
+  text-align: right; font-variant-numeric: tabular-nums;
+}
+
+/* ---- Overview signature rows — collapse to one column on narrow viewports. ---- */
+.fl-row-2, .fl-row-3 { display: grid; gap: 14px; }
+.fl-row-2 { grid-template-columns: 1.7fr 1fr; }
+.fl-row-3 { grid-template-columns: 1fr 1fr 1.15fr; }
+@media (max-width: 760px) {
+  .fl-row-2, .fl-row-3 { grid-template-columns: 1fr; }
+}
+
+/* ---- Keyboard focus ring in the active persona color (a11y). ---- */
+:where(button, a, input, select, textarea, [role="tab"], [tabindex]):focus-visible {
+  outline: 2px solid var(--persona-solid);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ---- Page-enter transition (route change). Neutralized by reduced-motion below. ---- */
+@keyframes fl-fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.fl-page { animation: fl-fade-up 0.24s ease both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

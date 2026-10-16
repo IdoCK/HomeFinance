@@ -1,0 +1,147 @@
+import { expect, test } from "vitest";
+import { allocateDots, axisTicks, barPct, categoryColor, divergingWidths, layout, layoutShared, scale, splitPartialPath, toPath } from "./_svg";
+
+test("scale maps value within range onto pixel size", () => {
+  expect(scale(0, 0, 10, 100)).toBe(0);
+  expect(scale(10, 0, 10, 100)).toBe(100);
+  expect(scale(5, 0, 10, 100)).toBe(50);
+  // degenerate range → midpoint
+  expect(scale(5, 5, 5, 100)).toBe(50);
+});
+
+test("layout spaces points evenly and inverts y for SVG", () => {
+  const pts = layout([0, 10], 600, 100, 0);
+  expect(pts).toHaveLength(2);
+  expect(pts[0].x).toBe(0);
+  expect(pts[1].x).toBe(600);
+  // higher value sits higher on screen → smaller y
+  expect(pts[1].y).toBeLessThan(pts[0].y);
+});
+
+test("toPath emits a move then line segments", () => {
+  expect(toPath([{ x: 0, y: 0 }, { x: 10, y: 20 }])).toBe("M 0 0 L 10 20");
+  expect(toPath([])).toBe("");
+});
+
+test("toPath smooth emits cubic beziers for 3+ points", () => {
+  const d = toPath([{ x: 0, y: 0 }, { x: 10, y: 10 }, { x: 20, y: 0 }], true);
+  expect(d.startsWith("M 0 0")).toBe(true);
+  expect(d).toContain("C ");
+});
+
+test("layoutShared puts all series on one domain so equal values share a y", () => {
+  const [a, b] = layoutShared([[0, 10], [0, 5]], 600, 100, 0);
+  // x positions line up across series
+  expect(a[0].x).toBe(b[0].x);
+  expect(a[1].x).toBe(b[1].x);
+  // the global max (10) sits at the top (y≈0); 5 is halfway down
+  expect(a[1].y).toBeCloseTo(0, 1);
+  expect(b[1].y).toBeCloseTo(50, 1);
+  // a value of 0 sits at the bottom in both
+  expect(a[0].y).toBe(b[0].y);
+});
+
+test("layoutShared handles empty input", () => {
+  expect(layoutShared([], 600, 100)).toEqual([]);
+});
+
+test("categoryColor cycles through the palette and excludes persona hues", () => {
+  expect(categoryColor(0)).toBe("#A855F7"); // violet, not the persona blue
+  expect(categoryColor(1)).not.toBe(categoryColor(0)); // adjacent series differ
+  expect(categoryColor(6)).toBe(categoryColor(0)); // wraps at 6 (persona blue+pink dropped)
+  // The generic ramp must never collide with the two-person persona signal.
+  for (let i = 0; i < 12; i++) {
+    expect(["#3B82F6", "#EC4899"]).not.toContain(categoryColor(i));
+  }
+});
+
+test("allocateDots apportions proportionally and sums to total", () => {
+  const out = allocateDots([58, 42], 21);
+  expect(out.reduce((a, b) => a + b, 0)).toBe(21);
+  expect(out[0]).toBeGreaterThan(out[1]); // 58% gets more dots than 42%
+});
+
+test("allocateDots handles all-zero / negative input without NaN", () => {
+  expect(allocateDots([0, 0], 21)).toEqual([0, 0]);
+  expect(allocateDots([-5, 0], 10)).toEqual([0, 0]);
+});
+
+test("barPct scales magnitude against a shared max and clamps", () => {
+  expect(barPct(50, 100)).toBe(50);
+  expect(barPct(-50, 100)).toBe(50); // magnitude
+  expect(barPct(200, 100)).toBe(100); // clamped
+  expect(barPct(5, 0)).toBe(0); // degenerate max
+});
+
+test("divergingWidths grows the correct half around the center axis", () => {
+  expect(divergingWidths(40, 100)).toEqual({ left: 0, right: 40 });
+  expect(divergingWidths(-40, 100)).toEqual({ left: 40, right: 0 });
+  expect(divergingWidths(0, 100)).toEqual({ left: 0, right: 0 });
+});
+
+// axisTicks tests
+test("axisTicks includes min, max and zero when within domain", () => {
+  const ticks = axisTicks(-100, 200);
+  expect(ticks).toContain(-100);
+  expect(ticks).toContain(200);
+  expect(ticks).toContain(0);
+});
+
+test("axisTicks all-positive domain still includes 0 as min", () => {
+  const ticks = axisTicks(0, 500);
+  expect(ticks).toContain(0);
+  expect(ticks).toContain(500);
+});
+
+test("axisTicks degenerate domain (min === max) returns single element", () => {
+  const ticks = axisTicks(42, 42);
+  expect(ticks).toContain(42);
+  expect(ticks.length).toBeGreaterThan(0);
+});
+
+test("axisTicks returns sorted ascending values", () => {
+  const ticks = axisTicks(-50, 150);
+  for (let i = 1; i < ticks.length; i++) {
+    expect(ticks[i]).toBeGreaterThan(ticks[i - 1]);
+  }
+});
+
+test("axisTicks all-negative domain returns sorted values including 0 as max boundary", () => {
+  const ticks = axisTicks(-300, 0);
+  // 0 is the max and should be included; -300 is the min; no duplicates
+  expect(ticks).toContain(-300);
+  expect(ticks).toContain(0);
+  // Sorted ascending, no duplicates
+  expect(ticks).toEqual([-300, 0]);
+});
+
+// splitPartialPath tests
+test("splitPartialPath returns all-solid when no partial flags given", () => {
+  const pts = [{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 2 }];
+  const { solid, partial } = splitPartialPath(pts);
+  expect(solid).toEqual(pts);
+  expect(partial).toEqual([]);
+});
+
+test("splitPartialPath splits at the first partial point, overlapping one to connect", () => {
+  const pts = [{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 2 }];
+  const { solid, partial } = splitPartialPath(pts, [false, false, true]);
+  // solid runs up to the last complete point …
+  expect(solid).toEqual([{ x: 0, y: 0 }, { x: 1, y: 1 }]);
+  // … and the partial suffix starts one point earlier so the dashed segment connects
+  expect(partial).toEqual([{ x: 1, y: 1 }, { x: 2, y: 2 }]);
+});
+
+test("splitPartialPath all-partial returns an empty solid prefix", () => {
+  const pts = [{ x: 0, y: 0 }, { x: 1, y: 1 }];
+  const { solid, partial } = splitPartialPath(pts, [true, true]);
+  expect(solid).toEqual([]);
+  expect(partial).toEqual(pts);
+});
+
+test("splitPartialPath with no partial=true flags is all-solid", () => {
+  const pts = [{ x: 0, y: 0 }, { x: 1, y: 1 }];
+  const { solid, partial } = splitPartialPath(pts, [false, false]);
+  expect(solid).toEqual(pts);
+  expect(partial).toEqual([]);
+});
